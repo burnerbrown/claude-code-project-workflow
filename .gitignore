@@ -1,0 +1,6 @@
+# Trusted artifacts are user-specific (created by setup script)
+.trusted-artifacts/
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,247 @@
+# Standard Workflows
+
+This file defines all agent workflow sequences, the Quality Gate pattern, and parallel execution rules.
+
+**Parent file:** `agent-orchestration.md`
+
+**When to read this file:**
+- During Step 5 (planning) — to assign the correct workflow to each task
+- During Step 5.5 (task detailing) — to define the agent sequence for each task
+- During Step 6 (implementation) — to execute the correct workflow for the current task
+
+**When you do NOT need this file:**
+- During Steps 1-4 (concept, discovery, specification, architecture) — workflows aren't executed yet
+- When doing a single obvious agent task where the sequence doesn't need lookup
+- When the task's Step 5.5 completion marker already contains the full agent sequence
+
+---
+
+## How Workflows Work: The Quality Gate Pattern
+
+In every workflow below, **the Quality Gate (QG) sits between every agent handoff**. No agent's output goes directly to the next agent. The flow is always:
+
+```
+Worker Agent → QG evaluates against acceptance criteria → Orchestrator routes next step
+                                                         APPROVED → next Worker Agent
+                                                         SENT BACK → same Worker Agent re-does work with QG feedback
+```
+
+The **orchestrator (Claude)** manages the overall flow:
+1. Orchestrator invokes a worker agent
+2. Orchestrator sends the worker agent's output to the **Quality Gate** for evaluation
+3. If QG approved: orchestrator proceeds to the next agent in the checklist sequence
+4. If QG sent back: orchestrator **resumes** the worker agent (using its saved agent ID) with the QG's specific feedback
+5. Repeat until QG approves
+6. After the final QG approval (documentation-writer), the orchestrator commits and the task is complete
+7. Orchestrator updates GitHub with the changes
+
+**Diagram shorthand:** In the workflow diagrams below, `→ QG →` means: orchestrator sends output to Quality Gate for evaluation, then the orchestrator routes based on the verdict. The checklist defines the agent sequence, so routing is usually obvious.
+
+**The Documentation Writer is the final worker agent in every workflow** (except Documentation Sprint, where it's the primary agent). After all code is complete, reviewed, and compliant, the Documentation Writer recommends additions, modifications, or changes for GitHub (README.md, etc.). Its output goes through the QG gate like all other agents.
+
+**File placement**: Every agent's output must be placed in the correct repo folder as defined by the Step 4 project structure. The orchestrator verifies correct file placement before committing. If a task requires a folder that doesn't exist yet, create it before committing.
+
+### When to Invoke the Project Manager Agent
+
+The PM agent is **optional** — the orchestrator handles routing by default using the checklist's agent sequence. Only invoke the PM agent in these situations:
+
+| Situation | Why the PM is needed |
+|-----------|---------------------|
+| **Multi-module project with parallel workstreams** | PM tracks cross-module dependencies, blockers, and shared interfaces |
+| **Complex send-back with ambiguous routing** | QG sent work back but it's unclear which agent should fix it (e.g., fix touches both code and tests) |
+| **Agent conflict** | Two agents disagree and a routing decision requires judgment beyond the checklist |
+| **User requests a progress report** | PM produces a formal progress summary from `PROJECT_STATUS.md` and `IMPLEMENTATION-CHECKLIST.md` |
+
+For simple, single-module projects where the checklist defines the full agent sequence: **skip the PM entirely.** The orchestrator reads the QG verdict, routes to the next agent in the checklist, commits approved work, and updates the checklist. This is sufficient.
+
+---
+
+## Full Feature Development (New System or Major Component)
+
+**Note**: The Software Architect and Supply Chain Security agents are invoked during **Step 4 (Architecture)**, not during Step 6 task execution. By the time Step 6 begins, the architecture is finalized and all dependencies have CLEAN SCS verdicts. The workflow below covers only the per-task implementation agents used in Step 6.
+
+```
+Programmer → QG → Test Engineer → QG → Security Review + Code Review (parallel) → QG → Compliance Reviewer → QG → Documentation Writer → QG
+```
+
+1. **Senior Programmer**: Implement the code based on the Step 4 architecture (using only approved dependencies)
+2. **QG**: Evaluate programmer output against criteria P1-P10
+3. **Test Engineer**: Write comprehensive tests including security test cases
+4. **QG**: Evaluate test engineer output against criteria T1-T10
+5. **Security Reviewer + Code Reviewer**: Run in parallel to review the final code
+6. **QG**: Evaluate both reviews — security against SR1-SR8, code review against CR1-CR7
+7. **Compliance Reviewer**: Assess against NIST/CISA/OWASP standards, produce compliance report
+8. **QG**: Evaluate compliance output against criteria CO1-CO8
+9. **Documentation Writer**: Recommend GitHub documentation additions/changes based on the completed, verified code
+10. **QG**: Evaluate documentation output against criteria D1-D8
+
+## New API Endpoint
+```
+API Designer → QG → Programmer → QG → Test Engineer → QG → Security Review + Code Review (parallel) → QG → Compliance Reviewer → QG → Documentation Writer → QG
+```
+
+1. **API Designer**: Design the API spec
+2. **QG**: Evaluate against criteria AD1-AD7
+3. **Senior Programmer**: Implement the API
+4. **QG**: Evaluate against criteria P1-P10
+5. **Test Engineer**: Write tests
+6. **QG**: Evaluate against criteria T1-T10
+7. **Security Reviewer + Code Reviewer**: Run in parallel — Security Reviewer checks for API security issues; Code Reviewer checks code quality and maintainability
+8. **QG**: Evaluate both reviews — security against SR1-SR8, code review against CR1-CR7
+9. **Compliance Reviewer**: Final compliance check
+10. **QG**: Evaluate against criteria CO1-CO8
+11. **Documentation Writer**: Recommend API docs, README updates, etc.
+12. **QG**: Evaluate against criteria D1-D8
+
+## Database Work
+```
+Database Specialist → QG → Programmer (for ORM/query code) → QG → Test Engineer → QG → Security Review + Code Review (parallel) → QG → Compliance Reviewer → QG → Documentation Writer → QG
+```
+
+1. **Database Specialist**: Design schema, migrations, queries
+2. **QG**: Evaluate against criteria DB1-DB7
+3. **Senior Programmer**: Implement ORM/query code
+4. **QG**: Evaluate against criteria P1-P10
+5. **Test Engineer**: Write tests for database operations
+6. **QG**: Evaluate against criteria T1-T10
+7. **Security Reviewer + Code Reviewer**: Run in parallel — Security Reviewer checks for injection, encryption, access control issues; Code Reviewer checks code quality and query patterns
+8. **QG**: Evaluate both reviews — security against SR1-SR8, code review against CR1-CR7
+9. **Compliance Reviewer**: Assess data protection controls (encryption at rest, access control, data classification) against NIST/CISA standards
+10. **QG**: Evaluate against criteria CO1-CO8
+11. **Documentation Writer**: Recommend schema docs, migration guides, etc.
+12. **QG**: Evaluate against criteria D1-D8
+
+## Embedded/RTOS Feature
+
+**Note**: The Embedded Specialist's architecture design and any SCS dependency scanning are handled in **Step 4**. The workflow below covers Step 6 per-task implementation.
+
+```
+Embedded Specialist (implement) → QG → Test Engineer → QG → Security Review + Code Review (parallel) → QG → Compliance Reviewer → QG → Documentation Writer → QG
+```
+Note: The Embedded Specialist handles both design and implementation for firmware work, since the hardware constraints tightly couple architecture and code. The design phase happens in Step 4; the implementation phase happens here in Step 6.
+
+1. **Embedded Systems Specialist**: Implement the firmware based on Step 4 architecture
+2. **QG**: Evaluate implementation against criteria ES1-ES7
+3. **Test Engineer**: Write tests (simulation + hardware test plan)
+4. **QG**: Evaluate against criteria T1-T10
+5. **Security Reviewer + Code Reviewer**: Run in parallel — Security Reviewer checks firmware security; Code Reviewer checks code quality, memory safety patterns, and hardware abstraction layer consistency
+6. **QG**: Evaluate both reviews — security against SR1-SR8, code review against CR1-CR7
+7. **Compliance Reviewer**: Assess compliance
+8. **QG**: Evaluate against criteria CO1-CO8
+9. **Documentation Writer**: Recommend hardware docs, firmware guides, pin mappings, etc.
+10. **QG**: Evaluate against criteria D1-D8
+
+## Bug Fix
+```
+Programmer (diagnose + fix) → QG → Test Engineer (regression test) → QG → [Security Review + Code Review (parallel) → QG (if significant fix)] → Documentation Writer → QG
+```
+
+1. **Senior Programmer**: Diagnose root cause, implement the fix, explain what went wrong and why
+2. **QG**: Evaluate against criteria P1-P10
+3. **Test Engineer**: Write a regression test that fails without the fix and passes with it
+4. **QG**: Evaluate against criteria T1-T10
+5. **Security Reviewer + Code Reviewer** (if significant fix — security-relevant changes, large refactors, or changes touching multiple modules): Run in parallel to review the fix
+6. **QG**: Evaluate both reviews — security against SR1-SR8, code review against CR1-CR7
+7. **Documentation Writer**: Recommend any documentation updates (changelog, known issues, etc.)
+8. **QG**: Evaluate against criteria D1-D8
+
+## Refactoring
+```
+Programmer (refactor) → QG → Test Engineer (verify + add tests) → QG → Code Review → QG → Documentation Writer → QG
+```
+
+1. **Senior Programmer**: Refactor the code, ensuring all existing tests still pass
+2. **QG**: Evaluate against criteria P1-P10
+3. **Test Engineer**: Verify test coverage, add tests for any untested behavior discovered during refactoring
+4. **QG**: Evaluate against criteria T1-T10
+5. **Code Reviewer**: Verify the refactoring maintains existing behavior and improves quality
+6. **QG**: Evaluate against criteria CR1-CR7
+7. **Documentation Writer**: Recommend any documentation updates reflecting the refactored structure
+8. **QG**: Evaluate against criteria D1-D8
+
+Note: Architecture review is NOT typically needed for refactoring unless the refactoring changes component boundaries or interfaces.
+
+## DevOps / Infrastructure
+```
+DevOps Engineer → QG → Security Review + Code Review (parallel) → QG → Documentation Writer → QG
+```
+
+1. **DevOps Engineer**: Create Dockerfiles, CI/CD pipelines, build scripts, or deployment configs
+2. **QG**: Evaluate against criteria DO1-DO6
+3. **Security Reviewer + Code Reviewer**: Run in parallel — Security Reviewer checks for hardcoded secrets, supply chain scanning gaps, privilege escalation, non-root enforcement; Code Reviewer checks maintainability, inline documentation, configuration best practices
+4. **QG**: Evaluate both reviews — security against SR1-SR8, code review against CR1-CR7
+5. **Documentation Writer**: Recommend usage docs, troubleshooting guides, deployment runbooks
+6. **QG**: Evaluate against criteria D1-D8
+
+## Performance Investigation
+```
+Performance Optimizer (analyze) → QG → Programmer (implement) → QG → Test Engineer (regression) → QG → Security Review + Code Review (parallel) → QG → Performance Optimizer (verify) → QG → Documentation Writer → QG
+```
+
+1. **Performance Optimizer**: Analyze and identify bottlenecks
+2. **QG**: Evaluate against criteria PO1-PO6
+3. **Senior Programmer**: Implement the recommended optimizations
+4. **QG**: Evaluate against criteria P1-P10
+5. **Test Engineer**: Verify existing tests still pass (regression check) and add tests for optimized code paths
+6. **QG**: Evaluate against criteria T1-T10
+7. **Security Reviewer + Code Reviewer**: Run in parallel — Security Reviewer checks for security regressions from optimizations (weakened crypto, disabled bounds checks, reduced logging); Code Reviewer checks code quality
+8. **QG**: Evaluate both reviews — security against SR1-SR8, code review against CR1-CR7
+9. **Performance Optimizer**: Verify improvements with benchmarks (resume from step 1 to compare against original analysis)
+10. **QG**: Evaluate against criteria PO1-PO6
+11. **Documentation Writer**: Recommend performance documentation updates (benchmarks, configuration tuning guides, etc.)
+12. **QG**: Evaluate against criteria D1-D8
+
+## Documentation Sprint
+```
+Software Architect (provide context) → QG → Documentation Writer → QG
+```
+
+1. **Software Architect**: Provide architectural context for documentation
+2. **QG**: Evaluate against criteria A1-A11 (subset relevant to documentation context)
+3. **Documentation Writer**: Write the documentation
+4. **QG**: Evaluate against criteria D1-D8
+
+## Dependency Addition (During Step 5, 5.5, or 6)
+
+All dependencies should be identified and scanned in **Step 4**. This workflow is for the case where a new dependency is discovered after Step 4 that was not anticipated during architecture. This scans only the new dependency — it does NOT require redoing any prior steps.
+
+```
+New dependency identified
+    ↓
+Check .trusted-artifacts/_registry.md for exact name + version
+    ↓
+CACHE HIT (hash verified) → dependency pre-approved → Update SBOM & Step 4 handoff → Resume where you left off
+    ↓ (only if NOT in cache)
+Pause current work → User approves → Supply Chain Security (full 5-phase scan) → QG → CLEAN verdict → Update SBOM, scs-report.md & Step 4 handoff → Resume where you left off
+```
+
+1. **Any Agent or Orchestrator**: Identifies need for a dependency not in the Step 4 SBOM
+2. **Orchestrator**: Check `.trusted-artifacts/_registry.md` — if the exact name + version is present and the hash verifies against the cached artifact on disk, the dependency is pre-approved. Skip to step 6 (CLEAN path). No user approval needed for cached artifacts.
+3. **Orchestrator** (if NOT in cache): Pause current work on tasks that would use this dependency
+4. **User** (if NOT in cache): Explicitly approves the dependency request
+5. **Supply Chain Security** (if NOT in cache): Full 5-phase scan on the new dependency only (Phase 0 will confirm it's not in cache, then run Phases 1–5)
+6. **QG**: Evaluate against criteria SC1-SC7.
+7. If CLEAN: dependency approved; artifact moved to `.trusted-artifacts/`; registry updated; append scan results to `scs-report.md`; update the SBOM and Step 4 handoff; resume where you left off
+8. If INCOMPLETE: Pause work that depends on this dependency per the Pause Rule (other unrelated work can continue)
+9. If REJECT: Find an alternative and re-scan, or refactor to avoid the dependency. Only escalate to redo prior steps if the rejection forces an architectural change with no alternatives
+
+---
+
+## Parallel Execution Rules
+
+The following agents can run **in parallel** when they don't depend on each other's output:
+- **Security Reviewer + Code Reviewer**: Both review the same code independently. The QG evaluates both reviews after they complete (can evaluate in parallel or sequentially).
+- **Multiple Programmers**: Different components with no shared interfaces can be implemented in parallel. Each programmer's output goes through the QG gate independently.
+
+The following must run **sequentially**:
+- Programmer → QG → Test Engineer (tests need QG-approved code)
+- Any agent → QG → Performance Optimizer (needs QG-approved runnable code to analyze)
+- All agents → QG → Compliance Reviewer (compliance review needs all prior QG-approved outputs)
+- Compliance Reviewer → QG → Documentation Writer (documentation needs the completed, verified code)
+- Documentation Writer → QG (final QG evaluation before commit)
+
+Note: The Architect → Programmer and SCS → Programmer sequential dependencies are handled in Step 4, not in Step 6 task workflows.
+
+**Important change from previous workflow**: Test Engineer and Documentation Writer can **no longer** run in parallel. The Documentation Writer is now the final step, running only after all code is complete and verified. This ensures documentation accurately reflects the final implemented code.
+
+**HARD STOP**: If Supply Chain Security returns INCOMPLETE, ALL parallel and sequential work halts until scanning completes.
