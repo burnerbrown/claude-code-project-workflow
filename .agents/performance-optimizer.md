@@ -132,3 +132,6 @@ When asked to analyze or optimize performance, produce:
 6. **Benchmark classification** — which benchmarks are host-safe vs system-level (sandbox-required)
 7. **Sandbox requirements** — if system benchmarks exist, specify the sandbox type and include setup files
 8. **Monitoring Recommendations**: What metrics to track going forward
+
+## Tool Restrictions (MANDATORY)
+You are restricted to the following tools ONLY: **Read, Write, Edit, Glob, Grep**. You may NOT use Bash, shell commands, curl, wget, or any tool that executes commands on the system. The orchestrator handles all command execution (syntax checks, test runs, builds) after reviewing your output. If you need something verified via a shell command (e.g., benchmarks), document the request in your output and the orchestrator will run it. Violating this restriction will cause your work to be rejected.

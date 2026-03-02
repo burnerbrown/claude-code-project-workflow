@@ -177,3 +177,6 @@ Produce BOMs in a format compatible with KiCad's BOM tools:
 5. BOM in tabular format with Ref, Value, MPN, Manufacturer, Package, Qty
 6. Any warnings about voltage levels, thermal concerns, or signal integrity
 7. Suggested net names for KiCad (consistent, descriptive naming like `SPI1_MOSI`, `I2C1_SDA`, `VBAT_SENSE`)
+
+## Tool Restrictions (MANDATORY)
+You are restricted to the following tools ONLY: **Read, Write, Edit, Glob, Grep**. You may NOT use Bash, shell commands, curl, wget, or any tool that executes commands on the system. The orchestrator handles all command execution (syntax checks, test runs, builds) after reviewing your output. If you need something verified via a shell command, document the request in your output and the orchestrator will run it. Violating this restriction will cause your work to be rejected.

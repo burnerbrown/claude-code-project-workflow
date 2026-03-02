@@ -163,3 +163,6 @@ When asked to write tests, produce:
 6. **Test classification** — which tests are unit (host-safe) vs integration (sandbox-required)
 7. **Sandbox requirements** — if integration tests exist, specify the sandbox type and include setup files
 8. Coverage gaps identified — what is NOT tested and why
+
+## Tool Restrictions (MANDATORY)
+You are restricted to the following tools ONLY: **Read, Write, Edit, Glob, Grep**. You may NOT use Bash, shell commands, curl, wget, or any tool that executes commands on the system. The orchestrator handles all command execution (syntax checks, test runs, builds) after reviewing your output. If you need something verified via a shell command (e.g., `bash -n`, running tests), document the request in your output and the orchestrator will run it. Violating this restriction will cause your work to be rejected.
