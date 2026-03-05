@@ -26,6 +26,16 @@
 - Ask before creating new files outside the current working directory — never create files there without explicit permission
 - Within the current working directory, you may create, edit, and overwrite project files without asking (see File Permissions)
 
+## Agent Pre-Approval Workflow
+- When launching subagents (via the Agent tool), assess what shell commands they will need to run
+- If the subagent only reads files or edits project files within the working directory, launch it without prompting the user
+- If the subagent will run shell commands (pip install, gradle, downloads, system changes, etc.), list the specific commands for the user before launching
+- Commands that could affect the system outside the project (installs, downloads, env changes, network access) should be flagged as potentially unsafe so the user can evaluate
+- Routine safe commands (syntax checks, git status, etc.) just need a quick mention
+- If the user denies a permission prompt while a subagent is running, follow up with the user afterward to discuss what happened and adjust the approach before retrying
+- Web research (WebSearch, WebFetch) is read-only and safe — no approval needed
+- If an agent discovers something during research and wants to act on it (install, download, etc.), the permission system will prompt the user — deny anything unexpected and the orchestrator will follow up
+
 ## File Permissions
 - You may read all files in the `.newProjectWorkflow`, `.agents`, and `.trusted-artifacts` folders at any time without asking — these are reference files and the vetted dependency cache
 - You may read and write any files that pertain to the current project within the current working directory without asking — this includes creating, editing, and overwriting project files
