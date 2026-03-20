@@ -98,6 +98,7 @@ When a worker agent is first launched for a task, the Task tool returns an **age
 - **Embedded Systems Specialist**: Resume when QG sends firmware code back — it retains knowledge of hardware constraints, pin mappings, timing requirements, and register configurations
 - **Database Specialist**: Resume when QG sends schema/migration work back — it retains context of the full data model, indexing strategy, and design trade-offs
 - **API Designer**: Resume when QG sends API spec back — it retains context of resource models, endpoint relationships, error catalogs, and versioning decisions
+- **Hardware Engineer**: Resume when QG sends hardware design back — it retains knowledge of power architecture, pin assignments, component selections, and interface specifications. Also resume when Component Sourcing or DFM Reviewer flags issues requiring design changes
 - **Performance Optimizer**: Resume for the verification phase — it retains context of its original analysis findings for before/after comparison. Also resume if QG sends recommendations back for revision
 - **Project Manager**: Resume within a task session when the PM is active (multi-module projects) — it retains cross-module dependency and status context. For single-module projects where the PM is not invoked, this is N/A
 
@@ -107,6 +108,8 @@ When a worker agent is first launched for a task, the Task tool returns an **age
 - **Documentation Writer**: One-shot deliverable — fresh each time
 - **Supply Chain Security**: Invoke fresh — the Phase 0 cache check automatically skips previously completed work, making scans idempotent
 - **Software Architect**: Invoke fresh — only used in Step 6 for Documentation Sprint workflows, providing context summaries that don't benefit from prior session state
+- **Component Sourcing**: Invoke fresh — one-shot BOM validation; if re-run after Hardware Engineer changes, it needs to re-evaluate the updated BOM from scratch
+- **DFM Reviewer**: Invoke fresh — one-shot manufacturability review of the current design state
 
 **Agent ID tracking rules:**
 - Note each worker agent's ID when it's first launched during a task
@@ -140,7 +143,10 @@ The resumed agent already has full context of its prior work, so there is no nee
 | DevOps Engineer | `devops-engineer.md` | Creating Dockerfiles, CI/CD pipelines, build scripts, deployment configs |
 | Performance Optimizer | `performance-optimizer.md` | Profiling, benchmarking, and optimizing code performance |
 | Database Specialist | `database-specialist.md` | Designing schemas, writing migrations, optimizing queries |
-| Embedded Systems Specialist | `embedded-systems-specialist.md` | RTOS firmware, peripheral drivers, bare-metal programming, hardware/circuit design assistance for KiCad |
+| Embedded Systems Specialist | `embedded-systems-specialist.md` | RTOS firmware, peripheral drivers, bare-metal programming. Reviews hardware designs from a firmware perspective (pin mapping validation, peripheral resource conflicts, errata awareness). Hardware design itself is owned by the Hardware Engineer. |
+| Hardware Engineer | `hardware-engineer.md` | **Step 4**: Circuit board architecture — MCU selection, power design, communication protocols, pin mapping, schematic guidance, PCB layout guidance. Peer to Software Architect for hardware projects. |
+| Component Sourcing | `component-sourcing.md` | **Step 4**: BOM validation — component lifecycle, availability, second-sourcing, cost analysis, supply chain risk. Runs after Hardware Engineer produces preliminary BOM. |
+| DFM Reviewer | `dfm-reviewer.md` | **Step 4 or Step 6**: Design-for-manufacturability review — PCB fabrication feasibility, assembly concerns, thermal review, testability, mechanical fit. Can run in Step 4 (early review) or Step 6 (after KiCad design is complete). |
 | API Designer | `api-designer.md` | Designing REST or gRPC APIs, writing OpenAPI specs, protobuf definitions |
 | Supply Chain Security | `supply-chain-security.md` | **Step 4**: Full 5-phase scan of all external dependencies. In Step 6, only used if a new dependency is discovered mid-implementation (emergency workflow). **Always check `.trusted-artifacts/_registry.md` before invoking — if the dependency is cached and hash-verified, skip the scan entirely.** Must run synchronously — do NOT use `run_in_background: true`. |
 | Compliance Reviewer | `compliance-reviewer.md` | Final-gate NIST/CISA/OWASP compliance assessment |

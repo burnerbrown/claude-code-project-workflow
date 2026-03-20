@@ -131,6 +131,123 @@ Note: The Embedded Specialist handles both design and implementation for firmwar
 9. **Documentation Writer**: Recommend hardware docs, firmware guides, pin mappings, etc.
 10. **QG**: Evaluate against criteria D1-D8
 
+## Hardware + Firmware Full Development (New Board Design)
+
+**Use when:** Designing a new circuit board AND writing firmware for it. This is a dual-track workflow — hardware design and firmware development proceed in coordinated phases.
+
+**Note**: The Hardware Engineer, Software Architect, Component Sourcing, and DFM Reviewer agents are invoked during **Step 4 (Architecture)**, not during Step 6. By the time Step 6 begins, the hardware architecture and firmware architecture are finalized, the BOM is validated, and DFM review is complete. The workflow below covers both the Step 4 hardware design track and the Step 6 per-task implementation agents.
+
+### Step 4 Hardware Design Track
+```
+Hardware Engineer → QG → Component Sourcing → QG → Hardware Engineer (address sourcing issues, if any) → QG → Fab House Selection → DFM Reviewer → QG → Hardware Engineer (address DFM issues, if any) → QG
+```
+This runs in **parallel** with the Software Architect track (which designs the firmware architecture). Both tracks produce a shared interface specification (pin mapping, communication protocols, timing requirements).
+
+1. **Hardware Engineer**: Design the hardware architecture — MCU selection, power design, communication protocols, pin mapping, schematic guidance, preliminary BOM
+2. **QG**: Evaluate against criteria HE1-HE12
+3. **Component Sourcing**: Validate the preliminary BOM — lifecycle, availability, second-sourcing, cost
+4. **QG**: Evaluate against criteria CS1-CS8
+5. **Hardware Engineer** (resume): Address any sourcing flags — substitute components, update BOM and pin mapping
+6. **QG**: Re-evaluate affected HE criteria
+7. **Fab House Selection** (orchestrator-driven): Now that components are finalized, evaluate the user's preferred fab house against the design's requirements (finest pad pitch, smallest package, via sizes, layer count, impedance control needs). If the preferred fab can't handle the design, present trade-offs: change the fab or change the components. User decides. Document the selected fab house and its specific design rules. See Step 4 reference file for the detailed flow.
+8. **DFM Reviewer**: Review design for manufacturability **against the selected fab house's specific capabilities** — not generic tier assumptions
+9. **QG**: Evaluate against criteria DFM1-DFM8
+10. **Hardware Engineer** (resume): Address any DFM must-fix items — adjust design guidance, update BOM if needed
+11. **QG**: Re-evaluate affected HE criteria
+
+### Step 6 Firmware Implementation Track
+```
+Embedded Specialist (implement) → QG → Test Engineer → QG → Security Review + Code Review (parallel) → QG → Compliance Reviewer → QG → Documentation Writer → QG
+```
+Same as the existing Embedded/RTOS Feature workflow — the firmware is implemented against the finalized hardware design from Step 4.
+
+### Step 6 Hardware Implementation Track (User-Driven)
+The user draws the schematic and PCB layout in KiCad using the Hardware Engineer's design guidance from Step 4. During this phase, the user may request:
+- **Schematic review**: Invoke the Hardware Engineer to review a screenshot or description of the schematic against the design spec
+- **DFM review of layout**: Invoke the DFM Reviewer to assess the PCB layout for manufacturability
+- **BOM update**: Invoke Component Sourcing if components change during layout
+
+These are ad-hoc invocations, not a fixed workflow sequence — they happen as needed during the user's KiCad work.
+
+---
+
+## Firmware-Only Development (Existing Board / Dev Kit)
+
+**Use when:** Writing firmware for an existing board (e.g., ESP32 DevKit, STM32 Nucleo, Raspberry Pi Pico, Arduino, or a previously designed custom board). No new hardware design is needed.
+
+```
+Embedded Specialist (implement) → QG → Test Engineer → QG → Security Review + Code Review (parallel) → QG → Compliance Reviewer → QG → Documentation Writer → QG
+```
+
+This is functionally identical to the existing **Embedded/RTOS Feature** workflow. The difference is context: the Embedded Specialist references the board's datasheet and pinout (from the manufacturer or a prior project's Step 4 handoff) rather than designing hardware from scratch.
+
+1. **Embedded Systems Specialist**: Implement firmware for the target board — drivers, application logic, communication stacks
+2. **QG**: Evaluate against criteria ES1-ES7
+3. **Test Engineer**: Write tests (simulation + hardware test plan)
+4. **QG**: Evaluate against criteria T1-T10
+5. **Security Reviewer + Code Reviewer**: Run in parallel
+6. **QG**: Evaluate both reviews
+7. **Compliance Reviewer**: Assess compliance
+8. **QG**: Evaluate against criteria CO1-CO8
+9. **Documentation Writer**: Recommend docs — pinout reference, firmware guide, flashing instructions
+10. **QG**: Evaluate against criteria D1-D8
+
+---
+
+## Hardware Revision (Iterating on an Existing Board)
+
+**Use when:** Modifying an existing board design — swapping components, adding features, fixing issues found during testing or production. The original board design exists as a prior Step 4 handoff or KiCad project.
+
+### Step 4 Revision Track
+```
+Hardware Engineer (revision) → QG → Component Sourcing (if new parts) → QG → Fab House Re-evaluation (if needed) → DFM Reviewer → QG
+```
+
+1. **Hardware Engineer**: Review the existing design, document proposed changes with justification (new components, circuit modifications, layout changes). Reference the original design and explain what changed and why.
+2. **QG**: Evaluate against criteria HE1-HE12 (scoped to changed areas — unchanged subsystems don't need re-review)
+3. **Component Sourcing** (if new components introduced): Validate new/changed BOM entries
+4. **QG**: Evaluate against criteria CS1-CS8
+5. **Fab House Re-evaluation** (only if revision introduces components with different fab requirements than the original design — e.g., switching from QFP to BGA, adding fine-pitch parts): Verify the original fab house can still handle the revised design. If not, present options to the user.
+6. **DFM Reviewer**: Review changes for manufacturability impact against the (confirmed or updated) fab house capabilities
+7. **QG**: Evaluate against criteria DFM1-DFM8
+
+### Step 6 Firmware Updates (if needed)
+If hardware changes require firmware modifications (new pin assignments, different peripherals, changed communication protocols):
+```
+Embedded Specialist (update) → QG → Test Engineer (regression) → QG → Security Review + Code Review (parallel) → QG → Documentation Writer → QG
+```
+
+---
+
+## Prototype to Production (Dev Kit → Custom PCB)
+
+**Use when:** Taking a working prototype (breadboard, dev kit, or evaluation board) and designing a proper custom PCB for it. The firmware already exists and works on the prototype; the goal is a purpose-built board.
+
+### Step 4 Production Board Track
+```
+Hardware Engineer (production design) → QG → Component Sourcing → QG → Hardware Engineer (sourcing fixes) → QG → Fab House Selection → DFM Reviewer → QG → Hardware Engineer (DFM fixes) → QG
+```
+
+1. **Hardware Engineer**: Design the production board based on the prototype's proven circuit — translate breadboard/dev-kit connections into a proper schematic. Optimize for size, cost, power, and reliability. Define production-grade power supply, connectors, and protection circuits that the prototype may have lacked.
+2. **QG**: Evaluate against criteria HE1-HE12
+3. **Component Sourcing**: Validate BOM for production quantities — focus on availability at volume, cost optimization, and lifecycle
+4. **QG**: Evaluate against criteria CS1-CS8
+5. **Hardware Engineer** (resume): Address sourcing issues
+6. **QG**: Re-evaluate
+7. **Fab House Selection** (orchestrator-driven): Evaluate fab house against production board requirements. For Prototype to Production, pay special attention to volume pricing, assembly service capabilities, and turnaround time at production quantities.
+8. **DFM Reviewer**: Full production DFM review **against the selected fab house** — assembly process, testability, panelization
+9. **QG**: Evaluate against criteria DFM1-DFM8
+10. **Hardware Engineer** (resume): Address DFM issues
+11. **QG**: Re-evaluate
+
+### Step 6 Firmware Porting
+The existing prototype firmware is ported to the production board's pin mapping and peripherals:
+```
+Embedded Specialist (port) → QG → Test Engineer (regression + HW test plan) → QG → Security Review + Code Review (parallel) → QG → Documentation Writer → QG
+```
+
+---
+
 ## Bug Fix
 ```
 Programmer (diagnose + fix) → QG → Test Engineer (regression test) → QG → [Security Review + Code Review (parallel) → QG (if significant fix)] → Documentation Writer → QG
@@ -232,6 +349,7 @@ Pause current work → User approves → Supply Chain Security (full 5-phase sca
 The following agents can run **in parallel** when they don't depend on each other's output:
 - **Security Reviewer + Code Reviewer**: Both review the same code independently. The QG evaluates both reviews after they complete (can evaluate in parallel or sequentially).
 - **Multiple Programmers**: Different components with no shared interfaces can be implemented in parallel. Each programmer's output goes through the QG gate independently.
+- **Hardware Engineer + Software Architect** (Step 4): Both design their respective domains in parallel. They must reconcile on the shared interface specification before Step 4 is complete.
 
 The following must run **sequentially**:
 - Programmer → QG → Test Engineer (tests need QG-approved code)
@@ -239,6 +357,10 @@ The following must run **sequentially**:
 - All agents → QG → Compliance Reviewer (compliance review needs all prior QG-approved outputs)
 - Compliance Reviewer → QG → Documentation Writer (documentation needs the completed, verified code)
 - Documentation Writer → QG (final QG evaluation before commit)
+- Hardware Engineer → QG → Component Sourcing (sourcing needs the preliminary BOM from hardware design)
+- Component Sourcing → QG → Hardware Engineer resume (hardware engineer needs sourcing feedback to adjust)
+- Hardware Engineer → QG → DFM Reviewer (DFM needs the finalized design to review)
+- DFM Reviewer → QG → Hardware Engineer resume (hardware engineer needs DFM feedback to adjust)
 
 Note: The Architect → Programmer and SCS → Programmer sequential dependencies are handled in Step 4, not in Step 6 task workflows.
 

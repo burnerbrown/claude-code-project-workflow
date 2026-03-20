@@ -50,6 +50,28 @@ Make the key technical decisions: language, components, data flow, interfaces, a
 - For simpler projects, this step can be done conversationally without the agent
 - When the Architect agent IS used: invoke it for substeps 4-8 above, then route its output through the Quality Gate (evaluate against A1-A11) before proceeding to the SCS scan (substep 9). No Project Manager needed in Step 4. The Architect's output includes the dependency list that SCS will scan.
 
+## When to Use Hardware Design Agents (Hardware Projects)
+If the project involves circuit board design (custom PCB), invoke additional agents during this step. See `workflows.md` for the specific workflow pattern (e.g., "Hardware + Firmware Full Development", "Hardware Revision", "Prototype to Production"). The general flow is:
+
+1. **Hardware Engineer agent**: Design the hardware architecture — MCU selection, power design, communication protocols, pin mapping, schematic design guidance, preliminary BOM. This runs in **parallel** with the Software Architect (if present) — both produce their respective designs and a **shared interface specification** (pin assignments, communication protocols, timing requirements). Route through QG (criteria HE1-HE12).
+
+2. **Component Sourcing agent**: Validate the Hardware Engineer's preliminary BOM — check lifecycle status, availability, second-sourcing, cost. Route through QG (criteria CS1-CS8). If sourcing issues are found, resume the Hardware Engineer to adjust component selections.
+
+3. **Fab House Selection** (orchestrator-driven, after components are finalized): Now that the components are known, evaluate which PCB fab house is the best fit. This breaks the chicken-and-egg problem — you can't pick a fab until you know what components require, and you can't finalize components without knowing fab capabilities. The flow is:
+   - Review the finalized BOM for fab-critical requirements: What's the finest pad pitch? Are there BGAs? What's the smallest passive package? Does the design need impedance control, blind/buried vias, or controlled-depth drilling?
+   - Compare these requirements against the user's preferred fab house (from Step 2 discovery). Can it handle everything?
+   - **If yes**: Confirm the preferred fab house. Document its specific design rules (min trace/space, min drill, layer count, surface finish options) for the DFM Reviewer to use.
+   - **If no**: Present the gap (e.g., "JLCPCB's minimum via drill is 0.3mm but the BGA requires 0.2mm") and offer two paths:
+     - **Change the fab**: Recommend alternative fab houses that can handle the requirements, with cost/capability trade-offs
+     - **Change the components**: Ask the Hardware Engineer to suggest alternative components that stay within the preferred fab's capabilities (e.g., QFP instead of BGA)
+   - The user makes the final decision. Document the chosen fab house, its capabilities, and its design rules in the Step 4 handoff.
+
+4. **DFM Reviewer agent**: Review the design for manufacturability **against the selected fab house's specific capabilities** — not generic tier assumptions. Route through QG (criteria DFM1-DFM8). If DFM must-fix issues are found, resume the Hardware Engineer to adjust the design.
+
+4. **Shared Interface Specification**: After both the Hardware Engineer and Software Architect complete their designs, verify that the pin mapping, communication protocols, and timing requirements are consistent between the hardware design and the firmware architecture. Any conflicts must be resolved before proceeding to Step 5.
+
+The hardware design track produces its own handoff content that is merged into the Step 4 handoff file (see handoff template below).
+
 ## What to Avoid
 - Don't start writing code — that's Step 6
 - Don't over-engineer — design for the MVP requirements, not hypothetical future needs
@@ -109,6 +131,41 @@ When the user approves the architecture, create a handoff file in the `project-h
 
 ## SBOM
 Generated: `sbom-{language}.txt` in repo root
+
+## Hardware Design (if applicable — remove this section for software-only projects)
+
+### MCU Selection
+[Chosen MCU with justification. Include comparison table of candidates evaluated.]
+
+### Power Architecture
+[Power source, regulation topology, power domains, power budget table]
+
+### Communication Protocols
+[Table of all inter-component links: protocol, speed, voltage, connector]
+
+### Pin Mapping
+[Complete MCU pin assignment table — or reference to a separate pin mapping file if large]
+
+### Preliminary BOM
+[Component list with MPNs — or reference to a separate BOM file]
+[Include Component Sourcing validation results: lifecycle status, availability, risk flags]
+
+### Selected Fab House
+[Chosen fab house, why it was selected, and its key capabilities/design rules:
+- Fab house name (e.g., JLCPCB, PCBWay, OSH Park)
+- Assembly service: yes/no, and what assembly capabilities (SMT only, through-hole, BGA)
+- Min trace width/spacing, min via drill, max layer count, available surface finishes
+- Any limitations that constrain the design
+- If the user's preferred fab was NOT selected, document why and what alternative was chosen]
+
+### DFM Review Summary
+[Key findings from DFM review against the selected fab house's capabilities. Any MUST-FIX items and their resolutions.]
+
+### Shared Interface Specification
+[Pin assignments, communication protocols, and timing requirements agreed between Hardware Engineer and Software Architect. This is the contract that both hardware design (KiCad) and firmware implementation (Step 6) must follow.]
+
+### KiCad Design Guidance
+[Schematic design notes, PCB layout recommendations, and design rules for the user's KiCad work]
 
 ## Security Design
 [Authentication, authorization, data protection, threat model summary]

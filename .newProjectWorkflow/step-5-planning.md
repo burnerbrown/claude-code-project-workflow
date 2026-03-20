@@ -33,6 +33,28 @@ Break the architecture into an ordered sequence of implementation tasks. Each ta
    - **Supply Chain Security is NOT a pre-implementation task** — it was already completed in Step 4. All dependencies entering Step 5 have CLEAN verdicts. If a new dependency is discovered during planning that wasn't in Step 4, run the SCS full scan on just that dependency, update the Step 4 handoff and SBOM with the result, and continue planning. You do NOT need to redo Step 4 — only scan the new dependency. If the dependency is REJECTED and no alternative exists (forcing an architectural change), then escalate to the user.
 7. **Review with the user** — walk through the plan, adjust ordering or grouping as needed.
 
+## Hardware + Firmware Projects: Dual-Track Planning
+If the project includes hardware design (custom PCB), the implementation plan must address TWO tracks:
+
+### Firmware Track (Automated — Agent-Driven)
+Standard implementation tasks executed by agents during Step 6:
+- Peripheral drivers, application logic, communication stacks
+- These follow the normal task workflow (Embedded Specialist → QG → Test Engineer → QG → reviews → QG → etc.)
+
+### Hardware Track (User-Driven — KiCad Work)
+Tasks that the user performs in KiCad, with agent assistance available on demand:
+- **Schematic capture**: Draw the schematic in KiCad using the Hardware Engineer's design guidance from Step 4
+- **PCB layout**: Route the PCB in KiCad using the layout guidance from Step 4
+- **Design review checkpoints**: Points where the user can invoke agents for review (schematic review, DFM review)
+- **Gerber generation and fab submission**: Final output for manufacturing
+
+Hardware track tasks should be listed in the plan but marked as `[USER-DRIVEN]` since they are not automated. They may have dependencies that block firmware tasks (e.g., "finalize pin mapping before implementing GPIO driver") or that firmware tasks block (e.g., "firmware SPI driver must be tested before designing the SPI peripheral circuit").
+
+### Ordering Between Tracks
+- Hardware and firmware tasks can often proceed **in parallel** — the shared interface spec from Step 4 decouples them
+- Identify any cross-track dependencies explicitly (e.g., "firmware task 3 depends on hardware task 2 finalizing the I2C address assignments")
+- Plan design review checkpoints at natural milestones (e.g., after schematic is complete, after layout is complete)
+
 ## What to Avoid
 - Don't make tasks too granular (e.g., "create file X" is too small) or too large (e.g., "build the backend" is too big)
 - Don't give time estimates — use complexity ratings instead

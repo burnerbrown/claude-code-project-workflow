@@ -173,6 +173,8 @@ Never silently discard an agent's output and proceed without it — if an agent'
 | Enterprise/complex business logic | Java | Strong typing, extensive frameworks, team familiarity |
 | Host-side embedded tooling | Go | Easy cross-compilation, good serial/USB libraries |
 | Never use Java for | Embedded/RTOS | No runtime available, too heavy, non-deterministic GC |
+| Hardware design tool | KiCad | User's schematic capture and PCB layout tool — all hardware agents produce KiCad-compatible output (net names, BOM format, footprint references) |
+| Hardware scripting/automation | Python (KiCad API) | KiCad's scripting interface for automating schematic/layout tasks |
 
 ---
 

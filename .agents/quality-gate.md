@@ -254,14 +254,73 @@ The embedded specialist's output is APPROVED when ALL of the following are prese
 | ES6 | Security | No default credentials, debug interfaces addressed, firmware update signing documented |
 | ES7 | Test Strategy | What can be tested in simulation vs requires hardware |
 
-For hardware design assistance, also check:
-| ES8 | Component MPNs | Specific manufacturer part numbers with key parameters |
-| ES9 | Pin Mapping Table | Complete MCU pin-to-function-to-component mapping |
-| ES10 | Power Budget | Power tree with regulator sizing and budget table |
-| ES11 | Schematic Review | Checklist items verified (decoupling caps, pull-ups, ESD protection, etc.) |
-| ES12 | BOM | Tabular BOM with Ref, Value, MPN, Manufacturer, Package, Qty |
+For hardware design review (firmware perspective), also check:
+| ES8 | Firmware Feasibility | Assessment of whether firmware requirements can be met with the proposed hardware |
+| ES9 | Pin Mapping Validation | Conflicts, missing capabilities, or suboptimal assignments flagged |
+| ES10 | Resource Conflicts | DMA channel, timer, and interrupt priority conflicts identified |
+| ES11 | Errata Awareness | Known MCU errata relevant to the firmware design documented |
 
-**Reject if:** Missing timing analysis for real-time code, no test strategy, or hardware design lacks power budget.
+**Note:** Full hardware design criteria (component selection, power architecture, BOM, schematic guidance, PCB layout) are evaluated under the **Hardware Engineer** criteria (HE1-HE12), not here.
+
+**Reject if:** Missing timing analysis for real-time code, no test strategy, or firmware feasibility assessment absent for hardware projects.
+
+---
+
+### Hardware Engineer
+The hardware engineer's output is APPROVED when ALL of the following are present and complete:
+
+| # | Criterion | What to Check |
+|---|-----------|---------------|
+| HE1 | Design Overview | 2-3 paragraph summary of hardware architecture and key decisions |
+| HE2 | Block Diagram | Mermaid diagram showing subsystems, power domains, and communication links |
+| HE3 | MCU Selection | Comparison table of 2-3 candidates with clear recommendation and justification |
+| HE4 | Communication Protocols | Table of all inter-component links with protocol, speed, voltage, and connector |
+| HE5 | Power Architecture | Power tree with regulator selections, sizing calculations, and power budget table |
+| HE6 | Pin Mapping | Complete MCU pin assignment table (pin → function → direction → component → net name) |
+| HE7 | Interface Specifications | Detailed specs for each communication link and external connector |
+| HE8 | Schematic Design Notes | Per-subsystem circuit guidance with component values and reference designs |
+| HE9 | Preliminary BOM | Component list with specific MPNs, packages, and quantities |
+| HE10 | PCB Layout Guidance | Component placement, routing, and stackup recommendations |
+| HE11 | Risk Register | Hardware-specific risks identified with mitigations (thermal, EMC, single-source, tolerances) |
+| HE12 | Datasheet Evidence | Component selections backed by datasheet parameters, not assumptions |
+
+**Reject if:** No MCU comparison table, missing power budget, pin mapping incomplete, or component selections lack MPN specificity.
+
+---
+
+### Component Sourcing Agent
+The component sourcing agent's output is APPROVED when ALL of the following are present and complete:
+
+| # | Criterion | What to Check |
+|---|-----------|---------------|
+| CS1 | BOM Validation Summary | Overall health assessment (GREEN/YELLOW/RED) with key findings |
+| CS2 | Component Review Table | Every BOM component reviewed for lifecycle, availability, lead time, and risk |
+| CS3 | Lifecycle Flags | All NRND/EOL/Obsolete components explicitly flagged |
+| CS4 | Second Source | Second-source availability documented for critical components |
+| CS5 | Alternatives | For each flagged component, 1-2 alternatives with trade-off analysis and required design changes |
+| CS6 | Cost Summary | Estimated costs at multiple quantities (1, 10, 100) |
+| CS7 | Supply Chain Risk | Single-source, long-lead, and high-risk components identified |
+| CS8 | Data Freshness | Clear statement about data currency limitations and recommendation to verify |
+
+**Reject if:** Missing lifecycle check on any component, no alternatives for flagged parts, or cost estimates presented as definitive without freshness caveat.
+
+---
+
+### DFM Reviewer
+The DFM reviewer's output is APPROVED when ALL of the following are present and complete:
+
+| # | Criterion | What to Check |
+|---|-----------|---------------|
+| DFM1 | DFM Summary | Overall assessment (PASS/PASS WITH NOTES/NEEDS REVISION) with target fab tier stated |
+| DFM2 | Fabrication Review | PCB parameters checked against target fab capabilities (trace width, spacing, via size, layers) |
+| DFM3 | Assembly Review | Component placement and soldering feasibility assessed (fine-pitch, hand-solderability, thermal relief) |
+| DFM4 | Thermal Review | Hot spots identified, thermal management recommendations provided |
+| DFM5 | Testability Review | Test access assessed — test points, programming header, debug access |
+| DFM6 | Mechanical Review | Board outline, mounting holes, connector placement, enclosure compatibility |
+| DFM7 | Findings Table | All findings in structured table with severity (MUST-FIX/SHOULD-FIX/ADVISORY), category, and recommendation |
+| DFM8 | Fab Tier Assumptions | Manufacturing tier clearly stated; recommendations adjusted for user's target (budget/standard/advanced) |
+
+**Reject if:** No findings table, missing severity classification, or fabrication review omitted.
 
 ---
 
