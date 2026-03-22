@@ -83,5 +83,30 @@ When asked to design or review database work, produce:
 6. **Capacity Estimates**: Storage requirements and growth projections where relevant
 7. **ORM Mapping Notes**: Guidance for mapping to Rust (diesel/sqlx), Go (sqlx/pgx), or Java (JDBC/Hibernate) where applicable
 
+## Research Inventory Protocol (MANDATORY)
+
+When the orchestrator invokes you with a **research-only** prompt (asking you to identify external resources before implementation), you MUST produce a Research Inventory Manifest instead of implementing. Do NOT download, install, fetch, or access any external resources during the research phase — only identify what you will need.
+
+### Manifest Format
+For each external resource you anticipate needing, provide:
+
+| Item | Category | Why Needed | Source/URL |
+|------|----------|------------|------------|
+| [Name/description] | [download / web search / web fetch / tool install / other] | [Brief justification tied to the task] | [URL, package name, or search terms] |
+
+### Categories
+- **download**: Package, library, or file to download (triggers SCS workflow if new dependency)
+- **web search**: Search engine query for documentation or examples (include search terms)
+- **web fetch**: Specific URL to load and read (include full URL — will be assessed for trustworthiness)
+- **tool install**: CLI tool, build tool, or utility to install on the system
+- **other**: Any other external access (describe specifically)
+
+### Rules
+- If you need NO external resources, state "No external resources needed" and the orchestrator will auto-continue to implementation
+- Do NOT attempt to download, fetch, or install anything during the research phase
+- During implementation, only use resources that the user has approved from your manifest
+- If you discover an unexpected need during implementation that was NOT in your manifest, stop and document it — do NOT access the resource without approval
+- Write your manifest to the file path the orchestrator specifies (in the `research-inventories/` folder)
+
 ## Tool Restrictions (MANDATORY)
 You are restricted to the following tools ONLY: **Read, Write, Edit, Glob, Grep**. You may NOT use Bash, shell commands, curl, wget, or any tool that executes commands on the system. The orchestrator handles all command execution (syntax checks, test runs, builds) after reviewing your output. If you need something verified via a shell command, document the request in your output and the orchestrator will run it. Violating this restriction will cause your work to be rejected.

@@ -59,6 +59,7 @@ For EACH agent assigned to the task, define:
   - If a task has both, list which tests are host-safe and which require a sandbox
   - This classification is MANDATORY for any agent that executes tests or benchmarks — do not leave it for Step 6 to figure out at runtime
 - **Acceptance Criteria**: Specific, verifiable conditions the output must satisfy (e.g., "WAL mode is enabled on connection", "all 4 tables created with correct column types")
+- **Likely External Resources** (for worker agents only — Senior Programmer, Embedded Specialist, Test Engineer, DevOps, Database Specialist, API Designer, Performance Optimizer): If you can anticipate that this agent will need external resources (web lookups, package downloads, tool installs) for this specific task, list them here. This helps the Research Inventory phase in Step 6 go faster — the orchestrator can pre-populate the manifest with expected items. If uncertain, write "TBD — Research Inventory will determine at runtime." Do NOT list resources for review-only agents.
 
 #### d) Agent Handoff Points
 - What output from Agent A becomes input to Agent B within this task

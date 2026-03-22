@@ -14,9 +14,9 @@ A Claude Code **Pro** subscription is recommended at minimum, with **Max** being
 
 ![Supply Chain Security agent showing governing standards, core principles, scan phases, and the 4-layer scanning table](docs/images/supply-chain-security-agent.png)
 
-- **Step 6 (Implementation)** executes tasks using an agent workflow design with 10 workflow types to match different task needs.
+- **Step 6 (Implementation)** executes tasks using an agent workflow design with 14 workflow types to match different task needs — from full feature development to embedded firmware, hardware design, and dependency addition.
 
-![10 workflow types from Full Feature Development to Dependency Addition, with Quality Gate pattern description](docs/images/workflow-types.png)
+![14 workflow types from Full Feature Development to Dependency Addition, with Quality Gate pattern description](docs/images/workflow-types.png)
 
   Step 6 also employs a **Compliance Reviewer** agent where necessary, mapping code against NIST, CISA, OWASP, and CWE standards:
 
@@ -24,7 +24,7 @@ A Claude Code **Pro** subscription is recommended at minimum, with **Max** being
 
 ## How Implementation Works
 
-During Step 6, any issues found by agents are sent back to the appropriate agent for rework. The reworked code then passes back through the review chain until all work satisfies the requirements. All agent IDs are kept active during the entire task to preserve context in case of rework. Claude only orchestrates — all work is done by agents with specialized roles.
+During Step 6, any issues found by agents are sent back to the appropriate agent for rework. The reworked code then passes back through the review chain until all work satisfies the requirements. All agent IDs are kept active during the entire task to preserve context in case of rework. Claude only orchestrates — all work is done by agents with specialized roles. See [Security & Control](#security--control) for how this separation is enforced.
 
 **Example task completion output:**
 
@@ -35,6 +35,16 @@ During Step 6, any issues found by agents are sent back to the appropriate agent
 ![Full Feature Development workflow flowchart showing Senior Programmer, Test Engineer, parallel Security and Code Reviewers, Compliance Reviewer, and Documentation Writer — each with Quality Gate checkpoints and send-back loops](docs/images/full-feature-development-workflow.png)
 
 Each Quality Gate is a hard checkpoint — work loops back to the same agent until it passes. No agent's output ever skips the gate to reach the next agent.
+
+## Security & Control
+
+The workflow is designed so that agents never act without oversight:
+
+- **Research Inventory Protocol** — Before any worker agent starts coding, it first declares every external resource it needs (package downloads, web fetches, tool installations). The orchestrator reviews each item and the user gives final approval before work begins. If no external resources are needed, the task proceeds automatically.
+
+- **Dependency vs. Development Tool Distinction** — Project dependencies (libraries that ship with your code) go through the full Supply Chain Security scan. Development tools (compilers, build systems, CLI utilities) require lighter provenance verification only — official source confirmation, hash check, and user approval.
+
+- **Orchestrator Boundaries** — During implementation, the orchestrator (Claude) never writes code, runs tests, or edits source files. It only routes work between agents, runs syntax checks, commits approved work, and updates checklists. All implementation work is done by specialized agents whose output passes through Quality Gates.
 
 ## Getting Started
 

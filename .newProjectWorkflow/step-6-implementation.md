@@ -57,7 +57,15 @@ Repeat the following cycle for each task/subtask until the checklist is complete
    - Check the task's **Depends On** field. If dependencies aren't complete, use `Grep` on the index to verify they're checked off. If not, STOP and flag the issue.
    - **Do NOT read** architecture docs, spec docs, agent definitions, Step 5.5 markers, or source files at this stage. These are for agents to read in their own context — not for the orchestrator. Only read additional files when YOU need them for a routing decision.
 
-3. **Start the agents** (pass file paths, not file contents):
+3. **Run the Research Inventory phase** (before implementation — see `workflows.md` "Research Inventory Phase"):
+   - For each worker agent about to be invoked, pre-create a manifest file in `research-inventories/task-{id}-{agent-role}.md`
+   - Launch the worker agent with a research-only prompt — it identifies external resources needed (downloads, web fetches, tool installs, web searches) and writes its manifest
+   - **If the manifest is empty**: auto-continue to implementation without asking the user
+   - **If the manifest has items**: read the manifest, assess each item (RECOMMEND APPROVE / CAUTION / DENY with explanations), present to the user for approval
+   - The agent proceeds to implementation only with user-approved resources
+   - The `research-inventories/` folder is gitignored and the orchestrator NEVER deletes manifest files — the user cleans them up manually
+
+4. **Start the agents for implementation** (pass file paths, not file contents):
    - Launch the worker agent(s) assigned to the current subtask (Senior Programmer, Test Engineer, Database Specialist, etc.)
    - Follow the agent sequence and parallel execution rules from the detailed workflow
    - **In the agent's prompt, tell the agent which files to read and what to do.** Include file paths and the specific instructions from the checklist. Do NOT read source files, architecture docs, or spec docs into orchestrator context just to paste them into the agent prompt — the agent can read files itself.
@@ -65,12 +73,12 @@ Repeat the following cycle for each task/subtask until the checklist is complete
    - For handoffs between agents (e.g., Test Engineer needs to know what the Programmer produced), tell the next agent which files were created/modified and let it read them.
    - **Track agent IDs for resume:** When each worker agent completes, note its agent ID. If the QG sends work back to that agent later, use the `resume` parameter on the Task tool to continue the agent with its full prior context intact — do NOT launch a fresh agent for rework. See `agent-orchestration.md` "Agent Lifecycle: Resume on Rework" for which agents to resume vs. invoke fresh.
 
-4. **Agents do the work**:
+5. **Agents do the work**:
    - Worker agents produce their deliverables (code, tests, reviews, etc.)
    - Follow the agent orchestration rules — sequential where required, parallel where allowed
    - If an agent needs a dependency that wasn't scanned in Step 4, pause work on this task and follow the "Dependency Addition" workflow in `workflows.md` — scan the new dependency, then resume
 
-5. **Quality Gate evaluates, orchestrator routes**:
+6. **Quality Gate evaluates, orchestrator routes**:
    - **The orchestrator runs `bash -n` (syntax check) as a quick sanity check before invoking the QG** — this catches obvious issues without a full agent invocation
    - The Quality Gate agent evaluates the worker agent's output against acceptance criteria
    - Pass the QG agent the file paths to review and the acceptance criteria from the checklist — let the QG read the files itself
@@ -81,12 +89,12 @@ Repeat the following cycle for each task/subtask until the checklist is complete
    - If the QG sends work back, the orchestrator **resumes** the original agent (using its saved agent ID) with the QG's specific feedback — this preserves the agent's full context from its initial work, making rework faster and more accurate
    - **When to invoke the PM agent:** Only for multi-module projects with cross-module dependencies, complex send-back scenarios with ambiguous routing, agent conflicts, or when the user requests a progress report. See `workflows.md` "When to Invoke the Project Manager Agent" for the full criteria.
 
-6. **Verify file placement and create folders if needed**:
+7. **Verify file placement and create folders if needed**:
    - Before committing, confirm that all output files are placed in the correct repo folders as specified in the Step 5.5 task detail (Target Repo Paths)
    - If the QG flagged that a new folder is needed (e.g., `migrations/`, `benchmarks/`, `init-scripts/`), create it now before committing
    - Files must match the project structure established in Step 4 — do not dump files in the repo root
 
-7. **Auto-commit locally AND update checklist progressively** (per `git-workflow.md`):
+8. **Auto-commit locally AND update checklist progressively** (per `git-workflow.md`):
    - Commit all QG-approved work products (code, tests, configuration) to the local repository
    - **Immediately after each QG approval, mark the corresponding subtask(s) as checked (`- [x]`) in `checklists/task-{id}.md` and commit the checklist update**
    - Do NOT batch checklist updates — check boxes and commit after EVERY QG approval milestone, not at the end of the task
@@ -108,11 +116,11 @@ Repeat the following cycle for each task/subtask until the checklist is complete
 
    **Update the project-local `CLAUDE.md`:** After each QG-approved commit, update the "Current State" section in the project root `CLAUDE.md` to reflect what was just completed and what the next action is. This file is loaded automatically on session start, so a crash recovery session immediately knows the current state without reading checklists first.
 
-8. **Check for review checkpoints**:
+9. **Check for review checkpoints**:
    - If the plan specifies a review checkpoint after this task, pause and notify the user
    - Do not proceed past a review checkpoint without user approval
 
-9. **STOP — context clear required before next task**:
+10. **STOP — context clear required before next task**:
    - After completing a task (committed, checklists updated), you MUST stop and tell the user: "Task [X] is complete. Please clear context (`/clear`) and then say **continue step 6** to proceed to the next task."
    - Do NOT continue to the next task in the same session — always wait for the user to clear context and restart
    - This prevents context compression from degrading quality on later tasks
@@ -192,7 +200,7 @@ Tests fall into two categories with different safety requirements:
 5. **Run the tests inside the sandbox** — the Test Engineer agent executes tests within the sandboxed environment
 6. **Never run integration tests directly on the host machine** — even if "it would probably be fine"
 
-**Current environment note:** If the development machine runs Windows with Windows Sandbox enabled, use that for sandboxed integration tests. For Linux-targeting projects (like Bash scripts targeting Debian), use Docker or WSL2 for integration tests. On macOS or Linux, use Docker containers or platform-native sandboxing.
+**Current environment note:** The development machine runs Windows 11 Pro with Windows Sandbox enabled. For Linux-targeting projects (like Bash scripts targeting Debian), use Docker or WSL2 for integration tests.
 
 ## What to Avoid
 - Don't skip the Quality Gate evaluation — every task must be evaluated before marking complete

@@ -49,6 +49,9 @@ When launching agents, **pass file paths and instructions — not file contents.
 - **Exception:** Small, focused context is OK to include directly (e.g., a short code snippet from a QG verdict, specific review findings). If it's more than ~20 lines, pass the file path instead.
 - Supply Chain Security: always check `.trusted-artifacts/_registry.md` before invoking the SCS agent — a cache hit means no new scan is needed
 
+### Important: Research Inventory Before Implementation
+**Before launching any worker agent for implementation**, the orchestrator MUST run a Research Inventory phase. The agent identifies all external resources it needs (downloads, web fetches, tool installs, web searches) in a manifest. The orchestrator reviews the manifest, assesses each item, and presents recommendations to the user. The agent proceeds only with user-approved resources. **If the manifest is empty, the orchestrator auto-continues without user input.** See `workflows.md` "Research Inventory Phase" for the full procedure.
+
 ### Important: Quality Gate Routing
 **All worker agent output must be routed through the Quality Gate (QG) for evaluation.** The orchestrator's workflow for every agent handoff is:
 

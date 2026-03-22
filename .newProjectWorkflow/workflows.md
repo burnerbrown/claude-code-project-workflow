@@ -41,6 +41,71 @@ The **orchestrator (Claude)** manages the overall flow:
 
 **File placement**: Every agent's output must be placed in the correct repo folder as defined by the Step 4 project structure. The orchestrator verifies correct file placement before committing. If a task requires a folder that doesn't exist yet, create it before committing.
 
+### Research Inventory Phase (Mandatory for All Worker Agents)
+
+**Before any worker agent begins implementation**, the orchestrator runs a Research Inventory phase to identify what external resources the agent will need. This gives the user full visibility and control over all downloads, web access, and tool installations before they happen.
+
+**Which agents this applies to:** All worker agents that produce code, tests, or configuration — Senior Programmer, Embedded Systems Specialist, Test Engineer, DevOps Engineer, Database Specialist, API Designer, Performance Optimizer. It does NOT apply to review-only agents (Quality Gate, Security Reviewer, Code Reviewer, Compliance Reviewer, Documentation Writer) or research-only agents (Component Sourcing, DFM Reviewer) since these only read existing files or use pre-approved web research tools.
+
+**How it works:**
+
+```
+1. Orchestrator launches the worker agent with a RESEARCH-ONLY prompt:
+   "Before implementing, identify all external resources you will need.
+    Do NOT download, install, or fetch anything yet. Just produce the manifest."
+
+2. Agent produces a Research Inventory Manifest listing:
+   - Package downloads (libraries, dependencies, tools to install)
+   - Web searches (topics to research, with search terms)
+   - Web fetches (specific URLs to visit)
+   - Tool installations (CLI tools, build tools, etc.)
+   - Other external access (anything that touches the network or downloads files)
+   For EACH item, the agent must provide:
+   - What it is (name, URL, version)
+   - Why it is needed (brief justification tied to the task)
+   - What category it falls into (download / web search / web fetch / tool install / other)
+
+3. Orchestrator reads the manifest and assesses each item:
+   - Is the justification reasonable for this task?
+   - Is the source trustworthy (official docs, manufacturer sites, known registries)?
+   - Does this item need SCS scanning (new dependency)?
+   - Are there any red flags (unknown URLs, unnecessary downloads, scope creep)?
+
+4. Orchestrator presents the manifest to the user with per-item recommendations:
+   - RECOMMEND APPROVE: item is justified, source is trustworthy, low risk
+   - RECOMMEND CAUTION: item is justified but source needs verification, or could be avoided
+   - RECOMMEND DENY: item is unjustified, risky, or outside task scope
+   Each recommendation includes a brief explanation of why.
+
+5. User approves or denies each item.
+
+6. Orchestrator launches the worker agent for actual implementation,
+   with the approved resource list. The agent may only use approved resources.
+```
+
+**Auto-continue rule:** If the manifest is completely empty ("no external resources needed"), the orchestrator skips user review and proceeds directly to implementation. The user is not prompted when nothing is needed — this avoids friction on simple tasks.
+
+**During implementation:** If the agent encounters an unexpected need not in the approved manifest, it must:
+- NOT attempt to download, fetch, or install the resource
+- Document the need in its output (what, why, where)
+- The orchestrator will present this to the user as an addendum for approval
+- The user can approve it, and the orchestrator resumes the agent with the approval
+
+**Permission prompt guidance for the user:** During agent execution, the system may prompt the user for permission on specific actions. If the action matches an approved manifest item, the user can confidently say "Yes." If the action does NOT match any approved item, the user should say "No" — the agent will include the blocked action in its report, and the orchestrator will handle it.
+
+**Manifest folder and files:**
+- During project setup (Step 6 first session, or when starting a new project), the orchestrator creates a `research-inventories/` folder in the project root and adds it to `.gitignore`. This folder is never committed to the repository.
+- Before each task, the orchestrator pre-creates one manifest file per worker agent that will be invoked for that task, using the naming convention: `research-inventories/task-{id}-{agent-role}.md` (e.g., `research-inventories/task-3-embedded-specialist.md`, `research-inventories/task-3-test-engineer.md`).
+- Pre-creating files per agent avoids conflicts when multiple agents run in parallel — each writes to its own file.
+- **The orchestrator does NOT delete manifest files.** After a task is complete, the user can safely delete all files in `research-inventories/` at their convenience. This is a safety measure — the orchestrator should never have delete capability over workflow artifacts in case of context corruption.
+- The folder and its contents are gitignored, so they never appear in commits or clutter the repository.
+
+**Web safety notes:**
+- **WebSearch** (search engine queries): Returns text snippets only. No pages loaded. Low risk.
+- **WebFetch** (loading a specific URL): Downloads raw HTML/text into the agent's context. No browser rendering, no JavaScript execution, no scripts run on the user's machine. However, page content could contain prompt injection attacks (text designed to manipulate the agent). This is why URLs must be pre-approved — so the orchestrator and user can verify the source is trustworthy before the agent reads its content.
+- **Package downloads (project dependencies)**: These go through the full SCS workflow if they are new dependencies not already approved in Step 4. If they are already SCS-approved (in the SBOM), they can be downloaded directly.
+- **Development tool installations** (compilers, build tools, CLI utilities): These do NOT go through full SCS. They require provenance verification only (official source + hash check + user approval). See `policies.md` "Scope: Project Dependencies vs. Development Tools" for the full policy.
+
 ### When to Invoke the Project Manager Agent
 
 The PM agent is **optional** — the orchestrator handles routing by default using the checklist's agent sequence. Only invoke the PM agent in these situations:

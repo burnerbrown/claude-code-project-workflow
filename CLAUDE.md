@@ -61,6 +61,12 @@
 - The user will clear context between steps; handoff files ensure continuity
 - When the user says "start step N for [project]", read the appropriate workflow file and handoff file, then follow the instructions
 
+## MANDATORY: Step 6 Orchestrator Boundaries
+- During Step 6 (Implementation), the orchestrator MUST NOT write, edit, or modify source code, test files, configuration files, or documentation — ALL code changes go through worker agents (Senior Programmer, Test Engineer, etc.)
+- The orchestrator MUST NOT run tests — test execution is the Test Engineer agent's job
+- The orchestrator's only hands-on actions are: routing work between agents, running `bash -n` syntax checks, committing QG-approved work, and updating checklists
+- If you catch yourself about to edit a source file or run a test suite, STOP — delegate it to the appropriate agent
+
 ## GitHub Repository Rules
 - When creating a new repository for a project, ALWAYS ask the user whether they want it **Public** or **Private** before creating it. Never assume.
 - The user can change repository visibility at any time — just ask.

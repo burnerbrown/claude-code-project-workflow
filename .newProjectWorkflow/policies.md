@@ -42,6 +42,26 @@ This rule applies to the orchestrator and every agent without exception:
 ╚══════════════════════════════════════════════════════════════════════╝
 ```
 
+### Scope: Project Dependencies vs. Development Tools
+
+Not all external software requires the same level of scrutiny. The full SCS workflow (Phases 0–5, sandbox download, multi-layer scanning, SBOM entry) applies to **project dependencies** — code that ships with or is compiled into the deliverable. Development tools require a lighter-weight **provenance verification** instead.
+
+| Category | Examples | Risk Profile | Required Verification |
+|----------|----------|-------------|----------------------|
+| **Project dependencies** | Libraries (SdFat, Arduino Core), frameworks, packages linked into the binary | **High** — becomes part of the product; frozen at a version; malicious code ships to end users | Full SCS scan (Phases 0–5), SBOM entry, `.trusted-artifacts` caching |
+| **Development tools** | Compilers (gcc, MinGW), build systems (PlatformIO), editors (VS Code), CLI utilities (git, gh) | **Medium** — runs on the developer's machine; could compromise the build environment; does NOT ship with the product | Provenance verification (see below) |
+| **Pre-approved tools** | Tools the user has already installed on their system, or tools listed in the pre-approved list below | **Low** — already trusted by the user | No verification needed |
+
+**Provenance verification for development tools:**
+1. **Official source only** — download from the project's official website, GitHub releases page, or a trusted package manager (winget, scoop, chocolatey, apt). Never from mirrors, forums, or third-party repackagers.
+2. **Hash verification** — compare the downloaded file's SHA-256 hash against the hash published on the official source's download page or release notes.
+3. **Signature verification** — if the project provides GPG signatures or code signing, verify them. Note the result.
+4. **Report to user** — before installing, tell the user: what you're installing, from where, the verified hash, and any signature verification results. Get explicit approval.
+5. **Do NOT cache in `.trusted-artifacts`** — development tools update frequently for security patches. Freezing them creates a maintenance burden and a stale-version liability. Let the package manager handle updates.
+6. **Do NOT add to the SBOM** — development tools are not project dependencies and do not belong in the Software Bill of Materials.
+
+**Why the distinction matters:** A compromised library ships malicious code to every user of the product. A compromised compiler could inject malicious code into every binary it builds — serious, but mitigated by official-source provenance and hash verification, not by the SBOM/license/dependency-tree analysis designed for libraries. The attack vectors and mitigations are different, so the verification processes should be different.
+
 ### Rules (Apply to ALL Agents, No Exceptions)
 
 1. **Write it yourself first.** Always prefer writing code in-house over adding a dependency. Only request an external dependency when writing it yourself would be unreasonable (e.g., cryptographic primitives, hardware abstraction layers, protocol implementations).
@@ -84,12 +104,15 @@ This rule applies to the orchestrator and every agent without exception:
 
 4. **The Pause Rule.** If the Supply Chain Security agent returns an INCOMPLETE verdict (e.g., VirusTotal rate-limited), ALL agents MUST STOP. No code may be written that uses, imports, or references the unscanned dependency. Wait until scanning completes — even if it takes hours or days. There are no exceptions.
 
-5. **Pre-approved dependencies** (trusted toolchain — no scanning needed):
+5. **Pre-approved tools** (no scanning or provenance verification needed):
    - Rust compiler, `rustup`, `cargo` (the tool itself, not crates)
    - Go compiler, `go` CLI
    - JDK, `mvn`, `gradle` (the tools themselves, not packages)
    - Git (the tool itself)
+   - PlatformIO (the build system, not its library dependencies)
    - Tools the user has already installed on their system
+
+   **New development tools** (not yet installed) require provenance verification — see "Scope: Project Dependencies vs. Development Tools" above. They do NOT require full SCS scanning.
 
 ---
 
