@@ -6,8 +6,8 @@ Make the key technical decisions: language, components, data flow, interfaces, a
 ## Inputs
 - Read `project-handoffs/handoff-step-3.md` from the project folder
 - Optionally reference `project-handoffs/handoff-step-2.md` for additional context on constraints
-- If using specialized agents, read `PLACEHOLDER_PATH\.newProjectWorkflow\agent-orchestration.md` for how to use agents and the available agents table
-- Read `PLACEHOLDER_PATH\.newProjectWorkflow\policies.md` only if: choosing a language or evaluating dependency needs
+- If using specialized agents, read `C:\Users\sdoug\Documents\_ClaudeProjects\.newProjectWorkflow\agent-orchestration.md` for how to use agents and the available agents table
+- Read `C:\Users\sdoug\Documents\_ClaudeProjects\.newProjectWorkflow\policies.md` only if: choosing a language or evaluating dependency needs
 
 ## How to Run This Step
 
@@ -33,8 +33,8 @@ Make the key technical decisions: language, components, data flow, interfaces, a
 8. **Security considerations** — threat model (STRIDE if appropriate), authentication, authorization, data protection.
 9. **Run Supply Chain Security scan on all external dependencies**:
    - This is a FULL scan — all 5 phases (Pre-Download Assessment → Download to Quarantine → Automated Scanning → Verdict → SBOM Generation)
-   - Read the Supply Chain Security agent definition: `PLACEHOLDER_PATH\.agents\supply-chain-security.md`
-   - Read `PLACEHOLDER_PATH\.newProjectWorkflow\policies.md` for dependency security policy
+   - Read the Supply Chain Security agent definition: `C:\Users\sdoug\Documents\_ClaudeProjects\.agents\supply-chain-security.md`
+   - Read `C:\Users\sdoug\Documents\_ClaudeProjects\.newProjectWorkflow\policies.md` for dependency security policy
    - Invoke the Supply Chain Security agent for every external dependency identified in substep 4
    - **If any dependency is REJECTED**: select an alternative dependency and re-run SCS on the replacement — do this NOW while the architecture is still flexible, not in Step 6 when task plans and details are already built around the rejected dependency
    - **If any dependency is INCOMPLETE** (e.g., rate-limited): PAUSE and wait. Do not proceed to substep 10 until all verdicts are CLEAN or CONDITIONAL (with user approval)
@@ -87,6 +87,31 @@ After the user approves the architecture, **scaffold the project repository** ba
 2. **Create a `.gitignore`** appropriate for the chosen language/framework (e.g., Rust → `target/`, Go → binaries, Java → `target/`, `*.class`, Node → `node_modules/`, etc.)
 3. **Create any boilerplate config files** the project needs (e.g., `Cargo.toml`, `go.mod`, `package.json`, `pom.xml`, `Makefile`, etc.)
 4. **Do NOT create source code files** — that's Step 6. Only create the skeleton structure, configuration, and ignore files.
+5. **Create QG evaluation subfolders** in each major directory that will produce agent output. QG evaluation reports go in these subfolders instead of cluttering the parent directory. At minimum, create:
+   - `hardware/qg-evaluations/` (if the project has hardware design)
+   - `firmware/qg-evaluations/` or `{code-directory}/qg-evaluations/` (for firmware/software agent evaluations, where `{code-directory}` is the primary source folder — e.g., `firmware/`, `src/`, `lib/`)
+6. **Create KiCad project folders** (if the project includes custom PCB design). Create the following structure and add KiCad-specific entries to `.gitignore`:
+   ```
+   hardware/kicad/
+   ├── libs/
+   │   ├── symbols/          ← project-specific .kicad_sym files
+   │   └── footprints/
+   │       └── {ProjectName}.pretty/   ← project-specific .kicad_mod files
+   ```
+   Add to `.gitignore`:
+   ```
+   hardware/kicad/*-backups/
+   hardware/kicad/_autosave-*
+   hardware/kicad/*.kicad_prl
+   hardware/kicad/fp-info-cache
+   hardware/kicad/gerber/
+   hardware/kicad/production/
+   hardware/kicad/*.dsn
+   hardware/kicad/*.ses
+   hardware/kicad/*-cache.lib
+   hardware/kicad/*-rescue.lib
+   hardware/kicad/*-rescue.dcm
+   ```
 
 The Software Architect agent (if used) or the orchestrator (for simpler projects) determines what folders and files to create based on the architecture decisions. The orchestrator then creates everything in the repo.
 

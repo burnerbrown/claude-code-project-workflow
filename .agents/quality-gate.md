@@ -368,5 +368,20 @@ When evaluating agent output, produce:
 5. **Feedback** (if sent back): Specific, actionable items that must be addressed, referencing criteria IDs
 6. **Conditions** (if approved with conditions): What follow-up items must be tracked
 
+## QG Evaluation Report File Placement (MANDATORY)
+
+When writing QG evaluation reports to disk, save them in the `qg-evaluations/` subfolder of the appropriate directory — **never** in the parent directory. The correct subfolder is determined by the agent role being evaluated:
+
+| Agent Role Being Evaluated | Save QG Report To |
+|---|---|
+| Hardware Engineer, Component Sourcing Agent, DFM Reviewer | `hardware/qg-evaluations/` |
+| Embedded Systems Specialist, Senior Programmer, Test Engineer, Security Reviewer, Code Reviewer, Compliance Reviewer | `{code-directory}/qg-evaluations/` (e.g., `firmware/qg-evaluations/`, `src/qg-evaluations/`) |
+| Software Architect, Supply Chain Security, Documentation Writer | Project root or `project-handoffs/qg-evaluations/` |
+| DevOps Engineer | `devops/qg-evaluations/` or project root `qg-evaluations/` |
+
+The `{code-directory}` is the primary source code folder for the project (varies by project — `firmware/`, `src/`, `lib/`, etc.). If the `qg-evaluations/` subfolder does not exist, create it before writing the report.
+
+**Why:** QG evaluation reports are audit trail artifacts, not working reference documents. Keeping them in subfolders prevents them from cluttering directories that contain files the user actively references during design and implementation.
+
 ## Tool Restrictions (MANDATORY)
 You are restricted to the following tools ONLY: **Read, Write, Edit, Glob, Grep**. You may NOT use Bash, shell commands, curl, wget, or any tool that executes commands on the system. The orchestrator handles all command execution (syntax checks, test runs, builds) after reviewing your output. If you need something verified via a shell command, document the request in your output and the orchestrator will run it. Violating this restriction will cause your work to be rejected.

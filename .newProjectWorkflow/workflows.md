@@ -220,7 +220,16 @@ Embedded Specialist (implement) → QG → Test Engineer → QG → Security Rev
 Same as the existing Embedded/RTOS Feature workflow — the firmware is implemented against the finalized hardware design from Step 4.
 
 ### Step 6 Hardware Implementation Track (User-Driven)
-The user draws the schematic and PCB layout in KiCad using the Hardware Engineer's design guidance from Step 4. During this phase, the user may request:
+The user draws the schematic and PCB layout in KiCad using the Hardware Engineer's design guidance and KiCad reference files from Step 4. The Hardware Engineer produces the following KiCad reference files as part of its Step 4 deliverables (see the Hardware Engineer agent definition, Output Format item 14):
+- **`bom-kicad-reference.csv`** — BOM formatted for KiCad cross-reference during symbol placement
+- **`netlist-connection-reference.md`** — Master per-net connection reference (trace widths, via specs, routing notes)
+- **`schematic-wiring-checklist.md`** — Step-by-step checkbox wiring list for schematic entry (VS Code preview for clickable checkboxes)
+- **`layout-net-classes.csv`** — Net class configuration for KiCad Design Rules dialog
+- **`layout-component-guide.md`** — Per-component placement and routing reference (searchable by Ctrl+F)
+
+These files are saved in the `hardware/` folder alongside the architecture documents. They are derived from the architecture and provide the user with workflow-specific views of the same data — the schematic checklist for wiring, the net classes CSV for Design Rules setup, and the component guide for layout.
+
+During the user's KiCad work, the user may request:
 - **Schematic review**: Invoke the Hardware Engineer to review a screenshot or description of the schematic against the design spec
 - **DFM review of layout**: Invoke the DFM Reviewer to assess the PCB layout for manufacturability
 - **BOM update**: Invoke Component Sourcing if components change during layout
@@ -261,7 +270,7 @@ This is functionally identical to the existing **Embedded/RTOS Feature** workflo
 Hardware Engineer (revision) → QG → Component Sourcing (if new parts) → QG → Fab House Re-evaluation (if needed) → DFM Reviewer → QG
 ```
 
-1. **Hardware Engineer**: Review the existing design, document proposed changes with justification (new components, circuit modifications, layout changes). Reference the original design and explain what changed and why.
+1. **Hardware Engineer**: Review the existing design, document proposed changes with justification (new components, circuit modifications, layout changes). Reference the original design and explain what changed and why. **Update the KiCad reference files** (netlist-connection-reference, schematic-wiring-checklist, layout-net-classes, layout-component-guide, bom-kicad-reference) to reflect the revised design — only the changed sections need updating, not a full rewrite.
 2. **QG**: Evaluate against criteria HE1-HE12 (scoped to changed areas — unchanged subsystems don't need re-review)
 3. **Component Sourcing** (if new components introduced): Validate new/changed BOM entries
 4. **QG**: Evaluate against criteria CS1-CS8
@@ -286,7 +295,7 @@ Embedded Specialist (update) → QG → Test Engineer (regression) → QG → Se
 Hardware Engineer (production design) → QG → Component Sourcing → QG → Hardware Engineer (sourcing fixes) → QG → Fab House Selection → DFM Reviewer → QG → Hardware Engineer (DFM fixes) → QG
 ```
 
-1. **Hardware Engineer**: Design the production board based on the prototype's proven circuit — translate breadboard/dev-kit connections into a proper schematic. Optimize for size, cost, power, and reliability. Define production-grade power supply, connectors, and protection circuits that the prototype may have lacked.
+1. **Hardware Engineer**: Design the production board based on the prototype's proven circuit — translate breadboard/dev-kit connections into a proper schematic. Optimize for size, cost, power, and reliability. Define production-grade power supply, connectors, and protection circuits that the prototype may have lacked. **Produce the full set of KiCad reference files** (see Hardware Engineer agent definition, Output Format item 14).
 2. **QG**: Evaluate against criteria HE1-HE12
 3. **Component Sourcing**: Validate BOM for production quantities — focus on availability at volume, cost optimization, and lifecycle
 4. **QG**: Evaluate against criteria CS1-CS8

@@ -9,19 +9,19 @@ Execute the implementation by orchestrating agents through the checklist produce
 - `IMPLEMENTATION-CHECKLIST.md` — use `Grep` for `- \[ \]` to find the next task (don't read the whole file)
 - `checklists/task-{id}.md` — the per-task checklist for the current task ONLY (contains agent sequence, instructions, acceptance criteria, subtask checkboxes)
 - `git log --oneline` — when resuming mid-task, to confirm what's committed
-- `PLACEHOLDER_PATH\.newProjectWorkflow\git-workflow.md` — when it's time to commit or push
+- `C:\Users\sdoug\Documents\_ClaudeProjects\.newProjectWorkflow\git-workflow.md` — when it's time to commit or push
 
 ### What agents read (in their own context — do NOT load into orchestrator context)
 - Source files, test files, configuration files — agents read these themselves
-- Agent definitions (`PLACEHOLDER_PATH\.agents\`) — pass the file path to agents if they need their role definition, but do NOT read agent definition files into orchestrator context
+- Agent definitions (`C:\Users\sdoug\Documents\_ClaudeProjects\.agents\`) — pass the file path to agents if they need their role definition, but do NOT read agent definition files into orchestrator context
 - Architecture docs (`project-handoffs/handoff-step-4.md`) — pass the path to agents that need architecture context
 - Spec docs (`project-handoffs/handoff-step-3.md`) — pass the path to agents that need acceptance criteria
 - Step 5.5 completion markers — the checklist file already contains everything the orchestrator needs; the 5.5 marker is redundant
 
 ### Read only when needed (not every session)
-- `PLACEHOLDER_PATH\.newProjectWorkflow\workflows.md` — only if the checklist file doesn't already specify the agent sequence
-- `PLACEHOLDER_PATH\.newProjectWorkflow\policies.md` — only if: a dependency is being added, two agents disagree, or an agent fails
-- `PLACEHOLDER_PATH\.newProjectWorkflow\agent-orchestration.md` — only if you need to look up how agents work (you should already know from prior sessions)
+- `C:\Users\sdoug\Documents\_ClaudeProjects\.newProjectWorkflow\workflows.md` — only if the checklist file doesn't already specify the agent sequence
+- `C:\Users\sdoug\Documents\_ClaudeProjects\.newProjectWorkflow\policies.md` — only if: a dependency is being added, two agents disagree, or an agent fails
+- `C:\Users\sdoug\Documents\_ClaudeProjects\.newProjectWorkflow\agent-orchestration.md` — only if you need to look up how agents work (you should already know from prior sessions)
 
 ## How to Run This Step
 
@@ -93,6 +93,7 @@ Repeat the following cycle for each task/subtask until the checklist is complete
    - Before committing, confirm that all output files are placed in the correct repo folders as specified in the Step 5.5 task detail (Target Repo Paths)
    - If the QG flagged that a new folder is needed (e.g., `migrations/`, `benchmarks/`, `init-scripts/`), create it now before committing
    - Files must match the project structure established in Step 4 — do not dump files in the repo root
+   - **QG evaluation reports** must be saved to `qg-evaluations/` subfolders (e.g., `hardware/qg-evaluations/`, `firmware/qg-evaluations/`) — never in the parent directory. See the Quality Gate agent definition for the folder mapping by agent role. If the subfolder doesn't exist, create it.
 
 8. **Update checklist progressively, commit once per completed task** (per `git-workflow.md`):
 
