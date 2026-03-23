@@ -104,7 +104,14 @@ Not all external software requires the same level of scrutiny. The full SCS work
 
 4. **The Pause Rule.** If the Supply Chain Security agent returns an INCOMPLETE verdict (e.g., VirusTotal rate-limited), ALL agents MUST STOP. No code may be written that uses, imports, or references the unscanned dependency. Wait until scanning completes — even if it takes hours or days. There are no exceptions.
 
-5. **Pre-approved tools** (no scanning or provenance verification needed):
+5. **Install from Local Cache Only.** During implementation (Step 6), all vetted dependencies MUST be installed from the local `.trusted-artifacts/` cache — NEVER fetched from the internet (PyPI, npm registry, crates.io, Maven Central, etc.). This eliminates the time-of-check-to-time-of-use (TOCTOU) gap between when SCS scanned the dependency and when it is installed into the project.
+   - Use offline/local install flags: `pip install --no-index --find-links`, `npm install <local-tarball>`, etc.
+   - Use hash verification at install time: `pip install --require-hashes`, npm integrity checks, etc.
+   - The exact install command for each dependency is recorded in `scs-report.md` by the SCS agent after a CLEAN verdict
+   - If an agent's install command would fetch from the internet (e.g., bare `pip install requests` without `--no-index`), the orchestrator MUST reject it and correct the command to use the local cache
+   - After installation, verify the installed package hash matches the hash recorded in `_registry.md`
+
+6. **Pre-approved tools** (no scanning or provenance verification needed):
    - Rust compiler, `rustup`, `cargo` (the tool itself, not crates)
    - Go compiler, `go` CLI
    - JDK, `mvn`, `gradle` (the tools themselves, not packages)

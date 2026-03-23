@@ -427,18 +427,58 @@ Produce a verdict for each dependency:
 
 ### Post-CLEAN: Update Trusted Artifacts Registry
 After a CLEAN verdict, before closing the scan:
-1. Move the quarantined artifact to the appropriate subfolder in `.trusted-artifacts/`:
+1. Move the quarantined **installable artifact** (`.whl`, `.tar.gz`, `.crate`, `.jar`, `.tgz`, etc.) to the appropriate subfolder in `.trusted-artifacts/`:
    - Libraries → `.trusted-artifacts/libraries/`
    - Language packages → `.trusted-artifacts/packages/`
    - CLI tools / binaries → `.trusted-artifacts/tools/`
    - Frameworks → `.trusted-artifacts/frameworks/`
+   - **The actual package file must be saved** — not just metadata. This artifact is what agents will install from during implementation, ensuring they never need to fetch from the internet.
 2. Append a row to `.trusted-artifacts/_registry.md`:
 
 ```markdown
-| [Name] | [Version] | [Type] | [subfolder]/ | [SHA-256] | [YYYY-MM-DD] | CLEAN | [brief notes] |
+| [Name] | [Version] | [Type] | [subfolder]/ | [Artifact Filename] | [SHA-256] | [YYYY-MM-DD] | CLEAN | [brief notes] |
 ```
 
 3. Replace the `*(empty)*` placeholder row on first use.
+
+### Post-CLEAN: Generate Hash-Pinned Install Manifest
+After saving the artifact and updating the registry, generate a hash-pinned install command or manifest entry for the dependency. This ensures that during Step 6, worker agents install from the local cache with hash verification — never from the internet.
+
+**Python (pip):**
+```
+# Add to project's requirements.txt:
+<package-name>==<version> --hash=sha256:<hash-from-registry>
+# Install command (used by agents during implementation):
+pip install --no-index --find-links .trusted-artifacts/packages/ --require-hashes -r requirements.txt
+```
+
+**Rust (cargo):**
+```
+# Record in project's Cargo.toml [patch] or .cargo/config.toml:
+# Point to local .crate file path for offline install
+```
+
+**Node.js (npm):**
+```
+# Use npm pack output stored in .trusted-artifacts/packages/
+# Install command:
+npm install .trusted-artifacts/packages/<package-name>-<version>.tgz
+# Verify integrity hash matches registry entry after install
+```
+
+**Go:**
+```
+# Set GOFLAGS and GONOSUMCHECK to use local module cache
+# Copy vetted module to GOPATH/pkg/mod/cache
+```
+
+**Java (Maven):**
+```
+# Install to local Maven repository:
+mvn install:install-file -Dfile=.trusted-artifacts/libraries/<artifact>.jar -DgroupId=<group> -DartifactId=<artifact> -Dversion=<version> -Dpackaging=jar
+```
+
+Include the exact install command in the SCS report (`scs-report.md`) under each dependency's section so agents can reference it during implementation.
 
 ### Phase 5: SBOM Generation
 After all dependencies are approved, generate a Software Bill of Materials:

@@ -189,5 +189,8 @@ For each external resource you anticipate needing, provide:
 - If you discover an unexpected need during implementation that was NOT in your manifest, stop and document it — do NOT access the resource without approval
 - Write your manifest to the file path the orchestrator specifies (in the `research-inventories/` folder)
 
+## Dependency Installation Rule
+If your tests require a project dependency (e.g., a testing framework or library under test), it MUST be installed from the local `.trusted-artifacts/` cache — NEVER fetched from the internet. **You do not run install commands yourself** — document the dependency requirement in your output, specifying the exact name, version, and cache path from `_registry.md`. The orchestrator will execute the install using the hash-pinned command from the SCS report (`scs-report.md`). If a dependency you need is not in `.trusted-artifacts/_registry.md`, do NOT install it — document the need in your output so the orchestrator can route it through the SCS workflow.
+
 ## Tool Restrictions (MANDATORY)
 You are restricted to the following tools ONLY: **Read, Write, Edit, Glob, Grep**. You may NOT use Bash, shell commands, curl, wget, or any tool that executes commands on the system. The orchestrator handles all command execution (syntax checks, test runs, builds) after reviewing your output. If you need something verified via a shell command (e.g., `bash -n`, running tests), document the request in your output and the orchestrator will run it. Violating this restriction will cause your work to be rejected.

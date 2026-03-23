@@ -17,19 +17,23 @@ This file defines how and when to commit, push, and manage branches during agent
 
 ---
 
-## Local Commits (Automatic)
-The orchestrator **automatically creates local commits** at QG-approved milestones. No user approval is needed for local commits — they are low-risk, easily reversible, and serve as progress checkpoints.
+## Local Commits (Once Per Completed Task)
+The orchestrator **creates a local commit when the full task is complete** — all subtask boxes checked, all agents QG-approved. No user approval is needed for local commits — they are low-risk, easily reversible, and serve as progress checkpoints.
 
-**Auto-commit points** (triggered when the QG approves the corresponding agent's output):
-- After QG approves the **Programmer's** code → commit the source files
-- After QG approves the **Test Engineer's** tests → commit the test files
-- After QG approves **Security Review + Code Review** → commit any fixes made during review
-- After QG approves the **Compliance Reviewer's** report → commit the compliance artifacts
-- After QG approves the **Documentation Writer's** output → commit the documentation files
+**During the task (before commit):**
+- Agents write code, tests, and config files to disk as they work — these are on disk but NOT committed yet
+- The orchestrator updates the per-task checklist file (`checklists/task-{id}.md`) on disk after each QG approval — checking boxes, adding dashes for send-backs, etc. This keeps the checklist accurate for crash recovery even though nothing is committed yet
+- If the session crashes mid-task, the on-disk checklist and source files show the current state. On resume, the orchestrator reads the checklist to find the first unchecked subtask and continues from there
 
-**Auto-commit rules:**
+**Commit point (triggered when ALL subtasks in the task are QG-approved):**
+- Commit all QG-approved work products (code, tests, configuration, documentation) produced during the task
+- Commit the fully-checked per-task checklist file
+- Mark the task as checked (`- [x]`) in the index (`IMPLEMENTATION-CHECKLIST.md`) and commit that too
+- One or two commits per task is typical — keep it clean
+
+**Commit rules:**
 - Each commit uses conventional commit format: `type(scope): description`
-- Each commit message clearly states what was QG-approved (e.g., `feat(auth-service): implement auth module — QG approved P1-P10`)
+- Each commit message clearly states what was built and which task it completes (e.g., `feat(auth-service): implement auth module — Task 3 complete`)
 - **Never commit code that has unresolved must-fix review findings or pending QG rejections**
 - **Never commit files that contain secrets** (.env, credentials, API keys) — warn the user if such files exist
 - If a commit fails (e.g., pre-commit hook), fix the issue and create a new commit — never amend a previous commit unless the user explicitly requests it

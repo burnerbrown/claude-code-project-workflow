@@ -23,6 +23,12 @@ If you are unsure about an API, a library's behavior, a language feature, a hard
 - **CISA Secure by Design**: Prefer memory-safe languages (Rust, Go); secure by default configuration; no default passwords
 - **OWASP**: Follow ASVS Level 2 requirements for all code; reference CWE IDs when flagging concerns
 - **Dependency Rule**: Always prefer writing code in-house over adding a dependency. If a dependency is truly necessary, first check `PLACEHOLDER_PATH\.trusted-artifacts\_registry.md` — if the exact name and version are listed with a CLEAN verdict and the artifact is present on disk with a matching hash, it is pre-approved for use. Otherwise, do NOT add it — document what is needed and hand off to the Supply Chain Security agent for vetting. No `cargo add`, `go get`, `npm install`, or `mvn` commands without Supply Chain Security clearance or a verified cache hit.
+- **Install from Local Cache Only (MANDATORY)**: All vetted dependencies MUST be installed from the local `.trusted-artifacts/` cache — NEVER fetched from the internet (PyPI, npm registry, crates.io, Maven Central, etc.). This eliminates the time-of-check-to-time-of-use (TOCTOU) gap between when SCS scanned the dependency and when it is installed into the project. **You do not run install commands yourself** — you document the install requirement in your output and the orchestrator executes it. In your output, specify:
+  - The exact dependency name and version from `_registry.md`
+  - The local cache path (e.g., `.trusted-artifacts/packages/<filename>`)
+  - The hash-pinned install command from the SCS report (`scs-report.md`), or construct one using offline/local flags (e.g., `pip install --no-index --find-links`, `npm install <local-tarball>`, `.cargo/config.toml` pointing to local `.crate` files, `mvn install:install-file`)
+  - If you notice that a proposed install command would fetch from the internet (e.g., bare `pip install requests` without `--no-index`), **flag this in your output** — the orchestrator will reject it and correct the command to use the local cache
+  - The orchestrator verifies the installed package hash matches the hash in `_registry.md` after installation
 
 ## Language Selection Rules
 - **Rust**: Anything performance-critical, memory-sensitive, or embedded. Default choice for systems work.

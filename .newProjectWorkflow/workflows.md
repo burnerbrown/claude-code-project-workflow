@@ -26,14 +26,7 @@ Worker Agent → QG evaluates against acceptance criteria → Orchestrator route
                                                          SENT BACK → same Worker Agent re-does work with QG feedback
 ```
 
-The **orchestrator (Claude)** manages the overall flow:
-1. Orchestrator invokes a worker agent
-2. Orchestrator sends the worker agent's output to the **Quality Gate** for evaluation
-3. If QG approved: orchestrator proceeds to the next agent in the checklist sequence
-4. If QG sent back: orchestrator **resumes** the worker agent (using its saved agent ID) with the QG's specific feedback
-5. Repeat until QG approves
-6. After the final QG approval (documentation-writer), the orchestrator commits and the task is complete
-7. Orchestrator updates GitHub with the changes
+For the full QG routing procedure — how to invoke the QG, prompt structure, verdict handling, and agent resume rules — see `agent-orchestration.md` "Quality Gate Routing" and "Agent Lifecycle: Resume on Rework." This file defines WHICH agents run in WHAT order for each workflow type; `agent-orchestration.md` defines HOW to execute each handoff.
 
 **Diagram shorthand:** In the workflow diagrams below, `→ QG →` means: orchestrator sends output to Quality Gate for evaluation, then the orchestrator routes based on the verdict. The checklist defines the agent sequence, so routing is usually obvious.
 

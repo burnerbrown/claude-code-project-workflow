@@ -94,27 +94,21 @@ Repeat the following cycle for each task/subtask until the checklist is complete
    - If the QG flagged that a new folder is needed (e.g., `migrations/`, `benchmarks/`, `init-scripts/`), create it now before committing
    - Files must match the project structure established in Step 4 — do not dump files in the repo root
 
-8. **Auto-commit locally AND update checklist progressively** (per `git-workflow.md`):
-   - Commit all QG-approved work products (code, tests, configuration) to the local repository
-   - **Immediately after each QG approval, mark the corresponding subtask(s) as checked (`- [x]`) in `checklists/task-{id}.md` and commit the checklist update**
-   - Do NOT batch checklist updates — check boxes and commit after EVERY QG approval milestone, not at the end of the task
-   - When ALL subtasks for a task are complete, also mark the task as checked (`- [x]`) in the index (`IMPLEMENTATION-CHECKLIST.md`) and commit
-   - **Push to remote after each completed task** — once the final checklist/index commit is done, push immediately (per `git-workflow.md`). Do NOT batch pushes to workflow completion — local-only repos are not backups
+8. **Update checklist progressively, commit once per completed task** (per `git-workflow.md`):
 
-   **Concrete commit pattern per agent stage:**
-   1. QG approves **Programmer** → commit source files → check Programmer + QG subtask boxes → commit checklist
-   2. QG approves **Test Engineer** → commit test files → check Test Engineer + QG subtask boxes → commit checklist
-   3. QG approves **Review fixes** (Security + Code) → commit any fixes → check Review + QG subtask boxes → commit checklist
-   4. QG approves **Compliance** → check Compliance + QG subtask box → commit checklist
-   5. QG approves **Documentation** → commit doc files → check Documentation + final QG subtask boxes → commit checklist + mark index
-
-   Each checklist commit is small and fast. The goal is that at any point mid-task, the checklist accurately reflects which agents' work has been QG-approved and committed.
-
-   **Why progressive checking matters:** If the user's session limits out mid-task, the checklist is the recovery mechanism. On restart, the orchestrator reads the per-task checklist, sees which agents have already been QG-approved (checked), and resumes from the first unchecked subtask — no work is redone. If checklist updates are batched at the end, a mid-task timeout means ALL subtask boxes are unchecked despite committed work, causing unnecessary rework.
+   **During the task (no commits yet):**
+   - Agents write code, tests, and config to disk as they work — files are saved but NOT committed
+   - **Immediately after each QG approval, update the checklist on disk:** mark the corresponding subtask(s) as checked (`- [x]`) in `checklists/task-{id}.md`. Do NOT batch checklist updates — update after EVERY QG approval so the on-disk state is always current
+   - This on-disk checklist is the crash recovery mechanism — if the session dies mid-task, the orchestrator reads the checklist on restart, sees which subtasks are checked, and resumes from the first unchecked one. No work is redone because the source files and checklist are already on disk.
 
    **On send-back (rework):** If a reviewer sends work back to an earlier agent and the fix changes previously-approved output, uncheck the affected subtask boxes and change them to `- [-]` (completed but invalidated). This distinguishes "never started" (`- [ ]`) from "was done but needs rework" (`- [-]`). After the fix is re-approved, change `- [-]` back to `- [x]`.
 
-   **Update the project-local `CLAUDE.md`:** After each QG-approved commit, update the "Current State" section in the project root `CLAUDE.md` to reflect what was just completed and what the next action is. This file is loaded automatically on session start, so a crash recovery session immediately knows the current state without reading checklists first.
+   **When the full task is complete (all subtasks checked):**
+   - Commit all QG-approved work products (code, tests, configuration, documentation) to the local repository
+   - Commit the fully-checked per-task checklist file
+   - Mark the task as checked (`- [x]`) in the index (`IMPLEMENTATION-CHECKLIST.md`) and commit
+   - **Push to remote immediately** — do NOT batch pushes to workflow completion. A local-only repo is not a backup, and losing many tasks of work to a disk failure is an unacceptable risk
+   - **Update the project-local `CLAUDE.md`:** Update the "Current State" section to reflect what was just completed and what the next action is. This file is loaded automatically on session start, so a crash recovery session immediately knows the current state without reading checklists first.
 
 9. **Check for review checkpoints**:
    - If the plan specifies a review checkpoint after this task, pause and notify the user
