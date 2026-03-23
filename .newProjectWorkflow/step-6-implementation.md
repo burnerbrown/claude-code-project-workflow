@@ -9,19 +9,19 @@ Execute the implementation by orchestrating agents through the checklist produce
 - `IMPLEMENTATION-CHECKLIST.md` — use `Grep` for `- \[ \]` to find the next task (don't read the whole file)
 - `checklists/task-{id}.md` — the per-task checklist for the current task ONLY (contains agent sequence, instructions, acceptance criteria, subtask checkboxes)
 - `git log --oneline` — when resuming mid-task, to confirm what's committed
-- `C:\Users\sdoug\Documents\_ClaudeProjects\.newProjectWorkflow\git-workflow.md` — when it's time to commit or push
+- `.newProjectWorkflow/git-workflow.md` — when it's time to commit or push
 
 ### What agents read (in their own context — do NOT load into orchestrator context)
 - Source files, test files, configuration files — agents read these themselves
-- Agent definitions (`C:\Users\sdoug\Documents\_ClaudeProjects\.agents\`) — pass the file path to agents if they need their role definition, but do NOT read agent definition files into orchestrator context
+- Agent definitions (`.agents/`) — pass the file path to agents if they need their role definition, but do NOT read agent definition files into orchestrator context
 - Architecture docs (`project-handoffs/handoff-step-4.md`) — pass the path to agents that need architecture context
 - Spec docs (`project-handoffs/handoff-step-3.md`) — pass the path to agents that need acceptance criteria
 - Step 5.5 completion markers — the checklist file already contains everything the orchestrator needs; the 5.5 marker is redundant
 
 ### Read only when needed (not every session)
-- `C:\Users\sdoug\Documents\_ClaudeProjects\.newProjectWorkflow\workflows.md` — only if the checklist file doesn't already specify the agent sequence
-- `C:\Users\sdoug\Documents\_ClaudeProjects\.newProjectWorkflow\policies.md` — only if: a dependency is being added, two agents disagree, or an agent fails
-- `C:\Users\sdoug\Documents\_ClaudeProjects\.newProjectWorkflow\agent-orchestration.md` — only if you need to look up how agents work (you should already know from prior sessions)
+- `.newProjectWorkflow/workflows.md` — only if the checklist file doesn't already specify the agent sequence
+- `.newProjectWorkflow/policies.md` — only if: a dependency is being added, two agents disagree, or an agent fails
+- `.newProjectWorkflow/agent-orchestration.md` — only if you need to look up how agents work (you should already know from prior sessions)
 
 ## How to Run This Step
 

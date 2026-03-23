@@ -6,8 +6,8 @@ Make the key technical decisions: language, components, data flow, interfaces, a
 ## Inputs
 - Read `project-handoffs/handoff-step-3.md` from the project folder
 - Optionally reference `project-handoffs/handoff-step-2.md` for additional context on constraints
-- If using specialized agents, read `C:\Users\sdoug\Documents\_ClaudeProjects\.newProjectWorkflow\agent-orchestration.md` for how to use agents and the available agents table
-- Read `C:\Users\sdoug\Documents\_ClaudeProjects\.newProjectWorkflow\policies.md` only if: choosing a language or evaluating dependency needs
+- If using specialized agents, read `.newProjectWorkflow/agent-orchestration.md` for how to use agents and the available agents table
+- Read `.newProjectWorkflow/policies.md` only if: choosing a language or evaluating dependency needs
 
 ## How to Run This Step
 
@@ -33,8 +33,8 @@ Make the key technical decisions: language, components, data flow, interfaces, a
 8. **Security considerations** — threat model (STRIDE if appropriate), authentication, authorization, data protection.
 9. **Run Supply Chain Security scan on all external dependencies**:
    - This is a FULL scan — all 5 phases (Pre-Download Assessment → Download to Quarantine → Automated Scanning → Verdict → SBOM Generation)
-   - Read the Supply Chain Security agent definition: `C:\Users\sdoug\Documents\_ClaudeProjects\.agents\supply-chain-security.md`
-   - Read `C:\Users\sdoug\Documents\_ClaudeProjects\.newProjectWorkflow\policies.md` for dependency security policy
+   - Read the Supply Chain Security agent definition: `.agents/supply-chain-security.md`
+   - Read `.newProjectWorkflow/policies.md` for dependency security policy
    - Invoke the Supply Chain Security agent for every external dependency identified in substep 4
    - **If any dependency is REJECTED**: select an alternative dependency and re-run SCS on the replacement — do this NOW while the architecture is still flexible, not in Step 6 when task plans and details are already built around the rejected dependency
    - **If any dependency is INCOMPLETE** (e.g., rate-limited): PAUSE and wait. Do not proceed to substep 10 until all verdicts are CLEAN or CONDITIONAL (with user approval)
