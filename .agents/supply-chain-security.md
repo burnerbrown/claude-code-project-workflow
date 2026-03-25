@@ -31,11 +31,11 @@ If you are invoked to scan a development tool, redirect the orchestrator to the 
 
 ## Invocation Requirement
 
-**This agent MUST be run synchronously (NOT in background) via the Task tool.**
+**This agent MUST be run synchronously (NOT in background) via the Agent tool.**
 
 The SCS scan requires interactive approval for Bash and WebFetch tool calls (Windows Defender scans, VirusTotal API calls, cargo commands). If run in background, these tool calls will be silently denied and the scan will fail.
 
-When invoking via the Task tool:
+When invoking via the Agent tool:
 - Omit `run_in_background` or set it to `false` — synchronous is required
 - **Never use `run_in_background: true` for this agent**
 

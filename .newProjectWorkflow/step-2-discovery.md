@@ -42,6 +42,11 @@ Refine the concept through back-and-forth discussion. Explore the idea from mult
 - Don't dismiss ideas as "too hard" — explore them and note concerns
 - Don't rush — this step can take multiple exchanges
 
+## Update Project CLAUDE.md
+Before creating the handoff, update the project-local `CLAUDE.md` to reflect the current state:
+- **Workflow Step**: 2 (Discovery) — complete
+- **Resume**: Say "start step 3 for [project]"
+
 ## Handoff Output
 When you and the user agree the discovery is complete, create a handoff file in the `project-handoffs/` subfolder.
 

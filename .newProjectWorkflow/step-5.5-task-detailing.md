@@ -18,7 +18,7 @@ Take the individual task files from Step 5 and produce detailed agent workflows 
 
 **CRITICAL: Do NOT load all task files at once.** Process them one at a time to keep context small and output quality high. Follow this loop:
 
-1. **Check progress**: Look for completion markers (`project-handoffs/handoff-step-5.5-task-N-done.md`) to determine which tasks have already been detailed. If none exist, start with the first task. **Also report progress to the user** — e.g., "3 of 16 tasks detailed so far. Next up: Task 4." This keeps the user aware of how many iterations remain and prevents premature jumps to Step 6.
+1. **Check progress**: Look for completion markers (`project-handoffs/handoff-step-5.5-task-{id}-done.md`) to determine which tasks have already been detailed. If none exist, start with the first task. **Also report progress to the user** — e.g., "3 of 16 tasks detailed so far. Next up: Task 4." This keeps the user aware of how many iterations remain and prevents premature jumps to Step 6.
 
 2. **Load one task file**: Read only the next unprocessed task file (e.g., `project-handoffs/handoff-step-5-task-1.md`), plus whatever architecture/spec context that task needs.
 
@@ -26,7 +26,7 @@ Take the individual task files from Step 5 and produce detailed agent workflows 
 
 4. **Create the per-task checklist file**: Write the task's full detail (agent sequences, instructions, acceptance criteria, subtask checkboxes) to `checklists/task-{id}.md` (e.g., `checklists/task-pre1.md`, `checklists/task-1.md`). Then update the lightweight `IMPLEMENTATION-CHECKLIST.md` index to include this task's summary entry. If this is the first task, create both the `checklists/` folder and the index file with the header. Commit and push to GitHub.
 
-5. **Write a completion marker**: Create `project-handoffs/handoff-step-5.5-task-N-done.md` with a brief summary confirming the task was detailed. Commit and push to GitHub.
+5. **Write a completion marker**: Create `project-handoffs/handoff-step-5.5-task-{id}-done.md` with a brief summary confirming the task was detailed. Commit and push to GitHub.
 
 6. **Clear context**: The user clears context between iterations.
 
@@ -157,8 +157,13 @@ Each file contains the full detail for one task: agent sequences, instructions, 
 - [ ] [Subtask 2 — agent: specific deliverable and acceptance criteria]
 - [ ] [QG Verification: all outputs produced, all criteria met]
 
-Checklist states: `- [ ]` = not started, `- [x]` = QG-approved and committed, `- [-]` = was completed but invalidated by send-back (needs rework). During Step 6, boxes are checked progressively as each agent's work is QG-approved and committed — this enables mid-task session recovery.
+Checklist states: `- [ ]` = not started, `- [x]` = QG-approved and committed, `- [ ] **REWORK:** [description]` = was completed but invalidated by send-back (needs rework — the original description is replaced with the rework reason). During Step 6, boxes are checked progressively as each agent's work is QG-approved and committed — this enables mid-task session recovery. The **REWORK:** prefix uses standard unchecked checkbox syntax so it renders correctly on GitHub and is unambiguous even if context is lost between sessions.
 ```
+
+## Update Project CLAUDE.md
+After the final verification passes, update the project-local `CLAUDE.md` to reflect the current state:
+- **Workflow Step**: 5.5 (Task Detailing) — complete
+- **Resume**: Say "start step 6 for [project]"
 
 ## Git
 - Each iteration: commit the per-task checklist file (`checklists/task-{id}.md`), the updated index (`IMPLEMENTATION-CHECKLIST.md`), and the completion marker file, then push to GitHub
@@ -191,7 +196,7 @@ This verification is the **gate** between Step 5.5 and Step 6. Step 6 will check
 Step 5.5 is complete when:
 - Every task from Step 5 has been detailed
 - Every task has a per-task checklist file (`checklists/task-{id}.md`)
-- Every task has a completion marker file (`project-handoffs/handoff-step-5.5-task-N-done.md`)
+- Every task has a completion marker file (`project-handoffs/handoff-step-5.5-task-{id}-done.md`)
 - The index `IMPLEMENTATION-CHECKLIST.md` lists all tasks
 - The final handoff file `project-handoffs/handoff-step-5.5.md` has been created (confirms all verifications passed)
 - All files are committed and pushed to GitHub

@@ -9,19 +9,19 @@ Execute the implementation by orchestrating agents through the checklist produce
 - `IMPLEMENTATION-CHECKLIST.md` — use `Grep` for `- \[ \]` to find the next task (don't read the whole file)
 - `checklists/task-{id}.md` — the per-task checklist for the current task ONLY (contains agent sequence, instructions, acceptance criteria, subtask checkboxes)
 - `git log --oneline` — when resuming mid-task, to confirm what's committed
-- `.newProjectWorkflow/git-workflow.md` — when it's time to commit or push
+- `PLACEHOLDER_PATH\.newProjectWorkflow\git-workflow.md` — when it's time to commit or push
 
 ### What agents read (in their own context — do NOT load into orchestrator context)
 - Source files, test files, configuration files — agents read these themselves
-- Agent definitions (`.agents/`) — pass the file path to agents if they need their role definition, but do NOT read agent definition files into orchestrator context
+- Agent definitions (`PLACEHOLDER_PATH\.agents\`) — pass the file path to agents if they need their role definition, but do NOT read agent definition files into orchestrator context
 - Architecture docs (`project-handoffs/handoff-step-4.md`) — pass the path to agents that need architecture context
 - Spec docs (`project-handoffs/handoff-step-3.md`) — pass the path to agents that need acceptance criteria
 - Step 5.5 completion markers — the checklist file already contains everything the orchestrator needs; the 5.5 marker is redundant
 
 ### Read only when needed (not every session)
-- `.newProjectWorkflow/workflows.md` — only if the checklist file doesn't already specify the agent sequence
-- `.newProjectWorkflow/policies.md` — only if: a dependency is being added, two agents disagree, or an agent fails
-- `.newProjectWorkflow/agent-orchestration.md` — only if you need to look up how agents work (you should already know from prior sessions)
+- `PLACEHOLDER_PATH\.newProjectWorkflow\workflows.md` — only if the checklist file doesn't already specify the agent sequence
+- `PLACEHOLDER_PATH\.newProjectWorkflow\policies.md` — only if: a dependency is being added, two agents disagree, or an agent fails
+- `PLACEHOLDER_PATH\.newProjectWorkflow\agent-orchestration.md` — only if you need to look up how agents work (you should already know from prior sessions)
 
 ## How to Run This Step
 
@@ -49,11 +49,11 @@ Repeat the following cycle for each task/subtask until the checklist is complete
 2. **Load context for that task** (keep it minimal):
    - Read the per-task checklist file: `checklists/task-{id}.md` — this is the ONLY file the orchestrator needs to read at this stage. It contains agent sequences, instructions, acceptance criteria, and subtask checkboxes.
    - **Check for mid-task resume:** Look at the subtask checklist boxes. If some are already checked (`- [x]`), this task was partially completed in a prior session and must be resumed, not restarted. Follow this recovery procedure:
-     1. **Checklist boxes are the primary indicator.** `- [x]` = agent's work is QG-approved and committed. `- [-]` = was done but invalidated by a send-back (needs rework). `- [ ]` = not started.
+     1. **Checklist boxes are the primary indicator.** `- [x]` = agent's work is QG-approved and committed. `- [ ] **REWORK:** [reason]` = was done but invalidated by a send-back (needs rework). `- [ ]` = not started.
      2. **Run `git log --oneline -10`** to see recent commits and confirm what was actually committed. This catches edge cases where a session died between committing code and checking the box.
      3. **Identify the resume point:** The first unchecked (`- [ ]`) subtask is where you resume. Skip all checked (`- [x]`) agents entirely — their work is committed and does not need to be redone.
      4. **If a box is unchecked but the code appears committed** (git log shows a relevant commit), check the box now and move to the next unchecked subtask. The session likely died between committing and updating the checklist.
-     5. **If any boxes show `- [-]`**, those agents need rework — read the relevant source files to understand current state before re-invoking the agent.
+     5. **If any boxes show `- [ ] **REWORK:**`**, those agents need rework — read the rework reason and the relevant source files to understand current state before re-invoking the agent.
    - Check the task's **Depends On** field. If dependencies aren't complete, use `Grep` on the index to verify they're checked off. If not, STOP and flag the issue.
    - **Do NOT read** architecture docs, spec docs, agent definitions, Step 5.5 markers, or source files at this stage. These are for agents to read in their own context — not for the orchestrator. Only read additional files when YOU need them for a routing decision.
 
@@ -71,7 +71,7 @@ Repeat the following cycle for each task/subtask until the checklist is complete
    - **In the agent's prompt, tell the agent which files to read and what to do.** Include file paths and the specific instructions from the checklist. Do NOT read source files, architecture docs, or spec docs into orchestrator context just to paste them into the agent prompt — the agent can read files itself.
    - **Exception:** Small, focused context is OK to include directly (e.g., a 5-line function body from a QG verdict, specific review findings). Use judgment — if it's more than ~20 lines, pass the file path instead.
    - For handoffs between agents (e.g., Test Engineer needs to know what the Programmer produced), tell the next agent which files were created/modified and let it read them.
-   - **Track agent IDs for resume:** When each worker agent completes, note its agent ID. If the QG sends work back to that agent later, use the `resume` parameter on the Task tool to continue the agent with its full prior context intact — do NOT launch a fresh agent for rework. See `agent-orchestration.md` "Agent Lifecycle: Resume on Rework" for which agents to resume vs. invoke fresh.
+   - **Track agent IDs for resume:** When each worker agent completes, note its agent ID. If the QG sends work back to that agent later, use `SendMessage` with the agent's ID as the `to` field to continue the agent with its full prior context intact — do NOT launch a fresh agent for rework. See `agent-orchestration.md` "Agent Lifecycle: Resume on Rework" for which agents to resume vs. invoke fresh.
 
 5. **Agents do the work**:
    - Worker agents produce their deliverables (code, tests, reviews, etc.)
@@ -79,7 +79,7 @@ Repeat the following cycle for each task/subtask until the checklist is complete
    - If an agent needs a dependency that wasn't scanned in Step 4, pause work on this task and follow the "Dependency Addition" workflow in `workflows.md` — scan the new dependency, then resume
 
 6. **Quality Gate evaluates, orchestrator routes**:
-   - **The orchestrator runs `bash -n` (syntax check) as a quick sanity check before invoking the QG** — this catches obvious issues without a full agent invocation
+   - **The orchestrator runs a language-appropriate compile/syntax check as a quick sanity check before invoking the QG** — this catches obvious issues without a full agent invocation. Use `bash -n` for shell scripts, `cargo check` for Rust, `go build ./...` for Go, `mvn compile` for Java, `python -m py_compile` for Python, etc.
    - The Quality Gate agent evaluates the worker agent's output against acceptance criteria
    - Pass the QG agent the file paths to review and the acceptance criteria from the checklist — let the QG read the files itself
    - **Routing:** After the QG returns its verdict, the orchestrator routes to the next agent in the checklist sequence. The checklist defines the order — no separate PM agent is needed for routing.
@@ -102,7 +102,7 @@ Repeat the following cycle for each task/subtask until the checklist is complete
    - **Immediately after each QG approval, update the checklist on disk:** mark the corresponding subtask(s) as checked (`- [x]`) in `checklists/task-{id}.md`. Do NOT batch checklist updates — update after EVERY QG approval so the on-disk state is always current
    - This on-disk checklist is the crash recovery mechanism — if the session dies mid-task, the orchestrator reads the checklist on restart, sees which subtasks are checked, and resumes from the first unchecked one. No work is redone because the source files and checklist are already on disk.
 
-   **On send-back (rework):** If a reviewer sends work back to an earlier agent and the fix changes previously-approved output, uncheck the affected subtask boxes and change them to `- [-]` (completed but invalidated). This distinguishes "never started" (`- [ ]`) from "was done but needs rework" (`- [-]`). After the fix is re-approved, change `- [-]` back to `- [x]`.
+   **On send-back (rework):** If a reviewer sends work back to an earlier agent and the fix changes previously-approved output, replace the affected subtask's checked box with `- [ ] **REWORK:** [reason from QG feedback]`. This distinguishes "never started" (`- [ ]`) from "was done but needs rework" (`- [ ] **REWORK:** ...`) using standard Markdown that renders correctly on GitHub and is unambiguous even if context is lost between sessions. After the fix is re-approved, change the rework item back to `- [x]` with the original description.
 
    **When the full task is complete (all subtasks checked):**
    - Commit all QG-approved work products (code, tests, configuration, documentation) to the local repository
@@ -141,7 +141,7 @@ Repeat the following cycle for each task/subtask until the checklist is complete
 
 ### CRITICAL: The Orchestrator Does Not Write Code
 
-**The orchestrator NEVER writes or modifies project code directly.** The orchestrator's sole job is to route work between agents and manage the workflow. When a reviewer (Security, Code, or Compliance) identifies issues that require code changes:
+**The orchestrator NEVER writes or modifies project code directly.** The orchestrator's job is to route work between agents, manage the workflow, run compile/syntax checks, and execute test commands using the Test Engineer's run instructions. When a reviewer (Security, Code, or Compliance) identifies issues that require code changes:
 
 1. Collect all review findings (MUST-FIX and SHOULD-FIX items)
 2. Send the findings to the **Senior Programmer agent** with the specific feedback, file paths, and line numbers
@@ -152,7 +152,7 @@ Repeat the following cycle for each task/subtask until the checklist is complete
 
 **This applies to ALL code changes** — no matter how small or obvious the fix seems. The orchestrator manages routing, not implementation. If you catch yourself about to edit a `.sh`, `.py`, `.rs`, `.go`, `.java`, or any other source file to fix a review finding, STOP — that is the Senior Programmer's job.
 
-**The orchestrator also does NOT run tests directly.** Running tests (bash, pytest, cargo test, go test, etc.) is the **Test Engineer agent's** job. The Test Engineer runs the tests, reports results, and those results go through the QG gate. The orchestrator only runs `bash -n` (syntax check) as a quick pre-flight sanity check before invoking agents — never full test suites.
+**The orchestrator does NOT write tests** — that is the Test Engineer agent's job. The **Test Engineer writes tests**, classifies them (host-safe vs sandbox-required), and provides run instructions. The **orchestrator executes the test commands** (e.g., `cargo test`, `go test`, `pytest`) using the Test Engineer's run instructions, respecting sandbox requirements for integration tests. The orchestrator passes the test results to the QG for evaluation. This division keeps the Test Engineer's tool restrictions clean (no Bash access) while ensuring tests actually get executed. The orchestrator also runs language-appropriate compile/syntax checks (e.g., `bash -n`, `cargo check`, `go build`) as a quick pre-flight sanity check before invoking the QG — these are lightweight verification steps, not full test suites.
 
 ### Test Sandboxing Policy
 
@@ -192,10 +192,10 @@ Tests fall into two categories with different safety requirements:
    - WSL2: `wsl --list --verbose`
    - VM: check hypervisor availability
 4. **If the sandbox is NOT available**: STOP and walk the user through setting it up before any integration tests can run. Do not skip sandboxing or run integration tests on the host as a workaround. Provide step-by-step setup instructions for the required sandbox type.
-5. **Run the tests inside the sandbox** — the Test Engineer agent executes tests within the sandboxed environment
+5. **Run the tests inside the sandbox** — the orchestrator executes the Test Engineer's test commands within the sandboxed environment, using the sandbox setup files (Dockerfile, docker-compose.yml, .wsb config) that the Test Engineer delivers as part of its output
 6. **Never run integration tests directly on the host machine** — even if "it would probably be fine"
 
-**Current environment note:** The development machine runs Windows 11 Pro with Windows Sandbox enabled. For Linux-targeting projects (like Bash scripts targeting Debian), use Docker or WSL2 for integration tests.
+**Current environment note:** The development machine runs PLACEHOLDER_PLATFORM. Adjust sandbox choices based on your OS and available virtualization tools.
 
 ## What to Avoid
 - Don't skip the Quality Gate evaluation — every task must be evaluated before marking complete
@@ -207,7 +207,7 @@ Tests fall into two categories with different safety requirements:
 - Don't try to hold too many tasks in context at once — the whole point of the checklist is one-at-a-time processing
 - Don't continue to the next task after completing one — ALWAYS stop and tell the user to clear context first
 - **Don't write or edit project code yourself** — ALL code changes go through worker agents (Senior Programmer, Test Engineer, etc.), never the orchestrator directly
-- **Don't run tests yourself** — test execution is the Test Engineer agent's job; the orchestrator only routes test results through the QG gate
+- **Don't write tests yourself** — test writing is the Test Engineer agent's job. The orchestrator executes test commands using the Test Engineer's run instructions and passes results to the QG
 - **Don't run integration tests on the host machine** — integration tests MUST run in the correct sandbox (Docker, Windows Sandbox, WSL2, etc.); if the sandbox isn't available, stop and help the user set it up first
 
 ## Context Management
@@ -224,7 +224,8 @@ The orchestrator's context is precious — every file read into it reduces capac
 **The orchestrator reads into its own context:**
 - The current task's checklist file (routing instructions)
 - `git log` / `git status` / `git diff` (small metadata for commit decisions)
-- `bash -n` output (syntax check — one line)
+- Compile/syntax check output (e.g., `bash -n`, `cargo check`, `go build` — small metadata)
+- Test execution output (test pass/fail results from running the Test Engineer's commands)
 - QG agent output (returned from agent invocations)
 
 **The orchestrator does NOT read into its own context:**

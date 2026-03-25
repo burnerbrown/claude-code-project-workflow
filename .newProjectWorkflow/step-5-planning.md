@@ -61,6 +61,11 @@ Hardware track tasks should be listed in the plan but marked as `[USER-DRIVEN]` 
 - Don't plan for features that are out of scope (reference Step 3's Out of Scope list)
 - Don't forget testing tasks — each implementation task should have corresponding tests
 
+## Update Project CLAUDE.md
+Before committing, update the project-local `CLAUDE.md` to reflect the current state:
+- **Workflow Step**: 5 (Planning) — complete
+- **Resume**: Say "start step 5.5 for [project]"
+
 ## Git
 After the user approves the plan, commit `project-handoffs/handoff-step-5.md` and all individual task files to the project repository under `project-handoffs/` and push to GitHub.
 

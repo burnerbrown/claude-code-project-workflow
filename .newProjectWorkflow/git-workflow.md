@@ -22,7 +22,7 @@ The orchestrator **creates a local commit when the full task is complete** — a
 
 **During the task (before commit):**
 - Agents write code, tests, and config files to disk as they work — these are on disk but NOT committed yet
-- The orchestrator updates the per-task checklist file (`checklists/task-{id}.md`) on disk after each QG approval — checking boxes, adding dashes for send-backs, etc. This keeps the checklist accurate for crash recovery even though nothing is committed yet
+- The orchestrator updates the per-task checklist file (`checklists/task-{id}.md`) on disk after each QG approval — checking boxes, marking `**REWORK:**` for send-backs, etc. This keeps the checklist accurate for crash recovery even though nothing is committed yet
 - If the session crashes mid-task, the on-disk checklist and source files show the current state. On resume, the orchestrator reads the checklist to find the first unchecked subtask and continues from there
 
 **Commit point (triggered when ALL subtasks in the task are QG-approved):**

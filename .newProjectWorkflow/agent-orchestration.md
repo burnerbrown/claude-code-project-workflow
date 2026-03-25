@@ -23,13 +23,13 @@ Read these **only when needed** to keep context small:
 ## How to Use Agents
 
 ### Loading an Agent
-To use a specialized agent, read its definition file and pass the contents as a prompt prefix to the Task tool. The pattern is:
+To use a specialized agent, read its definition file and pass the contents as a prompt prefix to the Agent tool. The pattern is:
 
 1. Read the agent file from `PLACEHOLDER_PATH\.agents\<agent-name>.md`
 2. Combine the agent definition with the specific task instructions
-3. Pass the combined prompt to the Task tool with `subagent_type: "general-purpose"`
+3. Pass the combined prompt to the Agent tool with `subagent_type: "general-purpose"`
 
-**Example prompt structure for the Task tool:**
+**Example prompt structure for the Agent tool:**
 ```
 <agent-definition>
 {contents of PLACEHOLDER_PATH\.agents\senior-programmer.md}
@@ -57,7 +57,7 @@ When launching agents, **pass file paths and instructions — not file contents.
 
 1. Invoke the worker agent with the task — tell it which files to read and what to do
 2. Receive the worker agent's output
-3. Run a quick sanity check if applicable (e.g., `bash -n` for scripts)
+3. Run a language-appropriate compile/syntax check if applicable (e.g., `bash -n` for scripts, `cargo check` for Rust, `go build` for Go, `mvn compile` for Java)
 4. Invoke the **Quality Gate** agent with:
    - The file paths to review (let the QG read the files itself)
    - The agent role being evaluated (so the QG knows which acceptance criteria to use)
@@ -85,7 +85,7 @@ Produce your evaluation with PASS/FAIL/PARTIAL for each criterion and your overa
 
 ### Agent Lifecycle: Resume on Rework
 
-When a worker agent is first launched for a task, the Task tool returns an **agent ID**. The orchestrator should track these IDs for the duration of the current task session. If the Quality Gate sends work back to a previously-invoked agent, **resume that agent** using the `resume` parameter instead of launching a fresh one.
+When a worker agent is first launched for a task, the Agent tool returns an **agent ID**. The orchestrator should track these IDs for the duration of the current task session. If the Quality Gate sends work back to a previously-invoked agent, **resume that agent** using `SendMessage` with the agent's ID as the `to` field, instead of launching a fresh one.
 
 **Why resume instead of launching fresh:**
 - The resumed agent retains full context: what files it read, what code it wrote, what decisions it made
@@ -116,11 +116,13 @@ When a worker agent is first launched for a task, the Task tool returns an **age
 
 **Agent ID tracking rules:**
 - Note each worker agent's ID when it's first launched during a task
-- Use the `resume` parameter on the Task tool to continue a previously-launched agent
+- Use `SendMessage` with the agent's ID as the `to` field to continue a previously-launched agent
 - Agent IDs are held in the orchestrator's working memory and naturally expire when the user does `/clear` between tasks — this is the correct lifecycle since each task gets fresh agents
 - No explicit cleanup is needed — the `/clear` between tasks handles it
 
 **Resume prompt structure (rework scenario):**
+
+Use `SendMessage` with the agent's ID to send this message:
 ```
 The Quality Gate has sent your work back. Here is the QG's feedback:
 
@@ -137,7 +139,7 @@ The resumed agent already has full context of its prior work, so there is no nee
 
 | Agent | File | Use When |
 |-------|------|----------|
-| Software Architect | `software-architect.md` | **Step 4**: Designing a new system or component, making technology choices, defining interfaces. Not used in Step 6 — architecture is finalized in Step 4. |
+| Software Architect | `software-architect.md` | **Step 4**: Designing a new system or component, making technology choices, defining interfaces. **Step 6**: Only used in Documentation Sprint workflows to provide architectural context — not for design changes. |
 | Senior Programmer | `senior-programmer.md` | Writing implementation code from a design or specification |
 | Test Engineer | `test-engineer.md` | Writing unit tests, integration tests, or benchmarks for existing code |
 | Security Reviewer | `security-reviewer.md` | Reviewing code for vulnerabilities and security issues |

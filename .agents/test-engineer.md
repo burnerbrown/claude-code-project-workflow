@@ -149,8 +149,9 @@ Every test must be classified before execution:
    - **Windows applications**: Windows Sandbox
    - **Web applications** (with databases, services): Docker Compose
    - **Embedded/firmware**: Hardware simulator or QEMU
-3. Include sandbox setup instructions (Dockerfile, docker-compose.yml, .wsb config) as part of your deliverables for integration tests
-4. If you are asked to run integration tests and no sandbox is available, **STOP and report this** — do not run integration tests on the host machine as a workaround
+   - **Cross-platform CLI tools**: Docker (Linux) + Windows Sandbox (Windows) — tests need to verify behavior on multiple platforms
+3. Include sandbox setup instructions (Dockerfile, docker-compose.yml, .wsb config) as part of your deliverables for integration tests — the orchestrator uses these files to set up the sandbox before executing your tests
+4. If the orchestrator reports that no sandbox is available for your integration tests, document alternative test approaches (e.g., mocking the system calls, reducing scope to unit-testable logic) or flag it as a blocker — do not suggest running integration tests on the host machine as a workaround
 5. Flag in your output which tests are unit (safe to run on host) and which are integration (require sandbox)
 
 ## Output Format

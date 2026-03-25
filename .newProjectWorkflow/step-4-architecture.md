@@ -6,8 +6,8 @@ Make the key technical decisions: language, components, data flow, interfaces, a
 ## Inputs
 - Read `project-handoffs/handoff-step-3.md` from the project folder
 - Optionally reference `project-handoffs/handoff-step-2.md` for additional context on constraints
-- If using specialized agents, read `.newProjectWorkflow/agent-orchestration.md` for how to use agents and the available agents table
-- Read `.newProjectWorkflow/policies.md` only if: choosing a language or evaluating dependency needs
+- If using specialized agents, read `PLACEHOLDER_PATH\.newProjectWorkflow\agent-orchestration.md` for how to use agents and the available agents table
+- Read `PLACEHOLDER_PATH\.newProjectWorkflow\policies.md` only if: choosing a language or evaluating dependency needs
 
 ## How to Run This Step
 
@@ -33,8 +33,8 @@ Make the key technical decisions: language, components, data flow, interfaces, a
 8. **Security considerations** — threat model (STRIDE if appropriate), authentication, authorization, data protection.
 9. **Run Supply Chain Security scan on all external dependencies**:
    - This is a FULL scan — all 5 phases (Pre-Download Assessment → Download to Quarantine → Automated Scanning → Verdict → SBOM Generation)
-   - Read the Supply Chain Security agent definition: `.agents/supply-chain-security.md`
-   - Read `.newProjectWorkflow/policies.md` for dependency security policy
+   - Read the Supply Chain Security agent definition: `PLACEHOLDER_PATH\.agents\supply-chain-security.md`
+   - Read `PLACEHOLDER_PATH\.newProjectWorkflow\policies.md` for dependency security policy
    - Invoke the Supply Chain Security agent for every external dependency identified in substep 4
    - **If any dependency is REJECTED**: select an alternative dependency and re-run SCS on the replacement — do this NOW while the architecture is still flexible, not in Step 6 when task plans and details are already built around the rejected dependency
    - **If any dependency is INCOMPLETE** (e.g., rate-limited): PAUSE and wait. Do not proceed to substep 10 until all verdicts are CLEAN or CONDITIONAL (with user approval)
@@ -68,7 +68,7 @@ If the project involves circuit board design (custom PCB), invoke additional age
 
 4. **DFM Reviewer agent**: Review the design for manufacturability **against the selected fab house's specific capabilities** — not generic tier assumptions. Route through QG (criteria DFM1-DFM8). If DFM must-fix issues are found, resume the Hardware Engineer to adjust the design.
 
-4. **Shared Interface Specification**: After both the Hardware Engineer and Software Architect complete their designs, verify that the pin mapping, communication protocols, and timing requirements are consistent between the hardware design and the firmware architecture. Any conflicts must be resolved before proceeding to Step 5.
+5. **Shared Interface Specification**: After both the Hardware Engineer and Software Architect complete their designs, verify that the pin mapping, communication protocols, and timing requirements are consistent between the hardware design and the firmware architecture. Any conflicts must be resolved before proceeding to Step 5.
 
 The hardware design track produces its own handoff content that is merged into the Step 4 handoff file (see handoff template below).
 
@@ -84,36 +84,61 @@ The hardware design track produces its own handoff content that is merged into t
 After the user approves the architecture, **scaffold the project repository** based on the project structure defined in substep 5 above. Now that we know the language, framework, and folder layout, create the actual structure in the repo:
 
 1. **Create the folder structure** defined in the architecture (e.g., `src/`, `lib/`, `cmd/`, `tests/`, `docs/`, etc. — whatever is appropriate for the chosen language and framework)
-2. **Create a `.gitignore`** appropriate for the chosen language/framework (e.g., Rust → `target/`, Go → binaries, Java → `target/`, `*.class`, Node → `node_modules/`, etc.)
+2. **Create a `.gitignore`** appropriate for the chosen language/framework (e.g., Rust → `target/`, Go → binaries, Java → `target/`, `*.class`, Node → `node_modules/`, etc.). **Always include these standard entries regardless of project type:**
+   ```
+   # IDE and tool config
+   .vscode/
+   .claude/
+
+   # Office temp files
+   ~$*
+
+   # Research inventories (Step 6 working files, never committed)
+   research-inventories/
+   ```
+   These prevent VS Code workspace settings, Claude Code project settings, and Microsoft Office temp files from being committed. They are local tool configuration, not project deliverables.
 3. **Create any boilerplate config files** the project needs (e.g., `Cargo.toml`, `go.mod`, `package.json`, `pom.xml`, `Makefile`, etc.)
 4. **Do NOT create source code files** — that's Step 6. Only create the skeleton structure, configuration, and ignore files.
-5. **Create QG evaluation subfolders** in each major directory that will produce agent output. QG evaluation reports go in these subfolders instead of cluttering the parent directory. At minimum, create:
+5. **Create the `research-inventories/` folder** in the project root. This folder holds Research Inventory Manifests during Step 6 implementation. It is already included in `.gitignore` via the standard entries above.
+6. **Create QG evaluation subfolders** in each major directory that will produce agent output. QG evaluation reports go in these subfolders instead of cluttering the parent directory. At minimum, create:
    - `hardware/qg-evaluations/` (if the project has hardware design)
    - `firmware/qg-evaluations/` or `{code-directory}/qg-evaluations/` (for firmware/software agent evaluations, where `{code-directory}` is the primary source folder — e.g., `firmware/`, `src/`, `lib/`)
-6. **Create KiCad project folders** (if the project includes custom PCB design). Create the following structure and add KiCad-specific entries to `.gitignore`:
+7. **Create KiCad project folders** (if the project includes custom PCB design). Create only the `libs/` subfolder structure below — the user will create the KiCad project themselves, and KiCad will automatically create a `{ProjectName}/` subfolder containing all project files (`.kicad_pro`, `.kicad_sch`, `.kicad_pcb`, etc.). The `.gitignore` patterns use `**` to match files at any depth, so this nesting is handled automatically.
    ```
-   hardware/kicad/
+   hardware/kicad/                          ← scaffold creates this + libs
+   ├── {ProjectName}/                       ← KiCad creates this when user starts a new project
+   │   ├── {ProjectName}.kicad_pro
+   │   ├── {ProjectName}.kicad_sch
+   │   ├── {ProjectName}.kicad_pcb
+   │   └── ...
    ├── libs/
    │   ├── symbols/          ← project-specific .kicad_sym files
    │   └── footprints/
    │       └── {ProjectName}.pretty/   ← project-specific .kicad_mod files
    ```
-   Add to `.gitignore`:
+   Add to `.gitignore` (patterns use `**` to match nested project directories since KiCad projects live in subdirectories like `hardware/kicad/ProjectName/`):
    ```
-   hardware/kicad/*-backups/
-   hardware/kicad/_autosave-*
-   hardware/kicad/*.kicad_prl
-   hardware/kicad/fp-info-cache
-   hardware/kicad/gerber/
-   hardware/kicad/production/
-   hardware/kicad/*.dsn
-   hardware/kicad/*.ses
-   hardware/kicad/*-cache.lib
-   hardware/kicad/*-rescue.lib
-   hardware/kicad/*-rescue.dcm
+   hardware/kicad/**/*-backups/
+   hardware/kicad/**/_autosave-*
+   hardware/kicad/**/*.kicad_prl
+   hardware/kicad/**/fp-info-cache
+   hardware/kicad/**/gerber/
+   hardware/kicad/**/production/
+   hardware/kicad/**/*.dsn
+   hardware/kicad/**/*.ses
+   hardware/kicad/**/*-cache.lib
+   hardware/kicad/**/*-rescue.lib
+   hardware/kicad/**/*-rescue.dcm
+   hardware/kicad/**/*.lck
+   hardware/kicad/**/#auto_saved_files#
    ```
 
 The Software Architect agent (if used) or the orchestrator (for simpler projects) determines what folders and files to create based on the architecture decisions. The orchestrator then creates everything in the repo.
+
+## Update Project CLAUDE.md
+Before committing, update the project-local `CLAUDE.md` to reflect the current state:
+- **Workflow Step**: 4 (Architecture) — complete
+- **Resume**: Say "start step 5 for [project]"
 
 ## Git
 After the user approves the architecture, commit the scaffolded repo structure, `project-handoffs/handoff-step-4.md`, the SBOM file (`sbom-{language}.txt`), and the SCS report (`scs-report.md`) to the project repository and push to GitHub.

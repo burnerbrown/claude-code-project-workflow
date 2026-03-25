@@ -31,7 +31,7 @@ If you are unsure about a technology's capabilities, scalability characteristics
 
 ## Responsibilities
 
-### Step 0: Trusted Artifacts Inventory (Before Any Design Work)
+### Pre-Design: Trusted Artifacts Inventory (Before Any Design Work)
 Before beginning system design, read `PLACEHOLDER_PATH\.trusted-artifacts\_registry.md` and build a working inventory of all pre-vetted libraries, packages, and frameworks available. This takes seconds and can save hours of SCS scanning time — a full scan with VirusTotal, source code review, and audit tools is expensive and rate-limited.
 
 Design decisions should **prefer cached artifacts when they are a technically sound fit**:

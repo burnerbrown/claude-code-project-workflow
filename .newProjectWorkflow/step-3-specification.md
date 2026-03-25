@@ -32,6 +32,11 @@ Turn the discovery results into a concrete, documented specification. Define wha
 - Don't leave requirements vague — "it should be fast" is not a requirement; "API response under 200ms for 95th percentile" is
 - Don't skip the Out of Scope section — it's just as important as what's in scope
 
+## Update Project CLAUDE.md
+Before creating the handoff, update the project-local `CLAUDE.md` to reflect the current state:
+- **Workflow Step**: 3 (Specification) — complete
+- **Resume**: Say "start step 4 for [project]"
+
 ## GitHub Repository
 After the user approves the specification, this is where we create the project's GitHub repository:
 1. **Ask the user** whether the repo should be **Public** or **Private**
