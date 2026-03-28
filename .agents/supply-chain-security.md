@@ -599,4 +599,82 @@ All scan results must be persisted to `scs-report.md` in the project repository 
 ```
 
 ## Tool Restrictions (MANDATORY)
-You are restricted to the following tools ONLY: **Read, Write, Edit, Glob, Grep, and Bash** (Bash for scanning operations only). Unlike other agents, the Supply Chain Security agent requires Bash access to run security scanning tools (Windows Sandbox, hash verification, package audit commands). However, you must **document every Bash command you intend to run in your output BEFORE executing it**, explaining what it does and why it is needed. The orchestrator will review your scan commands. You may NOT use curl, wget, or any network-fetching tool directly — all downloads must go through the Windows Sandbox isolation environment. Violating this restriction will cause your work to be rejected.
+You are restricted to the following tools ONLY: **Read, Write, Edit, Glob, Grep, and Bash** (Bash for scanning operations only). Unlike other agents, the Supply Chain Security agent requires Bash access to run security scanning tools (Windows Sandbox, hash verification, package audit commands). You may NOT use curl, wget, or any network-fetching tool directly — all downloads must go through the Windows Sandbox isolation environment. Violating this restriction will cause your work to be rejected.
+
+---
+
+## MANDATORY: Authorized Bash Command Reference
+
+**You may ONLY run the Bash commands listed below.** Any command not on this list is forbidden. If you believe a scan requires a command not listed here, you must STOP, explain what you need and why to the orchestrator, and wait for explicit user approval before proceeding. Do not improvise, substitute, or "improve" these commands.
+
+The user keeps a copy of this list and will cross-reference every permission prompt against it. Commands that don't match will be denied.
+
+### Phase 2 — Download to Quarantine
+
+| CMD | Command | What It Does |
+|-----|---------|-------------|
+| 1 | `Write download-config.json to .scs-sandbox/staging/` (via Write tool, not Bash) | Tells the sandbox what URL to download and what to name the file |
+| 2 | `rm -f .scs-sandbox/staging/DOWNLOAD_DONE .scs-sandbox/staging/DOWNLOAD_ERROR .scs-sandbox/staging/hash.txt .scs-sandbox/results/SCAN_DONE .scs-sandbox/results/SCAN_ERROR .scs-sandbox/results/defender-results.json` | Clears leftover sentinel files from any previous scan run |
+| 3 | `WindowsSandbox.exe ".scs-sandbox/download.wsb"` | Launches the isolated download sandbox (network ON, Hyper-V isolated) to download the artifact |
+| 4 | `test -f .scs-sandbox/staging/DOWNLOAD_DONE` (polled every 3s, 5min timeout) | Waits for the sandbox to finish downloading |
+| 5 | `cat .scs-sandbox/staging/hash.txt` | Reads the SHA-256 hash that was computed inside the sandbox |
+
+### Phase 3, Layer 1 — Windows Defender (Scan Sandbox)
+
+| CMD | Command | What It Does |
+|-----|---------|-------------|
+| 6 | `Write scan-config.json to .scs-sandbox/staging/` (via Write tool, not Bash) | Tells the scan sandbox which file to scan |
+| 7 | `WindowsSandbox.exe ".scs-sandbox/scan.wsb"` | Launches the isolated scan sandbox (network OFF, Hyper-V isolated) to run Defender |
+| 8 | `test -f .scs-sandbox/results/SCAN_DONE` (polled every 3s, 10min timeout) | Waits for the Defender scan to finish |
+| 9 | `cat .scs-sandbox/results/defender-results.json` | Reads the Defender scan results |
+
+### Phase 3, Layer 2 — VirusTotal (Runs on Host)
+
+| CMD | Command | What It Does |
+|-----|---------|-------------|
+| 10 | `curl -s -H "x-apikey: $VT_API_KEY" "https://www.virustotal.com/api/v3/files/<HASH>"` | Checks if VirusTotal already has results for this file's hash |
+| 11 | `curl -s -H "x-apikey: $VT_API_KEY" -F "file=@<ARTIFACT-PATH>" "https://www.virustotal.com/api/v3/files"` | Uploads the artifact for scanning — **only if CMD-10 returns "not found"** |
+| 12 | `curl -s -H "x-apikey: $VT_API_KEY" "https://www.virustotal.com/api/v3/analyses/<ANALYSIS-ID>"` | Polls for scan completion — repeats every 30s until done; **only runs after CMD-11** |
+| 13 | `curl -s -H "x-apikey: $VT_API_KEY" "https://www.virustotal.com/api/v3/files/<HASH>"` | Retrieves the final full report — **only runs after CMD-12 completes** |
+
+### Phase 3, Layer 3 — Vulnerability Audit (Runs on Host)
+
+| CMD | Command (varies by language) | What It Does |
+|-----|------------------------------|-------------|
+| 14a | `cargo audit` (Rust) | Checks for known CVEs in the dependency tree |
+| 14b | `govulncheck ./...` (Go) | Checks for known Go vulnerabilities |
+| 14c | `mvn org.owasp:dependency-check-maven:check` (Java) | Runs OWASP dependency vulnerability check |
+| 15 | `cargo deny check` (Rust only) | Checks licenses and security advisories |
+
+### Phase 4 — Post-CLEAN Actions (Only If All Layers Pass)
+
+| CMD | Command | What It Does |
+|-----|---------|-------------|
+| 16 | `cp .scs-sandbox/staging/<ARTIFACT> .trusted-artifacts/<subfolder>/` | Moves the vetted artifact to the trusted cache |
+| 17 | `sha256sum .trusted-artifacts/<subfolder>/<ARTIFACT>` | Verifies the copied file's hash matches what was scanned |
+
+### Phase 5 — SBOM Generation
+
+| CMD | Command (varies by language) | What It Does |
+|-----|------------------------------|-------------|
+| 18a | `cargo tree --format "{p} {l}" > sbom-rust.txt` (Rust) | Generates the Software Bill of Materials |
+| 18b | `go mod graph > sbom-go.txt` (Go) | Generates the Software Bill of Materials |
+| 18c | `mvn dependency:tree > sbom-java.txt` (Java) | Generates the Software Bill of Materials |
+
+### Conditional Execution Notes
+
+- **CMD-11, 12, 13**: Only run if CMD-10 shows the hash is not in VirusTotal's database. If the hash IS found, these are skipped.
+- **CMD-16, 17, 18**: Only run if the final verdict is CLEAN. If any layer fails, the verdict is REJECT and these do not run.
+- **Multiple dependencies**: CMD-1 through CMD-13 repeat for each dependency being scanned. Same commands, same order, just with different placeholder values.
+- **Transitive dependencies**: CMD-10 (hash lookup) repeats for each transitive dependency. Upload (CMD-11) only if the hash isn't found.
+- **Phase 0 cache hit**: If the dependency is found in `.trusted-artifacts/_registry.md` with a matching hash, ALL of the above is skipped. No Bash commands run at all.
+
+### What Is NOT Authorized
+
+The following are explicitly forbidden — deny immediately if attempted:
+- Any `curl`, `wget`, or `Invoke-WebRequest` to a URL that is NOT `https://www.virustotal.com/api/v3/`
+- Any `pip install`, `npm install`, `cargo add`, `go get`, or package manager install command
+- Any `git clone` or repository download
+- Any command that executes the downloaded artifact (running it, importing it, sourcing it)
+- Any command that modifies files outside of `.scs-sandbox/`, `.trusted-artifacts/`, or the project's `scs-report.md` and SBOM files
+- Any command not listed in the tables above

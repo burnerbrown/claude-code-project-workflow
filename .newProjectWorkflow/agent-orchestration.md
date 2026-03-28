@@ -31,6 +31,10 @@ To use a specialized agent, read its definition file and pass the contents as a 
 
 **Example prompt structure for the Agent tool:**
 ```
+---
+{tool restriction frontmatter — see "MANDATORY: Tool Restriction Enforcement" below}
+---
+
 <agent-definition>
 {contents of PLACEHOLDER_PATH\.agents\senior-programmer.md}
 </agent-definition>
@@ -39,6 +43,47 @@ To use a specialized agent, read its definition file and pass the contents as a 
 {specific task instructions, context, and any output from previous agents}
 </task>
 ```
+
+### MANDATORY: Tool Restriction Enforcement via Frontmatter
+
+**Every agent prompt MUST include YAML frontmatter that enforces tool restrictions at the system level.** This is not optional — it is the primary mechanism that prevents agents from downloading, installing, or executing commands they weren't approved to run.
+
+**Why this exists:** Prompt-level instructions ("you may NOT use Bash") are voluntary — the agent *chooses* to comply but still *has access* to the restricted tools. YAML frontmatter with `disallowedTools` creates a **system-level restriction** — the tools are genuinely removed from the agent's toolset and cannot be called regardless of what the prompt says. This was verified through testing: agents with frontmatter restrictions report the tools as "blocked and cannot invoke" rather than "available but I chose not to use."
+
+**The orchestrator MUST prepend the appropriate frontmatter block to every agent prompt before the `<agent-definition>` tag.** Use the correct profile from the table below based on which agent is being launched.
+
+#### Tool Restriction Profiles
+
+| Profile | Frontmatter | Agents |
+|---------|-------------|--------|
+| **Worker (file-only)** | `tools: Read, Write, Edit, Glob, Grep`<br>`disallowedTools: Bash, WebFetch, WebSearch` | Senior Programmer, Test Engineer, Embedded Systems Specialist, Hardware Engineer, Database Specialist, API Designer, DevOps Engineer, Performance Optimizer |
+| **Reviewer (file-only)** | `tools: Read, Write, Edit, Glob, Grep`<br>`disallowedTools: Bash, WebFetch, WebSearch` | Quality Gate, Security Reviewer, Code Reviewer, Compliance Reviewer, DFM Reviewer, Documentation Writer, Software Architect, Project Manager |
+| **Web research allowed** | `tools: Read, Write, Edit, Glob, Grep, WebSearch, WebFetch`<br>`disallowedTools: Bash` | Component Sourcing |
+| **Bash allowed (scanning)** | `tools: Read, Write, Edit, Glob, Grep, Bash`<br>`disallowedTools: WebFetch, WebSearch` | Supply Chain Security |
+
+#### Example: Launching the Senior Programmer with enforced restrictions
+
+```
+---
+tools: Read, Write, Edit, Glob, Grep
+disallowedTools: Bash, WebFetch, WebSearch
+---
+
+<agent-definition>
+{contents of senior-programmer.md}
+</agent-definition>
+
+<task>
+Implement the authentication module for Task 3...
+</task>
+```
+
+The Senior Programmer will be able to read files, write code, and edit existing files — but **cannot** run shell commands, download anything, or access the web. If it needs something verified via Bash (e.g., a syntax check), it documents the request in its output and the orchestrator runs it.
+
+#### Notes
+- The prompt-level "Tool Restrictions (MANDATORY)" sections in each agent definition file remain as defense-in-depth and documentation of intent — they are not the primary enforcement mechanism
+- If an agent needs a tool not in its profile for a specific task (unusual), the orchestrator must get explicit user approval before changing the frontmatter for that invocation
+- The frontmatter must be the very first content in the prompt — before any tags or text
 
 ### Important: Passing Context to Agents
 When launching agents, **pass file paths and instructions — not file contents.** Agents can read files in their own context. This keeps the orchestrator's context small.

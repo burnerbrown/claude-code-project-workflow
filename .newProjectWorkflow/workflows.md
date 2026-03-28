@@ -256,41 +256,72 @@ Note: The Embedded Specialist handles both design and implementation for firmwar
 
 **Use when:** Designing a new circuit board AND writing firmware for it. This is a dual-track workflow — hardware design and firmware development proceed in coordinated phases.
 
-**Note**: The Hardware Engineer, Software Architect, Component Sourcing, and DFM Reviewer agents are invoked during **Step 4 (Architecture)**, not during Step 6. By the time Step 6 begins, the hardware architecture and firmware architecture are finalized, the BOM is validated, and DFM review is complete. The workflow below covers both the Step 4 hardware design track and the Step 6 per-task implementation agents.
+**Note**: In Step 4, the Hardware Engineer produces the **high-level architecture** (MCU selection, block diagram, power domains, pin reservation, subsystem inventory) — not the detailed per-subsystem circuit design. The detailed design is broken into per-subsystem tasks in Step 5 and executed in Step 6, keeping each agent invocation focused and manageable.
 
-### Step 4 Hardware Design Track
+### Step 4 Hardware Architecture Track (High-Level)
 ```
-Hardware Engineer → QG → Component Sourcing → QG → Hardware Engineer (address sourcing issues, if any) → QG → Fab House Selection → DFM Reviewer → QG → Hardware Engineer (address DFM issues, if any) → QG
+Hardware Engineer (architecture) → QG → Component Sourcing (critical ICs only) → QG → Fab House Selection → DFM Reviewer (architecture-level) → QG
 ```
 This runs in **parallel** with the Software Architect track (which designs the firmware architecture). Both tracks produce a shared interface specification (pin mapping, communication protocols, timing requirements).
 
-1. **Hardware Engineer**: Design the hardware architecture — MCU selection, power design, communication protocols, pin mapping, schematic guidance, preliminary BOM
-2. **QG**: Evaluate against criteria HE1-HE12
-3. **Component Sourcing**: Validate the preliminary BOM — lifecycle, availability, second-sourcing, cost
-4. **QG**: Evaluate against criteria CS1-CS8
-5. **Hardware Engineer** (resume): Address any sourcing flags — substitute components, update BOM and pin mapping
-6. **QG**: Re-evaluate affected HE criteria
-7. **Fab House Selection** (orchestrator-driven): Now that components are finalized, evaluate the user's preferred fab house against the design's requirements (finest pad pitch, smallest package, via sizes, layer count, impedance control needs). If the preferred fab can't handle the design, present trade-offs: change the fab or change the components. User decides. Document the selected fab house and its specific design rules. See Step 4 reference file for the detailed flow.
-8. **DFM Reviewer**: Review design for manufacturability **against the selected fab house's specific capabilities** — not generic tier assumptions
-9. **QG**: Evaluate against criteria DFM1-DFM8
-10. **Hardware Engineer** (resume): Address any DFM must-fix items — adjust design guidance, update BOM if needed
-11. **QG**: Re-evaluate affected HE criteria
+1. **Hardware Engineer**: Design the high-level hardware architecture — MCU selection, block diagram, power domain identification, communication protocol selection, pin reservation per subsystem, subsystem inventory list
+2. **QG**: Evaluate against architecture-level criteria (HE1-HE6, HE11, HE12)
+3. **Component Sourcing**: Validate critical component selections (MCU, major ICs) — lifecycle, availability, second-sourcing
+4. **QG**: Evaluate against criteria CS1-CS8 (scoped to critical components)
+5. **Fab House Selection** (orchestrator-driven): Evaluate preferred fab house against the most demanding IC packages identified so far. Document the selected fab house and its design rules for use by subsystem tasks.
+6. **DFM Reviewer**: Architecture-level manufacturability review — MCU/IC package feasibility, layer count, board-level constraints
+7. **QG**: Evaluate against criteria DFM1-DFM8 (scoped to architecture-level concerns)
+
+### Step 6 Hardware Subsystem Design Track (Agent-Driven, Per-Subsystem)
+Each subsystem identified in the Step 4 subsystem inventory becomes its own task. Tasks are ordered with foundational subsystems first (power, MCU core) since other subsystems depend on them.
+
+**Per-subsystem workflow:**
+```
+Hardware Engineer (subsystem) → QG → Component Sourcing (subsystem BOM) → QG
+```
+
+1. **Hardware Engineer**: Design one subsystem in detail — circuit topology, component selection with MPNs, schematic design notes, BOM entries for this subsystem, contribution to pin mapping and KiCad reference files
+2. **QG**: Evaluate against criteria HE5-HE9 (scoped to this subsystem — power sizing, pin assignments, interface specs, schematic notes, BOM entries)
+3. **Component Sourcing**: Validate this subsystem's component selections — lifecycle, availability, second-sourcing, fab assembly library compatibility
+4. **QG**: Evaluate against criteria CS1-CS8 (scoped to this subsystem's components)
+
+**Example subsystem task breakdown for a complex board:**
+- Task H1: Power input + regulation (USB-C protection, main regulators, power domains)
+- Task H2: MCU core (crystal, decoupling, reset circuit, debug header, boot config)
+- Task H3: Audio subsystem (I2S codec/amp, filters, speaker/headphone output)
+- Task H4: LED driver (PWM or addressable LED interface, level shifting, current limiting)
+- Task H5: Sensor bus (I2C devices, pull-ups, address configuration)
+- Task H6: SD card / storage (SPI interface, card detect, level shifting)
+- Task H7: Display (SPI/I2C display, backlight driver)
+- Task H8: Wireless module (antenna, matching network, keep-out zones)
+
+**After all subsystem tasks are complete — Consolidation task:**
+```
+Hardware Engineer (consolidate) → QG → DFM Reviewer (full design) → QG → Hardware Engineer (DFM fixes, if any) → QG
+```
+
+1. **Hardware Engineer**: Consolidate all subsystem outputs into the complete design — full BOM, complete pin mapping table, PCB layout guidance, and the full set of KiCad reference files (bom-kicad-reference.csv, netlist-connection-reference.md, schematic-wiring-checklist.md, layout-net-classes.csv, layout-component-guide.md). Verify no inter-subsystem conflicts (shared pins, power budget overrun, address collisions).
+2. **QG**: Evaluate the consolidated design against full criteria HE1-HE12
+3. **DFM Reviewer**: Full manufacturability review of the complete design **against the selected fab house's specific capabilities**
+4. **QG**: Evaluate against criteria DFM1-DFM8
+5. **Hardware Engineer** (resume if DFM issues): Address any must-fix items
+6. **QG**: Re-evaluate affected criteria
 
 ### Step 6 Firmware Implementation Track
 ```
 Embedded Specialist (implement) → QG → Test Engineer → QG → Security Review + Code Review (parallel) → QG → Compliance Reviewer → QG → Documentation Writer → QG
 ```
-Same as the existing Embedded/RTOS Feature workflow — the firmware is implemented against the finalized hardware design from Step 4.
+Same as the existing Embedded/RTOS Feature workflow — firmware tasks can begin as soon as the shared interface specification is stable (after Step 4), even before all hardware subsystem tasks are complete. Firmware tasks that depend on specific subsystem details (e.g., "audio driver needs the I2S pin assignments from Task H3") must wait for that subsystem task to complete.
 
-### Step 6 Hardware Implementation Track (User-Driven)
-The user draws the schematic and PCB layout in KiCad using the Hardware Engineer's design guidance and KiCad reference files from Step 4. The Hardware Engineer produces the following KiCad reference files as part of its Step 4 deliverables (see the Hardware Engineer agent definition, Output Format item 14):
+### Step 6 Hardware Implementation Track (User-Driven — KiCad Work)
+The user draws the schematic and PCB layout in KiCad using the Hardware Engineer's per-subsystem design guidance and the consolidated KiCad reference files from the consolidation task:
 - **`bom-kicad-reference.csv`** — BOM formatted for KiCad cross-reference during symbol placement
 - **`netlist-connection-reference.md`** — Master per-net connection reference (trace widths, via specs, routing notes)
 - **`schematic-wiring-checklist.md`** — Step-by-step checkbox wiring list for schematic entry (VS Code preview for clickable checkboxes)
 - **`layout-net-classes.csv`** — Net class configuration for KiCad Design Rules dialog
 - **`layout-component-guide.md`** — Per-component placement and routing reference (searchable by Ctrl+F)
 
-These files are saved in the `hardware/` folder alongside the architecture documents. They are derived from the architecture and provide the user with workflow-specific views of the same data — the schematic checklist for wiring, the net classes CSV for Design Rules setup, and the component guide for layout.
+These files are saved in the `hardware/` folder. They are built up incrementally during subsystem tasks and consolidated into their final form during the consolidation task.
 
 During the user's KiCad work, the user may request:
 - **Schematic review**: Invoke the Hardware Engineer to review a screenshot or description of the schematic against the design spec
@@ -335,6 +366,8 @@ Hardware Engineer (revision) → QG → Component Sourcing (if new parts) → QG
 
 1. **Hardware Engineer**: Review the existing design, document proposed changes with justification (new components, circuit modifications, layout changes). Reference the original design and explain what changed and why. **Update the KiCad reference files** (netlist-connection-reference, schematic-wiring-checklist, layout-net-classes, layout-component-guide, bom-kicad-reference) to reflect the revised design — only the changed sections need updating, not a full rewrite.
 2. **QG**: Evaluate against criteria HE1-HE12 (scoped to changed areas — unchanged subsystems don't need re-review)
+
+**Note on revision scope:** For minor revisions (1-2 subsystems affected), the Hardware Engineer handles all changes in a single invocation as shown above. For major revisions that affect many subsystems (e.g., changing the MCU, redesigning the power architecture), consider using the per-subsystem task pattern from Hardware + Firmware Full Development instead — break the revision into per-subsystem tasks so each subsystem change gets focused context and independent QG evaluation.
 3. **Component Sourcing** (if new components introduced): Validate new/changed BOM entries
 4. **QG**: Evaluate against criteria CS1-CS8
 5. **Fab House Re-evaluation** (only if revision introduces components with different fab requirements than the original design — e.g., switching from QFP to BGA, adding fine-pitch parts): Verify the original fab house can still handle the revised design. If not, present options to the user.
@@ -358,8 +391,8 @@ Embedded Specialist (update) → QG → Test Engineer (regression) → QG → Se
 Hardware Engineer (production design) → QG → Component Sourcing → QG → Hardware Engineer (sourcing fixes) → QG → Fab House Selection → DFM Reviewer → QG → Hardware Engineer (DFM fixes) → QG
 ```
 
-1. **Hardware Engineer**: Design the production board based on the prototype's proven circuit — translate breadboard/dev-kit connections into a proper schematic. Optimize for size, cost, power, and reliability. Define production-grade power supply, connectors, and protection circuits that the prototype may have lacked. **Produce the full set of KiCad reference files** (see Hardware Engineer agent definition, Output Format item 14).
-2. **QG**: Evaluate against criteria HE1-HE12
+1. **Hardware Engineer**: Design the production board architecture based on the prototype's proven circuit — MCU selection (may keep the same MCU or select a production-appropriate variant), block diagram, power domain identification, communication protocols, pin reservation, and subsystem inventory. Optimize for size, cost, power, and reliability. The detailed per-subsystem circuit design follows the same subsystem task pattern as Hardware + Firmware Full Development (see above) — each subsystem gets its own Step 6 task, with a consolidation task at the end that produces the full set of KiCad reference files.
+2. **QG**: Evaluate against architecture-level criteria HE1-HE6, HE11, HE12
 3. **Component Sourcing**: Validate BOM for production quantities — focus on availability at volume, cost optimization, and lifecycle
 4. **QG**: Evaluate against criteria CS1-CS8
 5. **Hardware Engineer** (resume): Address sourcing issues

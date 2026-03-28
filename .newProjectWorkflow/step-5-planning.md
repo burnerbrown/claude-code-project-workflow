@@ -41,14 +41,27 @@ Standard implementation tasks executed by agents during Step 6:
 - Peripheral drivers, application logic, communication stacks
 - These follow the normal task workflow (Embedded Specialist → QG → Test Engineer → QG → reviews → QG → etc.)
 
-### Hardware Track (User-Driven — KiCad Work)
+### Hardware Design Track (Agent-Driven — Per-Subsystem)
+The Step 4 hardware architecture identified a list of subsystems (e.g., "1. Power input + regulation, 2. MCU core, 3. Audio amplifier, 4. LED driver, 5. Sensor bus"). Each subsystem becomes its own implementation task in Step 6, designed by the Hardware Engineer agent with focused context:
+
+- Each subsystem task produces: detailed circuit design, component selections with MPNs, BOM entries, schematic design notes, and the subsystem's contribution to the KiCad reference files
+- Each subsystem task goes through: Hardware Engineer → QG → Component Sourcing → QG (same pattern as Step 4, but scoped to one subsystem)
+- After all subsystem tasks are complete, a **consolidation task** assembles the full BOM, complete KiCad reference files, pin mapping table, and PCB layout guidance — then runs a final DFM review against the complete design
+
+**Ordering subsystem tasks:** Foundational subsystems first:
+1. Power input and regulation (other subsystems depend on knowing the voltage rails)
+2. MCU core (crystal, decoupling, reset, debug header)
+3. Then remaining subsystems in any order (they reference the established power rails and MCU pins)
+4. Consolidation task last (needs all subsystems complete)
+
+### Hardware Track — User KiCad Work (User-Driven)
 Tasks that the user performs in KiCad, with agent assistance available on demand:
-- **Schematic capture**: Draw the schematic in KiCad using the Hardware Engineer's design guidance from Step 4
-- **PCB layout**: Route the PCB in KiCad using the layout guidance from Step 4
+- **Schematic capture**: Draw the schematic in KiCad using the per-subsystem design guidance from the Hardware Engineer's Step 6 output and the consolidated KiCad reference files
+- **PCB layout**: Route the PCB in KiCad using the consolidated layout guidance
 - **Design review checkpoints**: Points where the user can invoke agents for review (schematic review, DFM review)
 - **Gerber generation and fab submission**: Final output for manufacturing
 
-Hardware track tasks should be listed in the plan but marked as `[USER-DRIVEN]` since they are not automated. They may have dependencies that block firmware tasks (e.g., "finalize pin mapping before implementing GPIO driver") or that firmware tasks block (e.g., "firmware SPI driver must be tested before designing the SPI peripheral circuit").
+User-driven KiCad tasks should be listed in the plan but marked as `[USER-DRIVEN]` since they are not automated. They depend on the hardware consolidation task being complete. They may also have dependencies that block firmware tasks (e.g., "finalize pin mapping before implementing GPIO driver") or that firmware tasks block (e.g., "firmware SPI driver must be tested before designing the SPI peripheral circuit").
 
 ### Ordering Between Tracks
 - Hardware and firmware tasks can often proceed **in parallel** — the shared interface spec from Step 4 decouples them

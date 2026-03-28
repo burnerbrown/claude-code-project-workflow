@@ -273,24 +273,32 @@ For hardware design review (firmware perspective), also check:
 ---
 
 ### Hardware Engineer
-The hardware engineer's output is APPROVED when ALL of the following are present and complete:
+The hardware engineer operates in three modes. Apply the criteria that match the mode specified by the orchestrator.
 
-| # | Criterion | What to Check |
-|---|-----------|---------------|
-| HE1 | Design Overview | 2-3 paragraph summary of hardware architecture and key decisions |
-| HE2 | Block Diagram | Mermaid diagram showing subsystems, power domains, and communication links |
-| HE3 | MCU Selection | Comparison table of 2-3 candidates with clear recommendation and justification |
-| HE4 | Communication Protocols | Table of all inter-component links with protocol, speed, voltage, and connector |
-| HE5 | Power Architecture | Power tree with regulator selections, sizing calculations, and power budget table |
-| HE6 | Pin Mapping | Complete MCU pin assignment table (pin → function → direction → component → net name) |
-| HE7 | Interface Specifications | Detailed specs for each communication link and external connector |
-| HE8 | Schematic Design Notes | Per-subsystem circuit guidance with component values and reference designs |
-| HE9 | Preliminary BOM | Component list with specific MPNs, packages, and quantities |
-| HE10 | PCB Layout Guidance | Component placement, routing, and stackup recommendations |
-| HE11 | Risk Register | Hardware-specific risks identified with mitigations (thermal, EMC, single-source, tolerances) |
-| HE12 | Datasheet Evidence | Component selections backed by datasheet parameters, not assumptions |
+**Mode 1 — High-Level Architecture (Step 4):** Evaluate against HE1-HE6, HE11, HE12. HE5 and HE6 are evaluated as partial (power domain identification and pin reservation, not detailed regulator selection or pin-to-component wiring). HE7-HE10 are deferred to per-subsystem and consolidation tasks.
 
-**Reject if:** No MCU comparison table, missing power budget, pin mapping incomplete, or component selections lack MPN specificity.
+**Mode 2 — Per-Subsystem Detail (Step 6):** Evaluate against HE5-HE9, HE11, HE12 scoped to the specific subsystem being designed. The subsystem must include: detailed circuit design, component selections with MPNs, pin mapping updates, power budget contribution, schematic design notes, and subsystem-specific risks.
+
+**Mode 3 — Consolidation (Step 6):** Evaluate against the full criteria HE1-HE12. The consolidated output must include the complete BOM, complete pin mapping, full power budget, PCB layout guidance, all KiCad reference files, and inter-subsystem conflict verification.
+
+| # | Criterion | What to Check | Mode |
+|---|-----------|---------------|------|
+| HE1 | Design Overview | 2-3 paragraph summary of hardware architecture and key decisions | 1, 3 |
+| HE2 | Block Diagram | Mermaid diagram showing subsystems, power domains, and communication links | 1, 3 |
+| HE3 | MCU Selection | Comparison table of 2-3 candidates with clear recommendation and justification | 1 |
+| HE4 | Communication Protocols | Table of all inter-component links with protocol, speed, voltage, and connector | 1, 3 |
+| HE5 | Power Architecture | Mode 1: power domain identification. Mode 2: per-subsystem regulator sizing and budget. Mode 3: complete power tree with full budget table. | 1, 2, 3 |
+| HE6 | Pin Mapping | Mode 1: pin reservation per subsystem. Mode 2: detailed pin-to-component wiring for this subsystem. Mode 3: complete MCU pin assignment table. | 1, 2, 3 |
+| HE7 | Interface Specifications | Detailed specs for each communication link and external connector | 2, 3 |
+| HE8 | Schematic Design Notes | Per-subsystem circuit guidance with component values and reference designs | 2, 3 |
+| HE9 | Preliminary BOM | Mode 2: subsystem component list with MPNs. Mode 3: complete BOM. | 2, 3 |
+| HE10 | PCB Layout Guidance | Component placement, routing, and stackup recommendations | 3 |
+| HE11 | Risk Register | Hardware-specific risks identified with mitigations (thermal, EMC, single-source, tolerances) | 1, 2, 3 |
+| HE12 | Datasheet Evidence | Component selections backed by datasheet parameters, not assumptions | 1, 2, 3 |
+
+**Reject if (Mode 1):** No MCU comparison table, missing block diagram, no subsystem inventory, or pin reservations missing.
+**Reject if (Mode 2):** Missing component MPNs, no circuit design detail, no power budget contribution, or no pin mapping update for this subsystem.
+**Reject if (Mode 3):** Incomplete BOM, pin mapping gaps, power budget overrun unaddressed, missing KiCad reference files, or inter-subsystem conflicts not verified.
 
 ---
 

@@ -122,37 +122,64 @@ Provide layout recommendations (the user draws the actual layout in KiCad):
 
 ## Output Format
 
-When asked to design hardware, produce:
+This agent operates in three modes depending on the invocation context. The orchestrator's prompt specifies which mode.
+
+### Mode 1: High-Level Architecture (Step 4)
+
+Produce the board-level architecture — the blueprint that Step 5 uses to create per-subsystem tasks. This is NOT the detailed circuit design.
 
 1. **Design Overview**: 2-3 paragraph summary of the hardware architecture and key design decisions
 2. **Block Diagram**: Mermaid diagram showing all major subsystems, power domains, and communication links
 3. **MCU Selection**: Comparison table of candidates with recommendation and justification
 4. **Communication Protocol Summary**: Table of all inter-component links with protocol, speed, voltage, and connector
-5. **Power Architecture**: Power tree diagram (text-based), regulator selections with sizing calculations, and power budget table:
+5. **Power Domain Identification**: Which voltage rails are needed, approximate current budgets per rail, and regulator topology recommendations (detailed regulator selection happens per-subsystem in Mode 2)
+6. **Pin Reservation Table**: MCU pins allocated per subsystem — reserves pin groups but does not define detailed pin-to-component wiring (that happens per-subsystem in Mode 2):
    ```
-   | Component      | Rail  | Typical (mA) | Peak (mA) | Sleep (uA) |
-   |---------------|-------|---------------|-----------|------------|
-   | MCU (active)  | 3.3V  | 25            | 80        | 5          |
+   | Subsystem       | Pins Reserved   | Protocol | Notes                        |
+   |-----------------|-----------------|----------|------------------------------|
+   | Audio (I2S)     | PB12-PB15       | I2S      | WS, BCLK, SDOUT, MCLK       |
+   | LED Driver      | PA8             | PWM/TIM1 | Single data line (WS2812B)   |
+   | Sensor Bus      | PB6, PB7        | I2C1     | Shared bus, 4.7k pull-ups    |
    ```
-6. **Pin Mapping Table**: Complete MCU pin assignment:
-   ```
-   | MCU Pin | Function    | Direction | Connected To    | Net Name       | Notes              |
-   |---------|-------------|-----------|-----------------|----------------|--------------------|
-   | PA0     | ADC1_IN0    | Input     | Light sensor    | LIGHT_SENSE    | 0-3.3V analog      |
-   ```
-7. **Interface Specifications**: Detailed specs for each communication link and external connector
-8. **Schematic Design Notes**: Per-subsystem circuit design guidance with component values, reference designs, and layout constraints
-9. **Preliminary BOM**: Component list with MPNs (to be validated by Component Sourcing Agent):
+7. **Subsystem Inventory**: Numbered list of all hardware subsystems to be designed as individual tasks. For each: name, one-line description, which power domain it uses, which MCU pins it reserves, and key constraints. This list drives Step 5 task creation.
+8. **Fab House Compatibility Assessment**: Design requirements of the most demanding components vs preferred fab capabilities
+9. **Design Risk Register**: Hardware-specific risks (thermal, EMC, single-source components, tight tolerances)
+10. **Open Questions**: Any decisions that need user input or datasheet verification
+
+### Mode 2: Per-Subsystem Detail (Step 6 — One Subsystem Per Invocation)
+
+Design one subsystem in detail. The orchestrator tells you which subsystem and provides the Step 4 architecture for context.
+
+1. **Subsystem Overview**: What this subsystem does and how it fits into the overall design
+2. **Circuit Design**: Detailed circuit topology with component values and justification. Reference application notes or evaluation board schematics where applicable.
+3. **Component Selection**: Specific MPNs for every component in this subsystem (ICs, passives, connectors):
    ```
    | Ref   | Value    | MPN              | Manufacturer      | Package  | Qty | Notes           |
    |-------|----------|------------------|--------------------|----------|-----|-----------------|
-   | U1    | MCU      | STM32F411CEU6    | STMicroelectronics | QFN-48   | 1   | Main controller |
+   | U3    | Audio Amp| MAX98357AETE+T   | Analog Devices     | TQFN-16  | 1   | I2S input, 3.2W |
    ```
-10. **PCB Layout Guidance**: Component placement, routing, and stackup recommendations
-11. **Fab House Compatibility Assessment**: Design requirements vs preferred fab capabilities — identify any gaps and recommend resolution paths (change fab or change components)
-12. **Design Risk Register**: Hardware-specific risks (thermal, EMC, single-source components, tight tolerances)
-13. **Open Questions**: Any decisions that need user input or datasheet verification
-14. **KiCad Reference Files** (required for all projects with custom PCB design): After the architecture is finalized and QG-approved, produce the following files in `hardware/`. These are derived from the architecture and reformatted for direct use during KiCad schematic entry and PCB layout. Each file serves a specific phase of the user's KiCad workflow — do not combine them.
+4. **Pin Mapping Update**: Detailed pin-to-component wiring for this subsystem's reserved pins:
+   ```
+   | MCU Pin | Function    | Direction | Connected To    | Net Name       | Notes              |
+   |---------|-------------|-----------|-----------------|----------------|--------------------|
+   | PB12    | I2S2_WS     | Output    | U3 Pin 4        | I2S_LRCLK      | Word select        |
+   ```
+5. **Power Budget Update**: This subsystem's contribution to the power budget table (typical, peak, sleep current on each rail it uses)
+6. **Schematic Design Notes**: Circuit guidance for this subsystem — component values, reference designs, layout constraints
+7. **KiCad Reference Contributions**: This subsystem's entries for the KiCad reference files (BOM rows, net connections, net class assignments, component placement notes). These are accumulated across subsystem tasks and assembled into the final files during the consolidation task (Mode 3).
+8. **Interface Specifications**: Detailed specs for any external connectors or inter-subsystem interfaces in this subsystem
+9. **Subsystem-Specific Risks**: Any risks particular to this subsystem (thermal, tolerance, EMC)
+
+### Mode 3: Consolidation (Step 6 — After All Subsystems Complete)
+
+Assemble all per-subsystem outputs into the complete design. Verify consistency and produce the final KiCad reference files.
+
+1. **Complete BOM**: All components from all subsystems in one table
+2. **Complete Pin Mapping Table**: Full MCU pin assignment combining all subsystem details
+3. **Complete Power Budget Table**: All subsystems combined — verify total current per rail against regulator capacity
+4. **Inter-Subsystem Conflict Check**: Verify no shared pins, address collisions, power budget overruns, or protocol conflicts between subsystems
+5. **PCB Layout Guidance**: Component placement, routing, and stackup recommendations for the full board
+6. **KiCad Reference Files** (required for all projects with custom PCB design): Assemble the final versions from per-subsystem contributions. Each file serves a specific phase of the user's KiCad workflow — do not combine them.
 
     **a. `bom-kicad-reference.csv`** — BOM formatted for KiCad cross-reference. One row per component with columns: Ref, Description, Value, MPN, Manufacturer, Package, Qty, JLCPCB #, DNP status, Notes. This lets the user quickly look up part info while placing symbols.
 

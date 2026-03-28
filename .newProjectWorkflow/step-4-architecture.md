@@ -53,24 +53,41 @@ Make the key technical decisions: language, components, data flow, interfaces, a
 ## When to Use Hardware Design Agents (Hardware Projects)
 If the project involves circuit board design (custom PCB), invoke additional agents during this step. See `workflows.md` for the specific workflow pattern (e.g., "Hardware + Firmware Full Development", "Hardware Revision", "Prototype to Production"). The general flow is:
 
-1. **Hardware Engineer agent**: Design the hardware architecture — MCU selection, power design, communication protocols, pin mapping, schematic design guidance, preliminary BOM. This runs in **parallel** with the Software Architect (if present) — both produce their respective designs and a **shared interface specification** (pin assignments, communication protocols, timing requirements). Route through QG (criteria HE1-HE12).
+1. **Hardware Engineer agent (high-level architecture only)**: Design the board-level architecture — MCU selection, block diagram, power domain identification, communication protocol selection, pin reservation per subsystem, and subsystem inventory. This is the **high-level blueprint**, not the detailed per-subsystem circuit design. The detailed circuit design for each subsystem happens in Step 6 (see below). This runs in **parallel** with the Software Architect (if present) — both produce their respective designs and a **shared interface specification** (pin assignments, communication protocols, timing requirements). Route through QG (criteria HE1-HE6, HE11, HE12 — the architecture-level criteria).
 
-2. **Component Sourcing agent**: Validate the Hardware Engineer's preliminary BOM — check lifecycle status, availability, second-sourcing, cost. Route through QG (criteria CS1-CS8). If sourcing issues are found, resume the Hardware Engineer to adjust component selections.
+   **What the Hardware Engineer produces in Step 4:**
+   - MCU selection with comparison table (HE3)
+   - Block diagram showing all subsystems and power domains (HE2)
+   - Communication protocol summary for all inter-component links (HE4)
+   - Power domain identification — which voltage rails are needed and why (high-level; detailed regulator selection happens per-subsystem in Step 6) (HE5 — partial)
+   - Pin reservation table — MCU pins allocated per subsystem, but detailed pin-to-component wiring is done per-subsystem in Step 6 (HE6 — partial)
+   - Subsystem inventory — a numbered list of all hardware subsystems that will be designed as individual tasks in Step 5/6 (e.g., "1. Power input + regulation, 2. MCU core, 3. Audio amplifier, 4. LED driver, 5. Sensor bus")
+   - Design risk register (HE11)
+   - Preliminary component identification for MCU and critical ICs (with datasheet evidence) (HE12)
 
-3. **Fab House Selection** (orchestrator-driven, after components are finalized): Now that the components are known, evaluate which PCB fab house is the best fit. This breaks the chicken-and-egg problem — you can't pick a fab until you know what components require, and you can't finalize components without knowing fab capabilities. The flow is:
-   - Review the finalized BOM for fab-critical requirements: What's the finest pad pitch? Are there BGAs? What's the smallest passive package? Does the design need impedance control, blind/buried vias, or controlled-depth drilling?
+   **What the Hardware Engineer does NOT produce in Step 4:**
+   - Detailed schematic design notes per subsystem (HE8) — deferred to Step 6 per-subsystem tasks
+   - Complete BOM with every passive and connector (HE9) — only critical ICs identified; full BOM built up per-subsystem in Step 6
+   - Detailed interface specifications per connector (HE7) — deferred to relevant subsystem task
+   - PCB layout guidance (HE10) — deferred to a final consolidation task in Step 6 after all subsystems are designed
+   - KiCad reference files (see Hardware Engineer Mode 3: Consolidation) — built up incrementally during Step 6 subsystem tasks, consolidated at the end
+
+2. **Component Sourcing agent**: Validate the Hardware Engineer's critical component selections (MCU, major ICs) — check lifecycle status, availability, second-sourcing, cost. The full BOM validation happens incrementally during Step 6 as each subsystem's components are selected. Route through QG (criteria CS1-CS8, scoped to the components identified so far).
+
+3. **Fab House Selection** (orchestrator-driven, after critical components are identified): Now that the MCU and major ICs are known, evaluate which PCB fab house is the best fit based on the most demanding packages. This breaks the chicken-and-egg problem. The flow is:
+   - Review the critical components for fab-critical requirements: What's the finest pad pitch? Are there BGAs? Does the design need impedance control, blind/buried vias?
    - Compare these requirements against the user's preferred fab house (from Step 2 discovery). Can it handle everything?
-   - **If yes**: Confirm the preferred fab house. Document its specific design rules (min trace/space, min drill, layer count, surface finish options) for the DFM Reviewer to use.
-   - **If no**: Present the gap (e.g., "JLCPCB's minimum via drill is 0.3mm but the BGA requires 0.2mm") and offer two paths:
+   - **If yes**: Confirm the preferred fab house. Document its specific design rules (min trace/space, min drill, layer count, surface finish options) for the DFM Reviewer and for Step 6 subsystem tasks to follow.
+   - **If no**: Present the gap and offer two paths:
      - **Change the fab**: Recommend alternative fab houses that can handle the requirements, with cost/capability trade-offs
      - **Change the components**: Ask the Hardware Engineer to suggest alternative components that stay within the preferred fab's capabilities (e.g., QFP instead of BGA)
    - The user makes the final decision. Document the chosen fab house, its capabilities, and its design rules in the Step 4 handoff.
 
-4. **DFM Reviewer agent**: Review the design for manufacturability **against the selected fab house's specific capabilities** — not generic tier assumptions. Route through QG (criteria DFM1-DFM8). If DFM must-fix issues are found, resume the Hardware Engineer to adjust the design.
+4. **DFM Reviewer agent**: Review the high-level architecture for manufacturability **against the selected fab house's specific capabilities**. At this stage, the review focuses on: MCU/IC package feasibility, layer count requirements, and any board-level constraints that would affect all subsystems. The detailed per-subsystem DFM review happens during Step 6 after each subsystem is designed. Route through QG (criteria DFM1-DFM8, scoped to architecture-level concerns).
 
 5. **Shared Interface Specification**: After both the Hardware Engineer and Software Architect complete their designs, verify that the pin mapping, communication protocols, and timing requirements are consistent between the hardware design and the firmware architecture. Any conflicts must be resolved before proceeding to Step 5.
 
-The hardware design track produces its own handoff content that is merged into the Step 4 handoff file (see handoff template below).
+The hardware design track produces its own handoff content that is merged into the Step 4 handoff file (see handoff template below). The handoff includes the subsystem inventory that Step 5 uses to create per-subsystem hardware tasks.
 
 ## What to Avoid
 - Don't start writing code — that's Step 6
@@ -188,17 +205,19 @@ Generated: `sbom-{language}.txt` in repo root
 [Chosen MCU with justification. Include comparison table of candidates evaluated.]
 
 ### Power Architecture
-[Power source, regulation topology, power domains, power budget table]
+[Power source, regulation topology, power domain identification, approximate current budget per rail. Detailed regulator selection and full power budget are built per-subsystem in Step 6.]
 
 ### Communication Protocols
 [Table of all inter-component links: protocol, speed, voltage, connector]
 
-### Pin Mapping
-[Complete MCU pin assignment table — or reference to a separate pin mapping file if large]
+### Pin Reservation Table
+[MCU pins allocated per subsystem — detailed pin-to-component wiring is done per-subsystem in Step 6]
 
-### Preliminary BOM
-[Component list with MPNs — or reference to a separate BOM file]
-[Include Component Sourcing validation results: lifecycle status, availability, risk flags]
+### Critical Component Selections
+[MCU and major IC selections with MPNs. Include Component Sourcing validation results for these critical components: lifecycle status, availability, risk flags. Full BOM with passives and connectors is built incrementally in Step 6 subsystem tasks.]
+
+### Subsystem Inventory
+[Numbered list of all hardware subsystems to be designed as individual tasks in Step 5/6. For each: name, one-line description, power domain, reserved MCU pins, key constraints. This list drives Step 5 task creation.]
 
 ### Selected Fab House
 [Chosen fab house, why it was selected, and its key capabilities/design rules:
@@ -209,13 +228,13 @@ Generated: `sbom-{language}.txt` in repo root
 - If the user's preferred fab was NOT selected, document why and what alternative was chosen]
 
 ### DFM Review Summary
-[Key findings from DFM review against the selected fab house's capabilities. Any MUST-FIX items and their resolutions.]
+[Architecture-level DFM findings against the selected fab house's capabilities. Full per-subsystem DFM review happens during Step 6 consolidation task.]
 
 ### Shared Interface Specification
 [Pin assignments, communication protocols, and timing requirements agreed between Hardware Engineer and Software Architect. This is the contract that both hardware design (KiCad) and firmware implementation (Step 6) must follow.]
 
-### KiCad Design Guidance
-[Schematic design notes, PCB layout recommendations, and design rules for the user's KiCad work]
+### KiCad Reference Files
+[Produced during the Step 6 consolidation task after all subsystem designs are complete — not generated in Step 4. The consolidation task assembles: bom-kicad-reference.csv, netlist-connection-reference.md, schematic-wiring-checklist.md, layout-net-classes.csv, layout-component-guide.md.]
 
 ## Security Design
 [Authentication, authorization, data protection, threat model summary]
