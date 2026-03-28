@@ -1,5 +1,11 @@
 # Step 6: Implementation
 
+**Entry commands:**
+- **"start step 6 for [project]"** — used for the first session only. Runs the Pre-Flight Check (verifies Step 5.5 completion) before beginning the first task.
+- **"continue step 6 for [project]"** — used for all subsequent sessions (after a `/clear`). Skips the Pre-Flight Check and resumes from the first unchecked task in the index.
+
+Both commands trigger the same orchestration loop; the only difference is whether the Pre-Flight Check runs.
+
 ## Purpose
 Execute the implementation by orchestrating agents through the checklist produced in Step 5.5. The orchestrator (you) manages the loop — launching agents, routing between them, committing approved work, and tracking progress via checklists. Agents do the actual work (reading files, writing code, running tests, reviewing). The orchestrator does not read source files or do agent work — it routes, commits, and manages. Progress is tracked via a lightweight `IMPLEMENTATION-CHECKLIST.md` index file (one checkbox per task) and per-task detail files in `checklists/` (subtask checkboxes, agent instructions, acceptance criteria).
 
@@ -116,7 +122,7 @@ Repeat the following cycle for each task/subtask until the checklist is complete
    - Do not proceed past a review checkpoint without user approval
 
 10. **STOP — context clear required before next task**:
-   - After completing a task (committed, checklists updated), you MUST stop and tell the user: "Task [X] is complete. Please clear context (`/clear`) and then say **continue step 6** to proceed to the next task."
+   - After completing a task (committed, checklists updated), you MUST stop and tell the user: "Task [X] is complete. Please clear context (`/clear`) and then say **continue step 6 for [project]** to proceed to the next task."
    - Do NOT continue to the next task in the same session — always wait for the user to clear context and restart
    - This prevents context compression from degrading quality on later tasks
    - Each task is self-contained via the checklist files, so there is zero cost to clearing and restarting
@@ -195,7 +201,7 @@ Tests fall into two categories with different safety requirements:
 5. **Run the tests inside the sandbox** — the orchestrator executes the Test Engineer's test commands within the sandboxed environment, using the sandbox setup files (Dockerfile, docker-compose.yml, .wsb config) that the Test Engineer delivers as part of its output
 6. **Never run integration tests directly on the host machine** — even if "it would probably be fine"
 
-**Current environment note:** The development machine runs PLACEHOLDER_PLATFORM. Adjust sandbox choices based on your OS and available virtualization tools.
+**Current environment note:** PLACEHOLDER_PLATFORM. Adjust sandbox choices based on your development machine's OS and available virtualization tools.
 
 ## What to Avoid
 - Don't skip the Quality Gate evaluation — every task must be evaluated before marking complete
@@ -214,7 +220,7 @@ Tests fall into two categories with different safety requirements:
 - Implementation spans multiple sessions — **one task per session**
 - `IMPLEMENTATION-CHECKLIST.md` (index) + `checklists/task-{id}.md` (per-task details) are the persistent progress trackers
 - After completing each task, STOP and tell the user to clear context — do not start the next task in the same session
-- After a context clear, the user says "continue step 6" and you pick up from the first unchecked task in the index
+- After a context clear, the user says "continue step 6 for [project]" (or "start step 6" on the very first session) and you pick up from the first unchecked task in the index. Both phrasings trigger the same loop — the Pre-Flight Check distinguishes first session from subsequent ones automatically.
 - Each session should only load what it needs: use `Grep` on the index to find the next task, then read only that task's per-task file
 - **Never read all per-task checklist files at once** — only the one for the current task
 
@@ -246,7 +252,7 @@ Step 6 is complete when:
 - Every subtask in each `checklists/task-{id}.md` file is checked (`- [x]`)
 - All review checkpoints have been passed
 - The Definition of Done (from the checklist) is satisfied
-- All code is committed locally and pushed to GitHub (with user approval per `git-workflow.md`)
+- All code is committed locally and pushed to GitHub (per `git-workflow.md` — pushes happen automatically after each completed task; the Push Resolution flow handles any issues)
 
 When complete, create a final summary:
 

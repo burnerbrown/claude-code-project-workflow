@@ -105,7 +105,7 @@ Prioritized list of what should be worked on next, in order.
 **Note:** Dependency scan results are tracked in `.trusted-artifacts/_registry.md` and the Step 4 handoff — do not duplicate them here.
 
 ### Session Management
-- **Start of session**: Read `PROJECT_STATUS.md` and `IMPLEMENTATION-CHECKLIST.md`. The checklist shows per-task progress; the status file shows cross-module blockers and deferred items. Summarize current state to the user, recommend what to work on next.
+- **Start of session**: Read `PROJECT_STATUS.md` and `IMPLEMENTATION-CHECKLIST.md`. If `PROJECT_STATUS.md` does not exist (first PM invocation), create it in the project root using the format defined in the "Project Status File" section above — populate the Overview from the checklist, set all module statuses to NOT STARTED or IN PROGRESS as appropriate, and leave Blockers/Deferred Items empty. The checklist shows per-task progress; the status file shows cross-module blockers and deferred items. Summarize current state to the user, recommend what to work on next.
 - **During session**: Update `PROJECT_STATUS.md` when blockers change, deferred items are resolved, or modules change status. Do not update after every QG verdict — the checklist handles that.
 - **End of session**: Update the status file with any new blockers, deferred items, or status changes so the next session can pick up seamlessly.
 

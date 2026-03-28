@@ -11,7 +11,7 @@ Make the key technical decisions: language, components, data flow, interfaces, a
 
 ## How to Run This Step
 
-1. **Enter plan mode** before doing any design work. This ensures structured thinking and lets the user approve the approach before proceeding.
+1. **Enter plan mode** before doing any design work — use `/plan` in Claude Code to switch to plan mode, which enables structured thinking and presents the approach for review before taking action. This lets the user approve the approach before proceeding.
 2. **Review the Step 3 specification** — understand every requirement before designing.
 3. **Invoke the Software Architect agent** (if warranted — see "When to Use the Software Architect Agent" below). For simpler projects, the orchestrator handles architecture conversationally.
 4. **Choose technologies**:
@@ -70,7 +70,7 @@ If the project involves circuit board design (custom PCB), invoke additional age
    - Complete BOM with every passive and connector (HE9) — only critical ICs identified; full BOM built up per-subsystem in Step 6
    - Detailed interface specifications per connector (HE7) — deferred to relevant subsystem task
    - PCB layout guidance (HE10) — deferred to a final consolidation task in Step 6 after all subsystems are designed
-   - KiCad reference files (see Hardware Engineer Mode 3: Consolidation) — built up incrementally during Step 6 subsystem tasks, consolidated at the end
+   - KiCad reference files (produced during the Step 6 consolidation task — see `hardware-engineer.md` for the three operational modes: High-Level Architecture, Per-Subsystem Design, and Consolidation) — built up incrementally during Step 6 subsystem tasks, consolidated at the end
 
 2. **Component Sourcing agent**: Validate the Hardware Engineer's critical component selections (MCU, major ICs) — check lifecycle status, availability, second-sourcing, cost. The full BOM validation happens incrementally during Step 6 as each subsystem's components are selected. Route through QG (criteria CS1-CS8, scoped to the components identified so far).
 

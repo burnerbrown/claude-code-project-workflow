@@ -82,4 +82,8 @@ When the user approves the specification, create a handoff file in the `project-
 
 ## Assumptions
 [Anything we're assuming to be true — if an assumption is wrong, it may change the spec]
+
+## GitHub Repository
+- URL: [GitHub repo URL]
+- Visibility: [Public / Private]
 ```

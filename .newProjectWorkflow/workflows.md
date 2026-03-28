@@ -38,7 +38,7 @@ For the full QG routing procedure — how to invoke the QG, prompt structure, ve
 
 **Before any worker agent begins implementation**, the orchestrator runs a Research Inventory phase to identify what external resources the agent will need. This gives the user full visibility and control over all downloads, web access, and tool installations before they happen.
 
-**Which agents this applies to:** All worker agents that produce code, tests, or configuration — Senior Programmer, Embedded Systems Specialist, Test Engineer, DevOps Engineer, Database Specialist, API Designer, Performance Optimizer. It also applies to the **Component Sourcing agent** when it performs live distributor/manufacturer website lookups (see the Component Sourcing agent definition for its trusted domain allowlist). It does NOT apply to review-only agents (Quality Gate, Security Reviewer, Code Reviewer, Compliance Reviewer, Documentation Writer) or the DFM Reviewer since these only read existing files.
+**Which agents this applies to:** All worker agents that produce code, tests, configuration, or design artifacts — Senior Programmer, Embedded Systems Specialist, Test Engineer, DevOps Engineer, Database Specialist, API Designer, Performance Optimizer, Hardware Engineer (Step 6 subsystem tasks). It also applies to the **Component Sourcing agent** when it performs live distributor/manufacturer website lookups (see the Component Sourcing agent definition for its trusted domain allowlist). It does NOT apply to: review-only agents (Quality Gate, Security Reviewer, Code Reviewer, Compliance Reviewer, Documentation Writer, DFM Reviewer) since these only read existing files; the Software Architect (provides context summaries, does not produce implementation artifacts); the Supply Chain Security agent (has its own isolated scanning workflow); or the Project Manager (tracks status only).
 
 **How it works:**
 
@@ -148,7 +148,7 @@ WebSearch and WebFetch are fundamentally different operations. WebSearch discove
 **Permission prompt guidance for the user:** During agent execution, the system may prompt the user for permission on specific actions. If the action matches an approved manifest item, the user can confidently say "Yes." If the action does NOT match any approved item, the user should say "No" — the agent will include the blocked action in its report, and the orchestrator will handle it.
 
 **Manifest folder and files:**
-- During project setup (Step 6 first session, or when starting a new project), the orchestrator creates a `research-inventories/` folder in the project root and adds it to `.gitignore`. This folder is never committed to the repository.
+- The `research-inventories/` folder is created during Step 4 repository scaffolding (see `step-4-architecture.md`) and is included in `.gitignore`. This folder is never committed to the repository. If it does not exist when Step 6 starts (e.g., project predates this convention), the orchestrator creates it and adds it to `.gitignore`.
 - Before each task, the orchestrator pre-creates one manifest file per worker agent that will be invoked for that task, using the naming convention: `research-inventories/task-{id}-{agent-role}.md` (e.g., `research-inventories/task-3-embedded-specialist.md`, `research-inventories/task-3-test-engineer.md`).
 - Pre-creating files per agent avoids conflicts when multiple agents run in parallel — each writes to its own file.
 - **The orchestrator does NOT delete manifest files.** After a task is complete, the user can safely delete all files in `research-inventories/` at their convenience. This is a safety measure — the orchestrator should never have delete capability over workflow artifacts in case of context corruption.
@@ -174,6 +174,8 @@ The PM agent is **optional** — the orchestrator handles routing by default usi
 | **User requests a progress report** | PM produces a formal progress summary from `PROJECT_STATUS.md` and `IMPLEMENTATION-CHECKLIST.md` |
 
 For simple, single-module projects where the checklist defines the full agent sequence: **skip the PM entirely.** The orchestrator reads the QG verdict, routes to the next agent in the checklist, commits approved work, and updates the checklist. This is sufficient.
+
+**`PROJECT_STATUS.md` lifecycle:** This file is created by the PM agent on its first invocation during Step 6. If the PM is never invoked (single-module projects), this file does not exist and is not needed — the checklist system provides sufficient tracking. The PM agent definition (`project-manager.md`) defines the file's format and update rules.
 
 ---
 
@@ -468,7 +470,7 @@ Performance Optimizer (analyze) → QG → Programmer (implement) → QG → Tes
 6. **QG**: Evaluate against criteria T1-T10
 7. **Security Reviewer + Code Reviewer**: Run in parallel — Security Reviewer checks for security regressions from optimizations (weakened crypto, disabled bounds checks, reduced logging); Code Reviewer checks code quality
 8. **QG**: Evaluate both reviews — security against SR1-SR8, code review against CR1-CR7
-9. **Performance Optimizer**: Verify improvements with benchmarks (resume from step 1 to compare against original analysis)
+9. **Performance Optimizer**: Verify improvements with benchmarks (resume the Performance Optimizer agent from its initial invocation in substep 1 above, so it can compare current results against its original analysis findings)
 10. **QG**: Evaluate against criteria PO1-PO6
 11. **Documentation Writer**: Recommend performance documentation updates (benchmarks, configuration tuning guides, etc.)
 12. **QG**: Evaluate against criteria D1-D8
@@ -528,7 +530,5 @@ The following must run **sequentially**:
 - DFM Reviewer → QG → Hardware Engineer resume (hardware engineer needs DFM feedback to adjust)
 
 Note: The Architect → Programmer and SCS → Programmer sequential dependencies are handled in Step 4, not in Step 6 task workflows.
-
-**Important change from previous workflow**: Test Engineer and Documentation Writer can **no longer** run in parallel. The Documentation Writer is now the final step, running only after all code is complete and verified. This ensures documentation accurately reflects the final implemented code.
 
 **HARD STOP**: If Supply Chain Security returns INCOMPLETE, ALL parallel and sequential work halts until scanning completes.

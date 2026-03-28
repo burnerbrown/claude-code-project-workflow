@@ -18,6 +18,14 @@ Read these **only when needed** to keep context small:
 
 **Do NOT read these files preemptively.** Only load them when the current task specifically requires their content. The no-guessing rule and governing standards are already baked into each agent's own definition file — you don't need `policies.md` for normal agent execution.
 
+### Skipping or Revisiting Steps
+
+The default workflow is strictly sequential: 1 → 2 → 3 → 4 → 5 → 5.5 → 6. However, exceptions arise:
+
+- **Skipping a step**: If the user believes a step is unnecessary (e.g., a trivial project that doesn't need a formal discovery phase), the orchestrator should push back briefly — explain what the step provides and what would be missed. If the user still wants to skip, create a minimal handoff file for the skipped step noting "Step N skipped per user decision" so that later steps have a handoff to reference. Never skip Steps 4 (architecture), 5.5 (task detailing), or 6 (implementation) — these are structurally required.
+- **Going back to a previous step**: If a later step reveals a problem in an earlier step's output (e.g., Step 5 planning exposes an architecture flaw from Step 4), the orchestrator should: (1) identify the specific gap, (2) describe the minimum change needed, (3) ask the user whether to revise the earlier handoff or work around the gap. If revising, update only the affected sections of the earlier handoff — do not redo the entire step.
+- **In both cases, the user initiates the decision.** The orchestrator may recommend skipping or revisiting, but never does so unilaterally.
+
 ---
 
 ## How to Use Agents
@@ -83,6 +91,7 @@ The Senior Programmer will be able to read files, write code, and edit existing 
 #### Notes
 - The prompt-level "Tool Restrictions (MANDATORY)" sections in each agent definition file remain as defense-in-depth and documentation of intent — they are not the primary enforcement mechanism
 - If an agent needs a tool not in its profile for a specific task (unusual), the orchestrator must get explicit user approval before changing the frontmatter for that invocation
+- Domain restrictions (e.g., the Component Sourcing agent's trusted distributor allowlist) are enforced by the orchestrator's Research Inventory pre-screening, not by frontmatter. The orchestrator applies the Web Content Trust Policy (`policies.md` rule 4) to all URLs before any agent fetches them. YAML frontmatter can restrict which tools are available but cannot restrict tool parameters like target URLs.
 - The frontmatter must be the very first content in the prompt — before any tags or text
 
 ### Important: Passing Context to Agents
@@ -201,6 +210,11 @@ The resumed agent already has full context of its prior work, so there is no nee
 | Supply Chain Security | `supply-chain-security.md` | **Step 4**: Full 5-phase scan of all external dependencies. In Step 6, only used if a new dependency is discovered mid-implementation (emergency workflow). **Always check `.trusted-artifacts/_registry.md` before invoking — if the dependency is cached and hash-verified, skip the scan entirely.** Must run synchronously — do NOT use `run_in_background: true`. |
 | Compliance Reviewer | `compliance-reviewer.md` | Final-gate NIST/CISA/OWASP compliance assessment |
 | Quality Gate | `quality-gate.md` | **Evaluates every agent's output against acceptance criteria** — produces APPROVED/SENT BACK/APPROVED WITH CONDITIONS verdicts with specific feedback and code snippets. |
-| Project Manager | `project-manager.md` | **Project coordinator** — receives Quality Gate verdicts, makes routing decisions (proceed/send back), tracks cross-module dependencies, blockers, deferred items, and cross-session continuity via `PROJECT_STATUS.md`. |
+| Project Manager | `project-manager.md` | **Optional project coordinator** — only invoked for multi-module projects with cross-module dependencies, complex send-back routing, agent conflicts, or user-requested progress reports. Tracks cross-module blockers, deferred items, and status via `PROJECT_STATUS.md`. See `workflows.md` "When to Invoke the Project Manager Agent" for criteria. Most single-module projects skip the PM entirely. |
 
 All agent files are located in: `PLACEHOLDER_PATH\.agents\`
+
+### Capabilities Without Dedicated Agents
+The following capabilities are handled by existing agents rather than specialized roles:
+- **System integration testing**: The **Test Engineer** writes integration tests (classified as sandbox-required per the Test Sandboxing Policy in `step-6-implementation.md`). The orchestrator executes them in the appropriate sandbox.
+- **Release engineering**: The **DevOps Engineer** handles build pipelines and release artifact generation. The **Documentation Writer** handles changelogs and release notes. The orchestrator handles git tagging and GitHub releases.

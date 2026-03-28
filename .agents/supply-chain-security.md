@@ -70,18 +70,11 @@ Run once before the first scan. Creates the folder structure, WSB configuration 
 ```powershell
 $base = "PLACEHOLDER_PATH\.scs-sandbox"
 New-Item -ItemType Directory -Force -Path "$base\staging"
-New-Item -ItemType Directory -Force -Path "$base\scripts"
-```
-
-A `results\` folder is not needed — the scan sandbox writes its results directly into `staging\`, which is mapped read-only into the scan sandbox from the host's perspective. Wait — the scan sandbox needs a separate writable output folder. Use `staging\` for input (downloaded artifact) and write results to `staging\` as well since the scan sandbox maps staging read-only. Actually: create a separate `results\` folder for scan output, mapped read-write into scan sandbox only.
-
-**Corrected folder create:**
-```powershell
-$base = "PLACEHOLDER_PATH\.scs-sandbox"
-New-Item -ItemType Directory -Force -Path "$base\staging"
 New-Item -ItemType Directory -Force -Path "$base\results"
 New-Item -ItemType Directory -Force -Path "$base\scripts"
 ```
+
+The download sandbox writes artifacts to `staging\`. The scan sandbox reads from `staging\` (mapped read-only) and writes results to `results\` (mapped read-write). This separation ensures the scan sandbox cannot modify the downloaded artifact.
 
 ---
 

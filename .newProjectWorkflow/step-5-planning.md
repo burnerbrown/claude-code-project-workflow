@@ -11,7 +11,7 @@ Break the architecture into an ordered sequence of implementation tasks. Each ta
 
 ## How to Run This Step
 
-1. **Enter plan mode** before breaking down tasks. This ensures the plan is structured and reviewed before implementation begins.
+1. **Enter plan mode** before breaking down tasks (use `/plan` in Claude Code). This ensures the plan is structured and reviewed before implementation begins.
 2. **Review the Step 4 architecture** — understand all components, interfaces, and dependencies.
 3. **Break down into implementation tasks**:
    - Each task should produce a working, testable increment

@@ -28,6 +28,7 @@ The orchestrator **creates a local commit when the full task is complete** — a
 **Commit point (triggered when ALL subtasks in the task are QG-approved):**
 - Commit all QG-approved work products (code, tests, configuration, documentation) produced during the task
 - Commit the fully-checked per-task checklist file
+- Commit the updated project-local `CLAUDE.md` (reflects current state for crash recovery)
 - Mark the task as checked (`- [x]`) in the index (`IMPLEMENTATION-CHECKLIST.md`) and commit that too
 - One or two commits per task is typical — keep it clean
 

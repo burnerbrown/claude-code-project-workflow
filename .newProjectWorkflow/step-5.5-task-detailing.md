@@ -24,7 +24,7 @@ Take the individual task files from Step 5 and produce detailed agent workflows 
 
 3. **Create the detailed agent workflow** for that task (see Per-Task Detail Template below).
 
-4. **Create the per-task checklist file**: Write the task's full detail (agent sequences, instructions, acceptance criteria, subtask checkboxes) to `checklists/task-{id}.md` (e.g., `checklists/task-pre1.md`, `checklists/task-1.md`). Then update the lightweight `IMPLEMENTATION-CHECKLIST.md` index to include this task's summary entry. If this is the first task, create both the `checklists/` folder and the index file with the header. Commit and push to GitHub.
+4. **Create the per-task checklist file**: Write the task's full detail (agent sequences, instructions, acceptance criteria, subtask checkboxes) to `checklists/task-{id}.md` (e.g., `checklists/task-pre1.md`, `checklists/task-1.md`). Then update the lightweight `IMPLEMENTATION-CHECKLIST.md` index (in the project root) to include this task's summary entry. If this is the first task, create both the `checklists/` folder in the project root and the index file with the header. Commit and push to GitHub.
 
 5. **Write a completion marker**: Create `project-handoffs/handoff-step-5.5-task-{id}-done.md` with a brief summary confirming the task was detailed. Commit and push to GitHub.
 
@@ -86,7 +86,7 @@ A concrete checklist the Quality Gate uses to verify the task is complete. These
 
 Step 5.5 produces two types of files, all in the project repository:
 
-### 1. `IMPLEMENTATION-CHECKLIST.md` (Lightweight Index)
+### 1. `IMPLEMENTATION-CHECKLIST.md` (Lightweight Index — lives in the project root)
 
 This is the progress tracker. It contains **one checkbox per task** — no detailed subtasks, no agent instructions. Step 6 reads this file to find the next unchecked task, then reads the corresponding per-task file for details. This keeps the index small regardless of project size.
 
@@ -183,7 +183,7 @@ After the last task iteration, perform this active verification — do NOT skip 
 
 4. **Report any gaps**: If ANY checklist file or completion marker is missing, list the missing items explicitly and process those tasks before proceeding. Do NOT declare Step 5.5 complete with gaps.
 
-5. **Create the Step 5.5 handoff file**: Only after all verifications pass, create `project-handoffs/handoff-step-5.5.md` with:
+5. **Create the Step 5.5 handoff file** (serves as the gate signal for Step 6 — its existence confirms all tasks were detailed and verified): Only after all verifications pass, create `project-handoffs/handoff-step-5.5.md` with:
    - Total number of tasks detailed
    - List of all task IDs and their checklist file paths
    - Confirmation that all completion markers exist

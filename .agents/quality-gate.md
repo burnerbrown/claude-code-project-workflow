@@ -370,8 +370,6 @@ The DevOps engineer's output is APPROVED when ALL of the following are present a
 
 ---
 
----
-
 ## Output Format
 
 When evaluating agent output, produce:
