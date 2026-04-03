@@ -33,6 +33,24 @@ This rule applies to the orchestrator and every agent without exception:
 
 ---
 
+## MANDATORY: Hardware BOM Integrity — ALL HARDWARE PROJECTS
+
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║  Distributor part numbers and manufacturer MPNs must be COPIED from ║
+║  a verified source. NEVER construct, guess, or extrapolate part     ║
+║  numbers from patterns in other part numbers.                       ║
+╚══════════════════════════════════════════════════════════════════════╝
+```
+
+- Verified sources: distributor website (LCSC, DigiKey, Mouser), manufacturer datasheet, manufacturer product page. Nothing else.
+- If you cannot verify a part number, write **"TBD — verify on LCSC"** and tell the user. Do NOT fill in a guess.
+- Component specifications (capacitance, resistance, voltage ratings, current ratings, package sizes) come from datasheets ONLY. Do not infer specs from part number naming conventions.
+- A plausible-looking wrong part number is MORE dangerous than a blank field — it will be ordered without question and result in the wrong component being soldered to boards.
+- This rule exists because fabricated part numbers that follow plausible naming patterns get accepted without review. This has caused real ordering errors.
+
+---
+
 ## MANDATORY: Dependency & Download Security Policy
 
 ```
