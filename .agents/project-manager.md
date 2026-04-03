@@ -45,7 +45,7 @@ Orchestrator passes the verdict to YOU (Project Manager)
 You update PROJECT_STATUS.md and recommend:
     IF APPROVED → recommend orchestrator proceed to the next agent
     IF SENT BACK → recommend orchestrator re-invoke the worker agent with QG's feedback
-    IF APPROVED WITH CONDITIONS → recommend orchestrator proceed, track conditions as follow-ups
+    IF APPROVED WITH CONDITIONS → recommend orchestrator send conditions back to the worker agent for a fix pass (conditions are resolved before proceeding, not deferred)
 NOTE: Your routing is a RECOMMENDATION. The orchestrator executes your recommendation
 unless the orchestrator has concerns — in which case both perspectives go to the user
 as tiebreaker (see policies.md "Orchestrator vs Quality Gate vs Project Manager").
@@ -92,7 +92,7 @@ Active blockers with responsible party and resolution path:
 ```
 
 #### 4. Deferred Items
-Conditions deferred to later tasks, technical debt, and follow-ups:
+Technical debt and cross-task follow-ups:
 ```markdown
 | Item | Deferred From | Due By | Notes |
 |------|--------------|--------|-------|

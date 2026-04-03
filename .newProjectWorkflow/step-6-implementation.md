@@ -14,6 +14,7 @@ Execute the implementation by orchestrating agents through the checklist produce
 ### What the orchestrator reads (into its own context)
 - `IMPLEMENTATION-CHECKLIST.md` — use `Grep` for `- \[ \]` to find the next task (don't read the whole file)
 - `checklists/task-{id}.md` — the per-task checklist for the current task ONLY (contains agent sequence, instructions, acceptance criteria, subtask checkboxes)
+- `PLACEHOLDER_PATH\.newProjectWorkflow\agent-orchestration.md` — read at the start of every session (context is lost after `/clear`, so the orchestrator must re-learn how to launch and manage agents each time)
 - `git log --oneline` — when resuming mid-task, to confirm what's committed
 - `PLACEHOLDER_PATH\.newProjectWorkflow\git-workflow.md` — when it's time to commit or push
 
@@ -27,7 +28,6 @@ Execute the implementation by orchestrating agents through the checklist produce
 ### Read only when needed (not every session)
 - `PLACEHOLDER_PATH\.newProjectWorkflow\workflows.md` — only if the checklist file doesn't already specify the agent sequence
 - `PLACEHOLDER_PATH\.newProjectWorkflow\policies.md` — only if: a dependency is being added, two agents disagree, or an agent fails
-- `PLACEHOLDER_PATH\.newProjectWorkflow\agent-orchestration.md` — only if you need to look up how agents work (you should already know from prior sessions)
 
 ## How to Run This Step
 

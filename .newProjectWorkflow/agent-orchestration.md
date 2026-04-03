@@ -120,7 +120,7 @@ When launching agents, **pass file paths and instructions — not file contents.
 6. **Orchestrator routes based on the verdict:**
    - If APPROVED: commit the approved work, check the subtask box, proceed to the next agent in the checklist
    - If SENT BACK: **resume** the original worker agent (using its saved agent ID) with the QG's specific feedback — see "Agent Lifecycle: Resume on Rework" below
-   - If APPROVED WITH CONDITIONS: commit and proceed; track conditions as follow-ups
+   - If APPROVED WITH CONDITIONS: **resume the original worker agent** with the QG's conditions. Agent fixes all items and resubmits. QG re-evaluates only the conditions. Re-run tests if any condition changed code logic. Do not commit until conditions are resolved.
 
 **The Project Manager agent is optional.** See `workflows.md` "When to Invoke the Project Manager Agent" for the specific situations that warrant a PM invocation. For most tasks, the orchestrator handles routing directly using the checklist's agent sequence.
 
