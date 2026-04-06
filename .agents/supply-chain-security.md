@@ -147,6 +147,8 @@ Write these two files to `.scs-sandbox\` once. They do not change between scans.
 
 ### PowerShell Scripts
 
+**CRITICAL: ASCII-only in .ps1 files.** Windows Sandbox runs PowerShell 5.1, which reads scripts as Windows-1252 (not UTF-8). Em dashes, curly quotes, and other non-ASCII characters cause silent parse failures. Use only straight quotes (`"`, `'`), ASCII hyphens (`-`, `--`), and plain ASCII text in all `.ps1` files, including comments.
+
 Write these two files to `.scs-sandbox\scripts\` once. They are mapped read-only into both sandboxes.
 
 **`scripts\download.ps1`** — runs inside the download sandbox:
@@ -176,7 +178,7 @@ $hash = (Get-FileHash -Algorithm SHA256 -Path $outPath).Hash
 Write-Output "SHA-256: $hash"
 Set-Content "C:\staging\hash.txt" $hash
 
-# Sentinel — host polls for this file
+# Sentinel -- host polls for this file
 Set-Content "C:\staging\DOWNLOAD_DONE" "completed"
 Stop-Computer -Force
 ```
@@ -210,16 +212,16 @@ $defenderResult = @{
     exitCode    = $defenderExit
     threatFound = ($defenderExit -eq 2)
     status      = switch ($defenderExit) {
-        0       { "CLEAN — no threats detected" }
+        0       { "CLEAN -- no threats detected" }
         2       { "THREAT DETECTED" }
-        default { "ERROR — unexpected exit code $defenderExit" }
+        default { "ERROR -- unexpected exit code $defenderExit" }
     }
 }
 
 # Write results JSON for host to read
 $defenderResult | ConvertTo-Json | Set-Content "C:\results\defender-results.json"
 
-# Sentinel — host polls for this file
+# Sentinel -- host polls for this file
 Set-Content "C:\results\SCAN_DONE" "completed"
 Stop-Computer -Force
 ```
