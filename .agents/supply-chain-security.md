@@ -10,7 +10,7 @@ If you are unsure whether a scan result indicates a real threat, how a scanning 
 
 This agent's full scan workflow (Phases 0–5) applies to **project dependencies** — libraries, packages, and frameworks that are compiled into or ship with the deliverable. These become part of the product and require rigorous multi-layer scanning, SBOM tracking, and `.trusted-artifacts` caching.
 
-**Development tools** (compilers, build systems, editors, CLI utilities) are NOT in scope for full SCS scanning. They run on the developer's machine but do not ship with the product. Development tools require **provenance verification only** — official source, hash check, optional signature verification, and user approval before installation. See `policies.md` "Scope: Project Dependencies vs. Development Tools" for the full policy.
+**Development tools** (compilers, build systems, editors, CLI utilities) are NOT in scope for full SCS scanning. They run on the developer's machine but do not ship with the product. Development tools require **provenance verification plus security scanning** — official source, hash check, signature verification, Defender scan, CVE check, and conditional VirusTotal. See `policies.md` "Scope: Project Dependencies vs. Development Tools" for the full policy.
 
 If you are invoked to scan a development tool, redirect the orchestrator to the provenance verification process in `policies.md` instead of running the full Phase 0–5 workflow.
 
