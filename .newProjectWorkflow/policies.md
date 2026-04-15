@@ -132,7 +132,26 @@ Not all external software requires the same level of scrutiny. The full SCS work
    - If an agent's install command would fetch from the internet (e.g., bare `pip install requests` without `--no-index`), the orchestrator MUST reject it and correct the command to use the local cache
    - After installation, verify the installed package hash matches the hash recorded in `_registry.md`
 
-6. **Pre-approved tools** (no scanning or provenance verification needed):
+6. **Minimum Package Age (30-Day Rule).** No external package may be downloaded for scanning until at least **30 calendar days** have passed since that specific version was published to its package registry (PyPI, npm, crates.io, Maven Central, etc.).
+
+   **How to check:** Before the orchestrator builds the download URL table for the SCS agent, look up the publication date for each package version on its registry (e.g., PyPI's release page shows the upload date for each version). If any version was published less than 30 days ago, it is not eligible for download.
+
+   **What this protects against:** Most malicious packages are discovered and removed within days to weeks of publication. A 30-day waiting period ensures that VirusTotal engines, community reporting, and registry moderation have had time to flag malicious code before it ever reaches the scanning environment.
+
+   **What counts as the publication date:** The date the specific version (not the package) was first uploaded to the registry. For example, if `requests` version 2.32.0 was published on 2026-03-15, it is not eligible until 2026-04-14 — even though the `requests` package itself has existed for years.
+
+   **One narrow exception — security patches for packages already in use:**
+   If a package already in `.trusted-artifacts/` has a known CVE, and the fix is only available in a version published less than 30 days ago, the user may approve downloading the newer version. ALL of the following conditions must be met:
+   - The CVE is documented in a public advisory (NVD, GitHub Advisory, or the package's own security page)
+   - The older version the project currently uses is confirmed affected
+   - The newer version is specifically identified as the fix in the advisory
+   - The user explicitly approves the exception after reviewing the CVE details
+   - All SCS scan layers still apply — the 30-day rule is the only thing waived
+   - The exception and its justification must be documented in `scs-report.md`
+
+   If these conditions are not met, the exception does not apply. When in doubt, wait the 30 days.
+
+7. **Pre-approved tools** (no scanning or provenance verification needed):
    - Rust compiler, `rustup`, `cargo` (the tool itself, not crates)
    - Go compiler, `go` CLI
    - JDK, `mvn`, `gradle` (the tools themselves, not packages)

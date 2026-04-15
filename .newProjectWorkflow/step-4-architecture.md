@@ -35,11 +35,13 @@ Make the key technical decisions: language, components, data flow, interfaces, a
    - This is a FULL scan — all 5 phases (Pre-Download Assessment → Download to Quarantine → Automated Scanning → Verdict → SBOM Generation)
    - Read the Supply Chain Security agent definition: `PLACEHOLDER_PATH\.agents\supply-chain-security.md`
    - Read `PLACEHOLDER_PATH\.newProjectWorkflow\policies.md` for dependency security policy
+   - When building the download URL table for the SCS agent, **also record the expected SHA-256 hash** for each package (from PyPI's JSON API, npm registry, etc.). These hashes are needed for post-download verification — see `agent-orchestration.md` "SCS Download Verification (Anti-Substitution)"
    - Invoke the Supply Chain Security agent for every external dependency identified in substep 4
    - **If any dependency is REJECTED**: select an alternative dependency and re-run SCS on the replacement — do this NOW while the architecture is still flexible, not in Step 6 when task plans and details are already built around the rejected dependency
    - **If any dependency is INCOMPLETE** (e.g., rate-limited): PAUSE and wait. Do not proceed to substep 10 until all verdicts are CLEAN or CONDITIONAL (with user approval)
    - After all dependencies pass, the SBOM (`sbom-{language}.txt`) is generated as part of Phase 5
    - The SCS agent produces `scs-report.md` in the repo root — the persistent audit trail of all scan results and verdicts (see the SCS agent definition for the report format)
+   - **After each SCS agent invocation**, review the validator command log (`.claude/hooks/scs-validator.log`) per the procedure in `agent-orchestration.md` "Post-SCS Scan — Command Log Review". If all commands were within bounds, report to user and continue. If unauthorized commands were blocked, STOP immediately.
    - Route SCS output through the Quality Gate (evaluate against SC1-SC7). No Project Manager needed in Step 4 — there are no tasks or status tracking yet.
 10. **Review with the user** — walk through the design, confirmed dependency verdicts, explain trade-offs, get approval.
 

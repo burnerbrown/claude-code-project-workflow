@@ -492,18 +492,19 @@ Check .trusted-artifacts/_registry.md for exact name + version
     ↓
 CACHE HIT (hash verified) → dependency pre-approved → Update SBOM & Step 4 handoff → Resume where you left off
     ↓ (only if NOT in cache)
-Pause current work → User approves → Supply Chain Security (full 5-phase scan) → QG → CLEAN verdict → Update SBOM, scs-report.md & Step 4 handoff → Resume where you left off
+Pause current work → User approves → Supply Chain Security (full 5-phase scan) → Log Review → QG → CLEAN verdict → Update SBOM, scs-report.md & Step 4 handoff → Resume where you left off
 ```
 
 1. **Any Agent or Orchestrator**: Identifies need for a dependency not in the Step 4 SBOM
-2. **Orchestrator**: Check `.trusted-artifacts/_registry.md` — if the exact name + version is present and the hash verifies against the cached artifact on disk, the dependency is pre-approved. Skip to step 6 (CLEAN path). No user approval needed for cached artifacts.
+2. **Orchestrator**: Check `.trusted-artifacts/_registry.md` — if the exact name + version is present and the hash verifies against the cached artifact on disk, the dependency is pre-approved. Skip to step 8 (CLEAN path — no scan was performed, so steps 3-7 are skipped). No user approval needed for cached artifacts.
 3. **Orchestrator** (if NOT in cache): Pause current work on tasks that would use this dependency
 4. **User** (if NOT in cache): Explicitly approves the dependency request
 5. **Supply Chain Security** (if NOT in cache): Full 5-phase scan on the new dependency only (Phase 0 will confirm it's not in cache, then run Phases 1–5)
-6. **QG**: Evaluate against criteria SC1-SC7.
-7. If CLEAN: dependency approved; artifact moved to `.trusted-artifacts/`; registry updated; append scan results to `scs-report.md`; update the SBOM and Step 4 handoff; resume where you left off
-8. If INCOMPLETE: Pause work that depends on this dependency per the Pause Rule (other unrelated work can continue)
-9. If REJECT: Find an alternative and re-scan, or refactor to avoid the dependency. Only escalate to redo prior steps if the rejection forces an architectural change with no alternatives
+6. **Orchestrator**: Review the SCS validator command log (`.claude/hooks/scs-validator.log`) — see `agent-orchestration.md` "Post-SCS Scan — Command Log Review" for the full procedure. If all commands were within bounds, report to user and continue. If unauthorized commands were blocked, STOP and report to user immediately.
+7. **QG**: Evaluate against criteria SC1-SC7.
+8. If CLEAN: dependency approved; artifact moved to `.trusted-artifacts/`; registry updated; append scan results to `scs-report.md`; update the SBOM and Step 4 handoff; resume where you left off
+9. If INCOMPLETE: Pause work that depends on this dependency per the Pause Rule (other unrelated work can continue)
+10. If REJECT: Find an alternative and re-scan, or refactor to avoid the dependency. Only escalate to redo prior steps if the rejection forces an architectural change with no alternatives
 
 ---
 

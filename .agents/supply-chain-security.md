@@ -80,198 +80,40 @@ The download sandbox writes artifacts to `staging\`. The scan sandbox reads from
 
 ### WSB Configuration Files
 
-Write these two files to `.scs-sandbox\` once. They do not change between scans.
+Write these two files to `.scs-sandbox\` once. They do not change between scans. Both configs disable VGpu, AudioInput, VideoInput, ClipboardRedirection, and PrinterRedirection. Both map `.scs-sandbox\scripts` to `C:\scripts` (read-only). LogonCommand runs the respective `.ps1` file with `-ExecutionPolicy Bypass`.
 
-**`download.wsb`** — network ON, downloads artifact to staging:
-```xml
-<Configuration>
-  <Networking>Enable</Networking>
-  <VGpu>Disable</VGpu>
-  <AudioInput>Disable</AudioInput>
-  <VideoInput>Disable</VideoInput>
-  <ClipboardRedirection>Disable</ClipboardRedirection>
-  <PrinterRedirection>Disable</PrinterRedirection>
-  <MappedFolders>
-    <MappedFolder>
-      <HostFolder>PLACEHOLDER_PATH\.scs-sandbox\scripts</HostFolder>
-      <SandboxFolder>C:\scripts</SandboxFolder>
-      <ReadOnly>true</ReadOnly>
-    </MappedFolder>
-    <MappedFolder>
-      <HostFolder>PLACEHOLDER_PATH\.scs-sandbox\staging</HostFolder>
-      <SandboxFolder>C:\staging</SandboxFolder>
-      <ReadOnly>false</ReadOnly>
-    </MappedFolder>
-  </MappedFolders>
-  <LogonCommand>
-    <Command>powershell.exe -ExecutionPolicy Bypass -File C:\scripts\download.ps1</Command>
-  </LogonCommand>
-</Configuration>
-```
+| Setting | `download.wsb` | `scan.wsb` |
+|---------|----------------|------------|
+| Networking | **Enable** | **Disable** |
+| ProtectedClient | (omit) | **Enable** |
+| MemoryInMB | (omit) | **4096** |
+| staging mapped as | `C:\staging` (read-write) | `C:\input` (**read-only**) |
+| results mapped | (none) | `C:\results` (read-write) |
+| LogonCommand | `C:\scripts\download.ps1` | `C:\scripts\scan.ps1` |
 
-**`scan.wsb`** — network OFF, reads staging (read-only), writes results:
-```xml
-<Configuration>
-  <Networking>Disable</Networking>
-  <VGpu>Disable</VGpu>
-  <AudioInput>Disable</AudioInput>
-  <VideoInput>Disable</VideoInput>
-  <ClipboardRedirection>Disable</ClipboardRedirection>
-  <PrinterRedirection>Disable</PrinterRedirection>
-  <ProtectedClient>Enable</ProtectedClient>
-  <MemoryInMB>4096</MemoryInMB>
-  <MappedFolders>
-    <MappedFolder>
-      <HostFolder>PLACEHOLDER_PATH\.scs-sandbox\scripts</HostFolder>
-      <SandboxFolder>C:\scripts</SandboxFolder>
-      <ReadOnly>true</ReadOnly>
-    </MappedFolder>
-    <MappedFolder>
-      <HostFolder>PLACEHOLDER_PATH\.scs-sandbox\staging</HostFolder>
-      <SandboxFolder>C:\input</SandboxFolder>
-      <ReadOnly>true</ReadOnly>
-    </MappedFolder>
-    <MappedFolder>
-      <HostFolder>PLACEHOLDER_PATH\.scs-sandbox\results</HostFolder>
-      <SandboxFolder>C:\results</SandboxFolder>
-      <ReadOnly>false</ReadOnly>
-    </MappedFolder>
-  </MappedFolders>
-  <LogonCommand>
-    <Command>powershell.exe -ExecutionPolicy Bypass -File C:\scripts\scan.ps1</Command>
-  </LogonCommand>
-</Configuration>
-```
+**Important:** `scan.wsb` maps staging to `C:\input` (not `C:\staging`) — the scan script references `C:\input\`. This ensures the scan sandbox cannot modify the downloaded artifact.
 
 ---
 
 ### PowerShell Scripts
 
-**CRITICAL: ASCII-only in .ps1 files.** Windows Sandbox runs PowerShell 5.1, which reads scripts as Windows-1252 (not UTF-8). Em dashes, curly quotes, and other non-ASCII characters cause silent parse failures. Use only straight quotes (`"`, `'`), ASCII hyphens (`-`, `--`), and plain ASCII text in all `.ps1` files, including comments.
+**CRITICAL: ASCII-only in .ps1 files.** Windows Sandbox runs PowerShell 5.1, which reads scripts as Windows-1252 (not UTF-8). Em dashes, curly quotes, and other non-ASCII characters cause silent parse failures. Use only straight quotes, ASCII hyphens, and plain ASCII text in all `.ps1` files, including comments.
 
 Write these two files to `.scs-sandbox\scripts\` once. They are mapped read-only into both sandboxes.
 
 **`scripts\download.ps1`** — runs inside the download sandbox:
-```powershell
-# Reads download-config.json written by host before sandbox launch.
-# Downloads artifact, computes hash, writes sentinel, auto-closes sandbox.
-
-$configPath = "C:\staging\download-config.json"
-if (-not (Test-Path $configPath)) {
-    Set-Content "C:\staging\DOWNLOAD_ERROR" "Missing download-config.json"
-    Stop-Computer -Force; exit 1
-}
-$config   = Get-Content $configPath | ConvertFrom-Json
-$url      = $config.url
-$fileName = $config.fileName
-$outPath  = "C:\staging\$fileName"
-
-Write-Output "Downloading: $url"
-curl.exe -L --fail --output $outPath $url
-if (-not (Test-Path $outPath)) {
-    Set-Content "C:\staging\DOWNLOAD_ERROR" "curl failed for: $url"
-    Stop-Computer -Force; exit 1
-}
-
-# Compute SHA-256 hash
-$hash = (Get-FileHash -Algorithm SHA256 -Path $outPath).Hash
-Write-Output "SHA-256: $hash"
-Set-Content "C:\staging\hash.txt" $hash
-
-# Sentinel -- host polls for this file
-Set-Content "C:\staging\DOWNLOAD_DONE" "completed"
-Stop-Computer -Force
-```
+1. Read `C:\staging\download-config.json` (fields: `url`, `fileName`). If missing, write `C:\staging\DOWNLOAD_ERROR` sentinel and `Stop-Computer -Force`.
+2. Download with `curl.exe -L --fail --output C:\staging\$fileName $url`. If download fails, write `DOWNLOAD_ERROR` sentinel and `Stop-Computer -Force`.
+3. Compute SHA-256 hash via `Get-FileHash -Algorithm SHA256`. Write hash to `C:\staging\hash.txt`.
+4. Write `C:\staging\DOWNLOAD_DONE` sentinel. `Stop-Computer -Force`.
 
 **`scripts\scan.ps1`** — runs inside the scan sandbox (network OFF):
-```powershell
-# Reads scan-config.json written by host before sandbox launch.
-# Runs Windows Defender on the artifact, writes results, auto-closes sandbox.
-
-$configPath = "C:\input\scan-config.json"
-if (-not (Test-Path $configPath)) {
-    Set-Content "C:\results\SCAN_ERROR" "Missing scan-config.json"
-    Stop-Computer -Force; exit 1
-}
-$config   = Get-Content $configPath | ConvertFrom-Json
-$fileName = $config.fileName
-$target   = "C:\input\$fileName"
-
-if (-not (Test-Path $target)) {
-    Set-Content "C:\results\SCAN_ERROR" "Artifact not found: $target"
-    Stop-Computer -Force; exit 1
-}
-
-# Layer 1: Windows Defender scan (offline, uses signature DB from host image)
-Write-Output "Running Windows Defender scan..."
-& "C:\Program Files\Windows Defender\MpCmdRun.exe" -Scan -ScanType 3 -File $target
-$defenderExit = $LASTEXITCODE
-# Exit code 0 = clean, 2 = threat found, other = error
-
-$defenderResult = @{
-    exitCode    = $defenderExit
-    threatFound = ($defenderExit -eq 2)
-    status      = switch ($defenderExit) {
-        0       { "CLEAN -- no threats detected" }
-        2       { "THREAT DETECTED" }
-        default { "ERROR -- unexpected exit code $defenderExit" }
-    }
-}
-
-# Write results JSON for host to read
-$defenderResult | ConvertTo-Json | Set-Content "C:\results\defender-results.json"
-
-# Sentinel -- host polls for this file
-Set-Content "C:\results\SCAN_DONE" "completed"
-Stop-Computer -Force
-```
-
----
-
-### Host Orchestration Flow (Per Dependency)
-
-The orchestrator runs this sequence on the host for each dependency that needs scanning. This is what "Phase 2" and "Phase 3" mean in practice.
-
-```
-1. Write download-config.json to .scs-sandbox\staging\
-   { "url": "<download-url>", "fileName": "<artifact-filename>" }
-
-2. Clear any leftover sentinels from previous run:
-   Remove staging\DOWNLOAD_DONE, staging\DOWNLOAD_ERROR, staging\hash.txt
-   Remove results\SCAN_DONE, results\SCAN_ERROR, results\defender-results.json
-
-3. Launch download sandbox:
-   WindowsSandbox.exe "C:\..\.scs-sandbox\download.wsb"
-
-4. Poll host for staging\DOWNLOAD_DONE (check every 3 seconds; timeout after 5 minutes)
-   If staging\DOWNLOAD_ERROR appears → abort, report error to user
-
-5. Read hash from staging\hash.txt
-
-6. Call VirusTotal from host (host has network + VT_API_KEY):
-   → Hash lookup, then upload if not found, then poll for results
-   → Write VT results to results\vt-results.json on host
-
-7. Write scan-config.json to .scs-sandbox\staging\
-   { "fileName": "<artifact-filename>" }
-
-8. Launch scan sandbox:
-   WindowsSandbox.exe "C:\..\.scs-sandbox\scan.wsb"
-
-9. Poll host for results\SCAN_DONE (check every 3 seconds; timeout after 10 minutes)
-   If results\SCAN_ERROR appears → abort, report error to user
-
-10. Read results\defender-results.json
-
-11. Run cargo audit / govulncheck / mvn dependency-check on HOST
-    (these tools read metadata and advisory databases; they do not execute the artifact)
-    Point them at the artifact in staging\ — do not add to project files yet
-
-12. Agent reads source files from staging\ for Layer 4 code review
-    (reading source files on the host is safe — nothing is executed)
-
-13. Combine Defender result + VT result + audit result + code review → verdict
-```
+1. Read `C:\input\scan-config.json` (field: `fileName`). If missing, write `C:\results\SCAN_ERROR` sentinel and `Stop-Computer -Force`.
+2. Verify artifact exists at `C:\input\$fileName`. If missing, write `SCAN_ERROR` sentinel and `Stop-Computer -Force`.
+3. Run Windows Defender: `& "C:\Program Files\Windows Defender\MpCmdRun.exe" -Scan -ScanType 3 -File $target`. Capture `$LASTEXITCODE`.
+4. Defender exit codes: **0** = CLEAN (no threats), **2** = THREAT DETECTED, **other** = ERROR.
+5. Write results JSON (exitCode, threatFound, status) to `C:\results\defender-results.json`.
+6. Write `C:\results\SCAN_DONE` sentinel. `Stop-Computer -Force`.
 
 ---
 
@@ -317,10 +159,13 @@ A malicious package 3 levels deep in the dependency tree is just as dangerous as
 6. If the transitive tree is excessively large (50+ dependencies for a single addition), flag this as a concern and recommend alternatives with fewer dependencies
 
 ### Phase 2: Download to Quarantine (Download Sandbox)
-Follow the **Host Orchestration Flow** steps 1–5 above. In summary:
-- Write `download-config.json` to `.scs-sandbox\staging\` with the download URL and filename
-- Launch `download.wsb` — the artifact is downloaded **inside a network-ON, Hyper-V-isolated sandbox**, not on the host
-- Wait for the `DOWNLOAD_DONE` sentinel; read the SHA-256 hash from `staging\hash.txt`
+1. Write `download-config.json` to `.scs-sandbox\staging\` — `{ "url": "<download-url>", "fileName": "<artifact-filename>" }`
+2. **ORCHESTRATOR VERIFICATION 1:** The orchestrator (not the SCS agent) reads back `download-config.json` and verifies the URL and fileName match what it provided. If they don't match, STOP — do not launch sandbox, report to user. See `agent-orchestration.md` "SCS Download Verification" for full procedure.
+3. Clear leftover sentinels from any previous run (DOWNLOAD_DONE, DOWNLOAD_ERROR, hash.txt, SCAN_DONE, SCAN_ERROR, defender-results.json)
+4. Launch `download.wsb` — the artifact is downloaded **inside a network-ON, Hyper-V-isolated sandbox**, not on the host
+5. Poll for `staging\DOWNLOAD_DONE` (every 3s, 5min timeout). If `DOWNLOAD_ERROR` appears, abort and report.
+6. Read SHA-256 hash from `staging\hash.txt`
+7. **ORCHESTRATOR VERIFICATION 2:** The orchestrator (not the SCS agent) independently reads `staging\hash.txt` and compares the hash against the expected hash it recorded when building the download URL table. If they don't match, STOP — delete the artifact, report to user. See `agent-orchestration.md` "SCS Download Verification" for full procedure.
 - **Do NOT add the dependency to the project's files yet** (no `Cargo.toml`, `go.mod`, or `pom.xml` changes)
 - The artifact now sits in `.scs-sandbox\staging\` on the host, isolated from the project
 
@@ -337,11 +182,10 @@ Follow the **Host Orchestration Flow** steps 1–5 above. In summary:
 | 4 — Source code review | **Host** (agent reads files) | Reading source files does not execute them; files are accessible in staging\ |
 
 #### Layer 1: Windows Defender Local Scan (Runs Inside Scan Sandbox)
-Follow **Host Orchestration Flow** steps 7–10 above. In summary:
-- Write `scan-config.json` to `staging\` with the filename
-- Launch `scan.wsb` — Defender runs **inside a network-OFF, Hyper-V-isolated sandbox**
-- Wait for `results\SCAN_DONE`; read `results\defender-results.json`
-- Exit code 0 = CLEAN; exit code 2 = THREAT DETECTED (reject immediately, report to user)
+1. Write `scan-config.json` to `.scs-sandbox\staging\` — `{ "fileName": "<artifact-filename>" }`
+2. Launch `scan.wsb` — Defender runs **inside a network-OFF, Hyper-V-isolated sandbox**
+3. Poll for `results\SCAN_DONE` (every 3s, 10min timeout). If `SCAN_ERROR` appears, abort and report.
+4. Read `results\defender-results.json`. Exit code 0 = CLEAN; exit code 2 = THREAT DETECTED (reject immediately, report to user).
 - If THREAT DETECTED: do not proceed with other layers; verdict is REJECT
 
 #### Layer 2: VirusTotal Analysis (Rate-Limited)
@@ -512,21 +356,7 @@ Store the key in an environment variable:
 export VT_API_KEY="your-api-key-here"
 ```
 
-API endpoint examples:
-```bash
-# Hash lookup (most efficient — no upload needed)
-curl -s -H "x-apikey: $VT_API_KEY" \
-  "https://www.virustotal.com/api/v3/files/<sha256-hash>"
-
-# Upload a file for scanning
-curl -s -H "x-apikey: $VT_API_KEY" \
-  -F "file=@<filepath>" \
-  "https://www.virustotal.com/api/v3/files"
-
-# Get analysis results
-curl -s -H "x-apikey: $VT_API_KEY" \
-  "https://www.virustotal.com/api/v3/analyses/<analysis-id>"
-```
+The exact curl commands for VirusTotal are listed in the Authorized Bash Command Reference below (CMDs 10-13).
 
 ## Output Format
 For each dependency scanned, produce:
@@ -602,7 +432,7 @@ You are restricted to the following tools ONLY: **Read, Write, Edit, Glob, Grep,
 
 **You may ONLY run the Bash commands listed below.** Any command not on this list is forbidden. If you believe a scan requires a command not listed here, you must STOP, explain what you need and why to the orchestrator, and wait for explicit user approval before proceeding. Do not improvise, substitute, or "improve" these commands.
 
-The user keeps a copy of this list and will cross-reference every permission prompt against it. Commands that don't match will be denied.
+A PreToolUse hook (`scs-validator.py`) automatically validates every Bash command against this list. Commands matching the authorized patterns are auto-approved; commands matching the deny list are auto-blocked; everything else prompts the user. The user no longer needs to manually cross-reference — the hook does it.
 
 ### Phase 2 — Download to Quarantine
 
@@ -641,6 +471,25 @@ The user keeps a copy of this list and will cross-reference every permission pro
 | 14c | `mvn org.owasp:dependency-check-maven:check` (Java) | Runs OWASP dependency vulnerability check |
 | 15 | `cargo deny check` (Rust only) | Checks licenses and security advisories |
 
+### Phase 3, Layer 4 — Source Code Review Prep (Runs on Host)
+
+These commands prepare downloaded artifacts for Layer 4 source code review. They extract archive contents within the staging directory — nothing is executed.
+
+| CMD | Command | What It Does |
+|-----|---------|-------------|
+| L4-1 | `ls .scs-sandbox/staging/<ARTIFACT>` | Verifies the artifact exists before extraction |
+| L4-2 | `mkdir -p .scs-sandbox/staging/<REVIEW-DIR>` | Creates a subdirectory for extracted contents |
+| L4-3 | `python -c "import zipfile; z=zipfile.ZipFile('<ARTIFACT>'); [print(n) for n in z.namelist()]"` (run from staging dir) | Lists contents of a `.whl` or `.zip` artifact without extracting |
+| L4-4 | `python -c "import zipfile; z=zipfile.ZipFile('<ARTIFACT>'); z.extractall('<REVIEW-DIR>')"` (run from staging dir) | Extracts a `.whl` or `.zip` artifact for source review |
+| L4-5 | `tar -xzf .scs-sandbox/staging/<ARTIFACT>.tar.gz -C .scs-sandbox/staging/<REVIEW-DIR>/` | Extracts a `.tar.gz` artifact for source review |
+| L4-6 | `ls .scs-sandbox/staging/<REVIEW-DIR>/` | Lists extracted contents to verify extraction succeeded |
+
+**Constraints on L4 commands:**
+- All paths MUST be within `.scs-sandbox/staging/` — extraction to any other location is forbidden
+- Only `zipfile` and `tarfile` standard library modules may be imported — no other Python imports
+- These commands read/extract only — they do NOT execute any code from the artifact
+- `cd` to the staging directory before running Python one-liners is permitted
+
 ### Phase 4 — Post-CLEAN Actions (Only If All Layers Pass)
 
 | CMD | Command | What It Does |
@@ -672,4 +521,5 @@ The following are explicitly forbidden — deny immediately if attempted:
 - Any `git clone` or repository download
 - Any command that executes the downloaded artifact (running it, importing it, sourcing it)
 - Any command that modifies files outside of `.scs-sandbox/`, `.trusted-artifacts/`, or the project's `scs-report.md` and SBOM files
+- Any `python -c` command that imports modules other than `zipfile` or `tarfile` (standard library extraction only)
 - Any command not listed in the tables above

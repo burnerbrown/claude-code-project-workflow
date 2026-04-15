@@ -214,6 +214,93 @@ The resumed agent already has full context of its prior work, so there is no nee
 
 All agent files are located in: `PLACEHOLDER_PATH\.agents\`
 
+### MANDATORY: SCS Download Verification (Anti-Substitution)
+
+The SCS command validator hook catches unauthorized *commands*, but it cannot verify that the SCS agent downloaded the correct *package and version*. If the agent is manipulated by prompt injection (e.g., from a malicious artifact's source code during Layer 4 review), it could silently substitute a different package, version, or URL in the download config. The orchestrator must independently verify what the agent actually downloaded.
+
+**Two verification steps — both mandatory, performed by the orchestrator (not the SCS agent):**
+
+#### Verification 1: Download Config Readback
+
+**When:** After the SCS agent writes `download-config.json` but BEFORE the orchestrator launches the download sandbox.
+
+**Procedure:**
+1. The orchestrator reads `.scs-sandbox/staging/download-config.json`
+2. Compare the `url` and `fileName` values against what the orchestrator provided in the SCS agent's prompt
+3. Both must match **exactly** — same package name, same version, same URL, same filename
+
+**If they match:** Proceed with launching the download sandbox.
+
+**If they do NOT match:**
+- **STOP immediately.** Do NOT launch the sandbox.
+- Report to the user: *"SCS agent wrote a download config that does not match the provided URL. Expected: [expected URL]. Actual: [actual URL from config]. This may indicate prompt injection or agent deviation."*
+- Do NOT trust any output from this SCS agent invocation
+- The user decides whether to re-run the scan with a fresh agent or investigate
+
+**Why this matters:** This catches the attack at the earliest possible point — before anything is downloaded. A typosquatted package name (`req-uests` instead of `requests`) or substituted version (`1.2.4` instead of `1.2.3`) would be caught here.
+
+#### Verification 2: Post-Download Hash Verification
+
+**When:** After the download sandbox completes and the SCS agent reads the hash from `staging/hash.txt`, but BEFORE proceeding with Defender/VirusTotal scanning.
+
+**Procedure:**
+1. When the orchestrator builds the download URL table for the SCS agent prompt, it must also record the **expected SHA-256 hash** for each package. Sources for expected hashes:
+   - PyPI: the JSON API response includes `digests.sha256` for each file
+   - npm: the registry includes `integrity` hashes
+   - crates.io, Maven Central: similar hash metadata available
+   - If the orchestrator pre-provided the URLs (recommended), it should have the hashes from the same source
+2. After the sandbox downloads the file and the SCS agent reads the hash from `staging/hash.txt`, the **orchestrator** reads `staging/hash.txt` independently
+3. Compare the downloaded file's hash against the expected hash the orchestrator recorded earlier
+4. They must match exactly
+
+**If they match:** Proceed with VirusTotal lookup, Defender scan, etc.
+
+**If they do NOT match:**
+- **STOP immediately.** Do NOT proceed with scanning (the artifact may be malicious).
+- Report to the user: *"Downloaded artifact hash does not match expected hash. Expected: [expected]. Actual: [actual]. The download may have been tampered with, or the wrong package/version was downloaded."*
+- Delete the artifact from staging: `rm -f .scs-sandbox/staging/<artifact>`
+- The user decides next steps
+
+**If the orchestrator does not have the expected hash** (e.g., first-time scan of a package where the URL was discovered during the scan rather than pre-provided):
+- Skip this verification — the other layers (Defender, VirusTotal, source review) still apply
+- Log that hash verification was skipped and why
+- This is a reduced-confidence scan — note it in the SCS report
+
+**Why this matters:** Even if the download config was correct (Verification C passed), the download itself could be compromised — a man-in-the-middle attack, a CDN serving a tampered file, or a malicious maintainer who published a new file to the same URL. Hash verification catches all of these.
+
+---
+
+### MANDATORY: Post-SCS Scan — Command Log Review
+
+After **every** SCS agent invocation (whether in Step 4, Step 6, or the Dependency Addition workflow), the orchestrator MUST review the validator hook's decision log before proceeding.
+
+**What:** A PreToolUse hook (`scs-validator.py`) automatically validates every Bash command the SCS agent runs against the authorized command table. It logs every decision (ALLOW, DENY, PASS-THROUGH) with timestamp, command, and reason to `.claude/hooks/scs-validator.log`.
+
+**Procedure:**
+
+1. After the SCS agent completes (regardless of verdict), read `.claude/hooks/scs-validator.log`
+2. Check for **DENY** entries — these mean the SCS agent attempted unauthorized commands. This is a security concern.
+3. Check for **PASS-THROUGH** entries — these mean the agent ran commands not in the authorized list that required manual user approval. These are not necessarily problems, but unexpected ones should be investigated.
+4. Check that **ALLOW** entries match expected SCS operations (sandbox launches, sentinel polling, VirusTotal lookups, artifact copies, hash verifications, source extraction for review).
+
+**If all commands were within bounds:**
+- Report to the user: *"SCS validator log reviewed — all agent commands were within authorized bounds."*
+- Delete the log file: `rm .claude/hooks/scs-validator.log`
+- Continue with the workflow (QG evaluation, verdict handling, etc.)
+
+**If the agent attempted unauthorized commands (any DENY entries):**
+- **STOP all work immediately.**
+- Report to the user: *"SCS validator blocked unauthorized commands during the scan. Details: [list the denied commands and reasons]."*
+- **Do NOT trust the scan results.** The agent may have been compromised by prompt injection in a downloaded artifact, or may have deviated from its authorized workflow.
+- Discuss with the user before proceeding. The user decides whether to: re-run the scan with a fresh agent, reject the dependency, or investigate further.
+- Do NOT delete the log — preserve it as evidence.
+
+**If there are unexpected PASS-THROUGH entries:**
+- Report them to the user: *"SCS agent ran commands not in the authorized list: [list]. These were shown to you for approval during the scan. Verify they were appropriate."*
+- This is informational, not a hard stop — but it may indicate the authorized command table needs updating.
+
+---
+
 ### Capabilities Without Dedicated Agents
 The following capabilities are handled by existing agents rather than specialized roles:
 - **System integration testing**: The **Test Engineer** writes integration tests (classified as sandbox-required per the Test Sandboxing Policy in `step-6-implementation.md`). The orchestrator executes them in the appropriate sandbox.
