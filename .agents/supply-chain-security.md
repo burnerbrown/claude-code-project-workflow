@@ -93,6 +93,8 @@ Write these two files to `.scs-sandbox\` once. They do not change between scans.
 
 **Important:** `scan.wsb` maps staging to `C:\input` (not `C:\staging`) — the scan script references `C:\input\`. This ensures the scan sandbox cannot modify the downloaded artifact.
 
+**Important:** WSB files are XML. The `&` character is reserved in XML (it starts entity references like `&amp;`). Any literal `&` in the `<Command>` element — including the PowerShell call operator `&` — must be written as `&amp;`. Failing to escape it causes an XML parse error and the sandbox refuses to open.
+
 ---
 
 ### PowerShell Scripts

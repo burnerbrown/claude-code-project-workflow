@@ -105,9 +105,12 @@ After the user approves the architecture, **scaffold the project repository** ba
 1. **Create the folder structure** defined in the architecture (e.g., `src/`, `lib/`, `cmd/`, `tests/`, `docs/`, etc. — whatever is appropriate for the chosen language and framework)
 2. **Create a `.gitignore`** appropriate for the chosen language/framework (e.g., Rust → `target/`, Go → binaries, Java → `target/`, `*.class`, Node → `node_modules/`, etc.). **Always include these standard entries regardless of project type:**
    ```
-   # IDE and tool config
+   # IDE config
    .vscode/
-   .claude/
+
+   # Claude Code - commit hooks and settings, ignore runtime artifacts and user overrides
+   .claude/hooks/*.log
+   .claude/settings.local.json
 
    # Office temp files
    ~$*
@@ -115,14 +118,37 @@ After the user approves the architecture, **scaffold the project repository** ba
    # Research inventories (Step 6 working files, never committed)
    research-inventories/
    ```
-   These prevent VS Code workspace settings, Claude Code project settings, and Microsoft Office temp files from being committed. They are local tool configuration, not project deliverables.
+   This commits `.claude/settings.json` (hook registration) and `.claude/hooks/` (SCS validator hook and its test suite) as project infrastructure, while ignoring VS Code workspace settings, runtime log files, and Office temp files. The SCS validator hook must travel with the project so it fires when Claude is launched from the project directory.
 3. **Create any boilerplate config files** the project needs (e.g., `Cargo.toml`, `go.mod`, `package.json`, `pom.xml`, `Makefile`, etc.)
 4. **Do NOT create source code files** — that's Step 6. Only create the skeleton structure, configuration, and ignore files.
 5. **Create the `research-inventories/` folder** in the project root. This folder holds Research Inventory Manifests during Step 6 implementation. It is already included in `.gitignore` via the standard entries above.
-6. **Create QG evaluation subfolders** in each major directory that will produce agent output. QG evaluation reports go in these subfolders instead of cluttering the parent directory. At minimum, create:
+6. **Copy the SCS validator hook into the project.** This ensures the PreToolUse hook fires when Claude is launched from the project directory (project-level settings take precedence, so the hook must be registered per-project).
+   - Create `.claude/hooks/` in the project root
+   - Copy `PLACEHOLDER_PATH\.claude\hooks\scs-validator.py` into the project's `.claude/hooks/`
+   - Copy `PLACEHOLDER_PATH\.claude\hooks\test-scs-validator.py` into the project's `.claude/hooks/` (the test suite for the validator)
+   - Register the hook in the project's `.claude/settings.json` by merging in:
+     ```json
+     {
+       "hooks": {
+         "PreToolUse": [
+           {
+             "matcher": "Bash",
+             "hooks": [
+               {
+                 "type": "command",
+                 "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/scs-validator.py\""
+               }
+             ]
+           }
+         ]
+       }
+     }
+     ```
+   - If the project already has a `.claude/settings.json` with other settings (e.g., permissions), merge the `hooks` key into the existing file — do not overwrite other settings.
+7. **Create QG evaluation subfolders** in each major directory that will produce agent output. QG evaluation reports go in these subfolders instead of cluttering the parent directory. At minimum, create:
    - `hardware/qg-evaluations/` (if the project has hardware design)
    - `firmware/qg-evaluations/` or `{code-directory}/qg-evaluations/` (for firmware/software agent evaluations, where `{code-directory}` is the primary source folder — e.g., `firmware/`, `src/`, `lib/`)
-7. **Create KiCad project folders** (if the project includes custom PCB design). Create only the `libs/` subfolder structure below — the user will create the KiCad project themselves, and KiCad will automatically create a `{ProjectName}/` subfolder containing all project files (`.kicad_pro`, `.kicad_sch`, `.kicad_pcb`, etc.). The `.gitignore` patterns use `**` to match files at any depth, so this nesting is handled automatically.
+8. **Create KiCad project folders** (if the project includes custom PCB design). Create only the `libs/` subfolder structure below — the user will create the KiCad project themselves, and KiCad will automatically create a `{ProjectName}/` subfolder containing all project files (`.kicad_pro`, `.kicad_sch`, `.kicad_pcb`, etc.). The `.gitignore` patterns use `**` to match files at any depth, so this nesting is handled automatically.
    ```
    hardware/kicad/                          ← scaffold creates this + libs
    ├── {ProjectName}/                       ← KiCad creates this when user starts a new project

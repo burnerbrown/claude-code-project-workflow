@@ -158,12 +158,15 @@ When a worker agent is first launched for a task, the Agent tool returns an **ag
 - **Hardware Engineer**: Resume when QG sends hardware design back — it retains knowledge of power architecture, pin assignments, component selections, and interface specifications. Also resume when Component Sourcing or DFM Reviewer flags issues requiring design changes
 - **Performance Optimizer**: Resume for the verification phase — it retains context of its original analysis findings for before/after comparison. Also resume if QG sends recommendations back for revision
 - **Project Manager**: Resume within a task session when the PM is active (multi-module projects) — it retains cross-module dependency and status context. For single-module projects where the PM is not invoked, this is N/A
+- **Supply Chain Security**: Resume within a single direct dependency's scan when the orchestrator hands control back after verification checkpoints (Verification 1: config readback, Verification 2: hash check). The agent retains its Phase 0/1 context (cache check results, pre-download assessment findings, dependency details) so it can continue directly into sandbox launch and scanning without rebuilding context.
+  - **Invoke fresh** for each new direct dependency scan — this provides prompt injection isolation (a compromised agent from scanning dependency A does not carry over to dependency B) and avoids context bloat from previous scan data (VT reports, source review excerpts, etc.).
+  - **Transitive dependencies are separate scans.** Each transitive dependency gets a fresh SCS agent invocation. They are maintained by different authors with independent risk profiles — a compromised transitive could taint the agent's assessment of other transitives if resumed.
+  - **On verification failure:** If Verification 1 or 2 fails, discard this agent's ID immediately. Do not resume it — if the user decides to retry, invoke a fresh SCS agent.
 
 **Which agents to invoke fresh each time:**
 - **Quality Gate**: Each QG invocation evaluates a different agent's output with different criteria — fresh invocations are appropriate
 - **Compliance Reviewer**: One-shot final-gate evaluation — fresh each time
 - **Documentation Writer**: One-shot deliverable — fresh each time
-- **Supply Chain Security**: Invoke fresh — the Phase 0 cache check automatically skips previously completed work, making scans idempotent
 - **Software Architect**: Invoke fresh — only used in Step 6 for Documentation Sprint workflows, providing context summaries that don't benefit from prior session state
 - **Component Sourcing**: Invoke fresh — one-shot BOM validation; if re-run after Hardware Engineer changes, it needs to re-evaluate the updated BOM from scratch
 - **DFM Reviewer**: Invoke fresh — one-shot manufacturability review of the current design state
@@ -173,6 +176,7 @@ When a worker agent is first launched for a task, the Agent tool returns an **ag
 - Use `SendMessage` with the agent's ID as the `to` field to continue a previously-launched agent
 - Agent IDs are held in the orchestrator's working memory and naturally expire when the user does `/clear` between tasks — this is the correct lifecycle since each task gets fresh agents
 - No explicit cleanup is needed — the `/clear` between tasks handles it
+- **Fallback if an agent ID is lost** (e.g., due to context compression): Invoke a fresh agent. For SCS specifically, restart the scan for that dependency from the beginning — do NOT attempt to resume a half-completed scan with a fresh agent, as the new agent lacks context of what phases have already completed. This is safe because SCS scans are idempotent (re-downloading and re-scanning produces the same result)
 
 **Resume prompt structure (rework scenario):**
 
@@ -186,6 +190,17 @@ Please address these issues and produce updated output.
 ```
 
 The resumed agent already has full context of its prior work, so there is no need to re-specify file paths, instructions, or acceptance criteria — just provide the QG feedback.
+
+**Resume prompt structure (SCS verification checkpoint):**
+
+Use `SendMessage` with the SCS agent's ID to send this message:
+```
+Verification [1 or 2] passed. [Brief result: "Download config matches expected URL and filename" or "Downloaded artifact hash verified: [hash]"]
+
+Proceed with the next phase of the scan.
+```
+
+The resumed SCS agent already has its Phase 0/1 context, so there is no need to re-specify dependency details, URLs, or prior findings — just confirm the checkpoint result and instruct it to continue.
 
 ---
 
@@ -229,12 +244,12 @@ The SCS command validator hook catches unauthorized *commands*, but it cannot ve
 2. Compare the `url` and `fileName` values against what the orchestrator provided in the SCS agent's prompt
 3. Both must match **exactly** — same package name, same version, same URL, same filename
 
-**If they match:** Proceed with launching the download sandbox.
+**If they match:** Resume the SCS agent (see "Agent Lifecycle: Resume on Rework" above) and proceed with launching the download sandbox.
 
 **If they do NOT match:**
 - **STOP immediately.** Do NOT launch the sandbox.
 - Report to the user: *"SCS agent wrote a download config that does not match the provided URL. Expected: [expected URL]. Actual: [actual URL from config]. This may indicate prompt injection or agent deviation."*
-- Do NOT trust any output from this SCS agent invocation
+- Do NOT trust any output from this SCS agent invocation — discard the agent ID
 - The user decides whether to re-run the scan with a fresh agent or investigate
 
 **Why this matters:** This catches the attack at the earliest possible point — before anything is downloaded. A typosquatted package name (`req-uests` instead of `requests`) or substituted version (`1.2.4` instead of `1.2.3`) would be caught here.
@@ -253,12 +268,13 @@ The SCS command validator hook catches unauthorized *commands*, but it cannot ve
 3. Compare the downloaded file's hash against the expected hash the orchestrator recorded earlier
 4. They must match exactly
 
-**If they match:** Proceed with VirusTotal lookup, Defender scan, etc.
+**If they match:** Resume the SCS agent (see "Agent Lifecycle: Resume on Rework" above) and proceed with Defender scan, VirusTotal lookup, etc.
 
 **If they do NOT match:**
 - **STOP immediately.** Do NOT proceed with scanning (the artifact may be malicious).
 - Report to the user: *"Downloaded artifact hash does not match expected hash. Expected: [expected]. Actual: [actual]. The download may have been tampered with, or the wrong package/version was downloaded."*
 - Delete the artifact from staging: `rm -f .scs-sandbox/staging/<artifact>`
+- Discard the SCS agent ID — do not resume it
 - The user decides next steps
 
 **If the orchestrator does not have the expected hash** (e.g., first-time scan of a package where the URL was discovered during the scan rather than pre-provided):
@@ -266,7 +282,7 @@ The SCS command validator hook catches unauthorized *commands*, but it cannot ve
 - Log that hash verification was skipped and why
 - This is a reduced-confidence scan — note it in the SCS report
 
-**Why this matters:** Even if the download config was correct (Verification C passed), the download itself could be compromised — a man-in-the-middle attack, a CDN serving a tampered file, or a malicious maintainer who published a new file to the same URL. Hash verification catches all of these.
+**Why this matters:** Even if the download config was correct (Verification 1 passed), the download itself could be compromised — a man-in-the-middle attack, a CDN serving a tampered file, or a malicious maintainer who published a new file to the same URL. Hash verification catches all of these.
 
 ---
 

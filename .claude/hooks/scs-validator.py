@@ -660,6 +660,13 @@ def validate_command(command):
 
     decision: "deny", "allow", or None (pass-through)
     """
+    # Normalize Windows backslash paths to forward slashes before matching.
+    # All regex patterns use forward slashes (.scs-sandbox/, .trusted-artifacts/).
+    # On Windows, Claude may generate native backslash paths. Normalizing once
+    # here avoids duplicating every regex for both separators. This is safe
+    # because the command is only used for pattern matching, not execution.
+    command = command.replace('\\', '/')
+
     segments = split_command_segments(command)
 
     if not segments:
