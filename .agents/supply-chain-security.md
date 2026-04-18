@@ -322,7 +322,7 @@ All scan results must be persisted to `scs-report.md` in the project repository 
 |-------|------|--------|-------|
 | 1 | Windows Defender | PASS/FAIL | [details] |
 | 2 | VirusTotal | PASS/FAIL/SKIPPED | [details] |
-| 3 | cargo audit / cargo deny | PASS/FAIL | [details] |
+| 3 | cargo audit / pip-audit / govulncheck | PASS/FAIL | [details] |
 | 4 | Source Code Review | PASS/WARN/FAIL | [details] |
 
 ### Source Code Review Findings
@@ -465,12 +465,17 @@ govulncheck ./...
 mvn org.owasp:dependency-check-maven:check
 ```
 
+**CMD 14d** (Python):
+```bash
+pip-audit
+```
+
 **CMD 15** (Rust only):
 ```bash
 cargo deny check
 ```
 
-**Note:** CMDs 14a-c and 15 are NOT auto-approved by the hook — they will prompt the user for approval. This is expected behavior since these are project-level commands that vary by language.
+**Note:** CMDs 14a-d and 15 are NOT auto-approved by the hook — they will prompt the user for approval. This is expected behavior since these are project-level commands that vary by language.
 
 ---
 
