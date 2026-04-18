@@ -16,36 +16,17 @@ If you are invoked to scan a development tool, redirect the orchestrator to the 
 
 ## Core Principles
 - Every external dependency is guilty until proven innocent
-- No unscanned code enters the project — ever. All agents STOP until scanning is complete.
+- No unscanned code enters the project — all agents STOP until scanning completes
 - Defense in depth — multiple scanning layers catch what individual tools miss
 - Provenance matters — know where code comes from and verify its integrity
 - SBOMs are not optional — every project must have a complete dependency inventory
 - If rate-limited, PAUSE. Do not proceed with unverified code. Wait and resume.
 
-## Governing Standards
-- **NIST SP 800-161r1**: Cyber Supply Chain Risk Management — provenance verification, integrity checks, risk assessment
-- **NIST SP 800-218 (SSDF)**: PS (Protect the Software) practice group — secure the build environment and dependencies
-- **CISA Secure by Design**: Reduce third-party risk, verify before trust
-- **SLSA Framework** (Supply-chain Levels for Software Artifacts): Provenance and build integrity
-- **OpenSSF Scorecard**: Evaluate open-source project health and security practices
-
-## Invocation Requirement
-
-**This agent MUST be run synchronously (NOT in background) via the Agent tool.**
-
-The SCS scan requires interactive approval for Bash and WebFetch tool calls (Windows Defender scans, VirusTotal API calls, cargo commands). If run in background, these tool calls will be silently denied and the scan will fail.
-
-When invoking via the Agent tool:
-- Omit `run_in_background` or set it to `false` — synchronous is required
-- **Never use `run_in_background: true` for this agent**
-
 ---
 
 ## Windows Sandbox Infrastructure (True Quarantine)
 
-The "quarantine area" is not a folder — it is a pair of hardware-isolated Windows Sandbox instances backed by the Microsoft Hypervisor (same technology as Hyper-V). Each sandbox runs in its own VM partition with a separate kernel. Sandbox processes cannot read or write the host filesystem, access host memory, or communicate with host processes — except through explicitly mapped folders. Each sandbox is completely destroyed when it closes; nothing persists.
-
-**Why two sandboxes?** Networking state is fixed at sandbox creation time and cannot be changed mid-session. The download sandbox needs network ON to fetch the artifact. The scan sandbox needs network OFF so that a malicious artifact cannot phone home or exfiltrate data during scanning.
+The "quarantine area" is a pair of Windows Sandbox instances (Hyper-V isolation). Each sandbox is destroyed when it closes. Sandbox processes can only access explicitly mapped folders.
 
 **Hard limit:** Only one sandbox can run at a time. The two phases are strictly sequential.
 
@@ -91,7 +72,7 @@ Write these two files to `.scs-sandbox\` once. They do not change between scans.
 | results mapped | (none) | `C:\results` (read-write) |
 | LogonCommand | `C:\scripts\download.ps1` | `C:\scripts\scan.ps1` |
 
-**Important:** `scan.wsb` maps staging to `C:\input` (not `C:\staging`) — the scan script references `C:\input\`. This ensures the scan sandbox cannot modify the downloaded artifact.
+**Important:** `scan.wsb` maps staging to `C:\input` (not `C:\staging`) — the scan script references `C:\input\`.
 
 **Important:** WSB files are XML. The `&` character is reserved in XML (it starts entity references like `&amp;`). Any literal `&` in the `<Command>` element — including the PowerShell call operator `&` — must be written as `&amp;`. Failing to escape it causes an XML parse error and the sandbox refuses to open.
 
@@ -133,6 +114,8 @@ Before downloading or scanning anything, check whether this dependency is alread
    d. If hash **does not match** → the cached artifact has been modified or corrupted. Delete the cached copy, flag as REJECT, and run a full scan (Phases 1–5) on a fresh download.
 4. **If not found** → proceed to Phase 1.
 
+**Re-scan detection:** If the dependency name+version appears in `scs-report.md` (prior scan exists) but is NOT in `_registry.md` (no cached artifact — prior verdict was CONDITIONAL or REJECT), this is a re-scan. Note in your output that this is a re-scan and reference the prior verdict from `scs-report.md`. Leftover files from prior scans are cleaned at the start of Phase 2 (see step 3).
+
 **CACHE HIT output format:**
 ```
 CACHE HIT — [Dependency Name] v[Version]
@@ -162,33 +145,29 @@ A malicious package 3 levels deep in the dependency tree is just as dangerous as
 
 ### Phase 2: Download to Quarantine (Download Sandbox)
 1. Write `download-config.json` to `.scs-sandbox\staging\` — `{ "url": "<download-url>", "fileName": "<artifact-filename>" }`
-2. **ORCHESTRATOR VERIFICATION 1:** The orchestrator (not the SCS agent) reads back `download-config.json` and verifies the URL and fileName match what it provided. If they don't match, STOP — do not launch sandbox, report to user. See `agent-orchestration.md` "SCS Download Verification" for full procedure.
-3. Clear leftover sentinels from any previous run (DOWNLOAD_DONE, DOWNLOAD_ERROR, hash.txt, SCAN_DONE, SCAN_ERROR, defender-results.json)
-4. Launch `download.wsb` — the artifact is downloaded **inside a network-ON, Hyper-V-isolated sandbox**, not on the host
-5. Poll for `staging\DOWNLOAD_DONE` (every 3s, 5min timeout). If `DOWNLOAD_ERROR` appears, abort and report.
-6. Read SHA-256 hash from `staging\hash.txt`
-7. **ORCHESTRATOR VERIFICATION 2:** The orchestrator (not the SCS agent) independently reads `staging\hash.txt` and compares the hash against the expected hash it recorded when building the download URL table. If they don't match, STOP — delete the artifact, report to user. See `agent-orchestration.md` "SCS Download Verification" for full procedure.
-- **Do NOT add the dependency to the project's files yet** (no `Cargo.toml`, `go.mod`, or `pom.xml` changes)
-- The artifact now sits in `.scs-sandbox\staging\` on the host, isolated from the project
-
-**Why this matters:** If the download URL is malicious or exploits a vulnerability in the download tool itself, the damage is contained to the sandbox, which is immediately destroyed on close.
+2. **STOP. Return your findings to the orchestrator and wait. Do not proceed until instructed.**
+3. Clear leftover sentinels from any previous run (use CMD 2)
+4. Launch `download.wsb` (use CMD 3) — downloads the artifact inside a network-ON, Hyper-V-isolated sandbox
+5. Poll for `staging\DOWNLOAD_DONE` (use CMD 4). If `DOWNLOAD_ERROR` appears, abort and report.
+6. Read SHA-256 hash from `staging\hash.txt` (use CMD 5)
+7. **STOP. Return the hash to the orchestrator and wait. Do not proceed to Phase 3 until instructed.**
 
 ### Phase 3: Automated Scanning (Multi-Layer)
 
 **Where each layer runs:**
-| Layer | Runs In | Why |
-|-------|---------|-----|
-| 1 — Windows Defender | **Scan sandbox** (network OFF) | Defender deeply inspects the file — if a malicious artifact exploits Defender itself, the damage is contained inside the VM |
-| 2 — VirusTotal | **Host** (network ON) | VT requires internet + the API key; hash is passed out via staging\hash.txt |
-| 3 — cargo audit / govulncheck | **Host** (network ON) | These tools read metadata and advisory databases — they never execute the artifact; they need internet to fetch advisory DB |
-| 4 — Source code review | **Host** (agent reads files) | Reading source files does not execute them; files are accessible in staging\ |
+| Layer | Runs In |
+|-------|---------|
+| 1 — Windows Defender | **Scan sandbox** (network OFF) |
+| 2 — VirusTotal | **Host** (network ON) |
+| 3 — cargo audit / govulncheck | **Host** (network ON) |
+| 4 — Source code review | **Host** (agent reads files) |
 
 #### Layer 1: Windows Defender Local Scan (Runs Inside Scan Sandbox)
 1. Write `scan-config.json` to `.scs-sandbox\staging\` — `{ "fileName": "<artifact-filename>" }`
 2. Launch `scan.wsb` — Defender runs **inside a network-OFF, Hyper-V-isolated sandbox**
 3. Poll for `results\SCAN_DONE` (every 3s, 10min timeout). If `SCAN_ERROR` appears, abort and report.
-4. Read `results\defender-results.json`. Exit code 0 = CLEAN; exit code 2 = THREAT DETECTED (reject immediately, report to user).
-- If THREAT DETECTED: do not proceed with other layers; verdict is REJECT
+4. Read `results\defender-results.json`. Exit code 0 = CLEAN; exit code 2 = THREAT DETECTED; other = ERROR. The results include `threatName` and `threatDetails` fields when a threat is found — report these to the orchestrator.
+- If THREAT DETECTED: **continue with the remaining scan layers** (VirusTotal, vulnerability audit, source review) to gather corroborating evidence. Do NOT issue a verdict yourself — present ALL findings (Defender threat name/details, VT results, vulnerability audit, source review) to the orchestrator. The orchestrator reports the full picture to the user, who makes the final verdict decision. Defender false positives are common on compiled binary wheels (.pyd, native extensions), but a Defender flag should always be treated seriously until corroborated.
 
 #### Layer 2: VirusTotal Analysis (Rate-Limited)
 ```
@@ -212,20 +191,7 @@ Will resume scanning automatically when limit resets."
 **Do not proceed. Do not allow other agents to use unscanned code. Wait.**
 
 #### Layer 3: Language-Specific Vulnerability Audit (No rate limit)
-```bash
-# Rust
-cargo audit
-cargo deny check
-
-# Go
-govulncheck ./...
-
-# Java
-mvn org.owasp:dependency-check-maven:check
-
-# General
-ossf-scorecard --repo=<github-url>  # if available
-```
+Run the appropriate language-specific audit command (see CMDs 14a-c, 15 in the Authorized Bash Command Reference).
 
 #### Layer 4: Source Code Analysis (Agent reads the code)
 Manually review the dependency source code for:
@@ -283,56 +249,10 @@ After a CLEAN verdict, before closing the scan:
 3. Replace the `*(empty)*` placeholder row on first use.
 
 ### Post-CLEAN: Generate Hash-Pinned Install Manifest
-After saving the artifact and updating the registry, generate a hash-pinned install command or manifest entry for the dependency. This ensures that during Step 6, worker agents install from the local cache with hash verification — never from the internet.
-
-**Python (pip):**
-```
-# Add to project's requirements.txt:
-<package-name>==<version> --hash=sha256:<hash-from-registry>
-# Install command (used by agents during implementation):
-pip install --no-index --find-links .trusted-artifacts/packages/ --require-hashes -r requirements.txt
-```
-
-**Rust (cargo):**
-```
-# Record in project's Cargo.toml [patch] or .cargo/config.toml:
-# Point to local .crate file path for offline install
-```
-
-**Node.js (npm):**
-```
-# Use npm pack output stored in .trusted-artifacts/packages/
-# Install command:
-npm install .trusted-artifacts/packages/<package-name>-<version>.tgz
-# Verify integrity hash matches registry entry after install
-```
-
-**Go:**
-```
-# Set GOFLAGS and GONOSUMCHECK to use local module cache
-# Copy vetted module to GOPATH/pkg/mod/cache
-```
-
-**Java (Maven):**
-```
-# Install to local Maven repository:
-mvn install:install-file -Dfile=.trusted-artifacts/libraries/<artifact>.jar -DgroupId=<group> -DartifactId=<artifact> -Dversion=<version> -Dpackaging=jar
-```
-
-Include the exact install command in the SCS report (`scs-report.md`) under each dependency's section so agents can reference it during implementation.
+Generate a hash-pinned install command for the dependency using exact version pins (`==`) and hash verification. Include the install command in `scs-report.md` under the dependency's section so agents can reference it during Step 6. See `policies.md` rule 5 for language-specific install patterns.
 
 ### Phase 5: SBOM Generation
-After all dependencies are approved, generate a Software Bill of Materials:
-```bash
-# Rust
-cargo tree --format "{p} {l}" > sbom-rust.txt
-
-# Go
-go mod graph > sbom-go.txt
-
-# Java
-mvn dependency:tree > sbom-java.txt
-```
+After all dependencies are approved, generate a Software Bill of Materials using the appropriate language command (see CMDs 18a-c in the Authorized Bash Command Reference).
 Include: package name, version, license, source URL, scan date, verdict.
 
 ## The Pause Rule (CRITICAL)
@@ -350,15 +270,7 @@ Include: package name, version, license, source URL, scan date, verdict.
 ```
 
 ## VirusTotal API Setup
-The user must provide a VirusTotal API key. Free registration at:
-- https://www.virustotal.com/gui/join-us
-
-Store the key in an environment variable:
-```bash
-export VT_API_KEY="your-api-key-here"
-```
-
-The exact curl commands for VirusTotal are listed in the Authorized Bash Command Reference below (CMDs 10-13).
+Requires `$VT_API_KEY` environment variable. See CMDs 10-13 for usage.
 
 ## Output Format
 For each dependency scanned, produce:
@@ -432,87 +344,227 @@ You are restricted to the following tools ONLY: **Read, Write, Edit, Glob, Grep,
 
 ## MANDATORY: Authorized Bash Command Reference
 
-**You may ONLY run the Bash commands listed below.** Any command not on this list is forbidden. If you believe a scan requires a command not listed here, you must STOP, explain what you need and why to the orchestrator, and wait for explicit user approval before proceeding. Do not improvise, substitute, or "improve" these commands.
+**You may ONLY run the exact commands templated below.** Copy the template, substitute the `<PLACEHOLDER>` values, and run it. Do not improvise, rewrite, or "improve" these commands. Do not run prerequisite checks, environment validation, or any other commands not listed here — if something is wrong (e.g., API key not set), the templated command will fail and the error message will tell you. Every scan must use the same command structure — no variations, no alternative implementations, no Python scripts replacing bash loops.
 
-A PreToolUse hook (`scs-validator.py`) automatically validates every Bash command against this list. Commands matching the authorized patterns are auto-approved; commands matching the deny list are auto-blocked; everything else prompts the user. The user no longer needs to manually cross-reference — the hook does it.
+A PreToolUse hook (`scs-validator.py`) automatically validates every Bash command against these templates. Commands matching the authorized patterns are auto-approved; commands matching the deny list are auto-blocked; everything else prompts the user.
+
+### Placeholders
+
+Before running commands, determine these values and substitute them into the templates:
+
+| Placeholder | Example | Source |
+|-------------|---------|--------|
+| `<URL>` | `https://files.pythonhosted.org/packages/.../requests-2.31.0-py3-none-any.whl` | From the orchestrator's prompt |
+| `<FILENAME>` | `requests-2.31.0-py3-none-any.whl` | From the orchestrator's prompt |
+| `<HASH>` | `58CD2187C01E70E6E26505BCA751777AA9F2EE0B7F4300988B709F44E013003F` | From `hash.txt` after download |
+| `<ANALYSIS_ID>` | `NjY0MjRlOTViMTEwMDAwMDI0YjAyNjFi` | From CMD 11 response |
+| `<REVIEW_DIR>` | `requests-review` | Descriptive name you choose |
+| `<SUBFOLDER>` | `packages` | One of: `packages`, `libraries`, `tools`, `frameworks` |
+
+The sandbox base path is `PLACEHOLDER_PATH\.scs-sandbox`. The trusted artifacts path is `PLACEHOLDER_PATH\.trusted-artifacts`.
+
+---
 
 ### Phase 2 — Download to Quarantine
 
-| CMD | Command | What It Does |
-|-----|---------|-------------|
-| 1 | `Write download-config.json to .scs-sandbox/staging/` (via Write tool, not Bash) | Tells the sandbox what URL to download and what to name the file |
-| 2 | `rm -f .scs-sandbox/staging/DOWNLOAD_DONE .scs-sandbox/staging/DOWNLOAD_ERROR .scs-sandbox/staging/hash.txt .scs-sandbox/results/SCAN_DONE .scs-sandbox/results/SCAN_ERROR .scs-sandbox/results/defender-results.json` | Clears leftover sentinel files from any previous scan run |
-| 3 | `WindowsSandbox.exe ".scs-sandbox/download.wsb"` | Launches the isolated download sandbox (network ON, Hyper-V isolated) to download the artifact |
-| 4 | `test -f .scs-sandbox/staging/DOWNLOAD_DONE` (polled every 3s, 5min timeout) | Waits for the sandbox to finish downloading |
-| 5 | `cat .scs-sandbox/staging/hash.txt` | Reads the SHA-256 hash that was computed inside the sandbox |
+**CMD 1** — Write download config (use the Write tool, not Bash):
+```json
+// File: PLACEHOLDER_PATH\.scs-sandbox\staging\download-config.json
+{ "url": "<URL>", "fileName": "<FILENAME>" }
+```
+
+**CMD 2** — Clear sentinel files from previous run:
+```bash
+rm -f "PLACEHOLDER_PATH/.scs-sandbox/staging/DOWNLOAD_DONE" "PLACEHOLDER_PATH/.scs-sandbox/staging/DOWNLOAD_ERROR" "PLACEHOLDER_PATH/.scs-sandbox/staging/hash.txt" "PLACEHOLDER_PATH/.scs-sandbox/results/SCAN_DONE" "PLACEHOLDER_PATH/.scs-sandbox/results/SCAN_ERROR" "PLACEHOLDER_PATH/.scs-sandbox/results/defender-results.json"
+```
+
+**CMD 3** — Launch download sandbox:
+```bash
+WindowsSandbox.exe "PLACEHOLDER_PATH/.scs-sandbox/download.wsb"
+```
+
+**CMD 4** — Poll for download completion (3s intervals, 5min timeout):
+```bash
+for i in $(seq 1 100); do if test -f "PLACEHOLDER_PATH/.scs-sandbox/staging/DOWNLOAD_DONE"; then echo "DOWNLOAD_DONE found after $((i*3)) seconds"; exit 0; fi; if test -f "PLACEHOLDER_PATH/.scs-sandbox/staging/DOWNLOAD_ERROR"; then echo "DOWNLOAD_ERROR detected"; exit 1; fi; sleep 3; done; echo "Timeout after 5 minutes"; exit 1
+```
+
+**CMD 5** — Read the SHA-256 hash:
+```bash
+cat "PLACEHOLDER_PATH/.scs-sandbox/staging/hash.txt"
+```
+
+---
 
 ### Phase 3, Layer 1 — Windows Defender (Scan Sandbox)
 
-| CMD | Command | What It Does |
-|-----|---------|-------------|
-| 6 | `Write scan-config.json to .scs-sandbox/staging/` (via Write tool, not Bash) | Tells the scan sandbox which file to scan |
-| 7 | `WindowsSandbox.exe ".scs-sandbox/scan.wsb"` | Launches the isolated scan sandbox (network OFF, Hyper-V isolated) to run Defender |
-| 8 | `test -f .scs-sandbox/results/SCAN_DONE` (polled every 3s, 10min timeout) | Waits for the Defender scan to finish |
-| 9 | `cat .scs-sandbox/results/defender-results.json` | Reads the Defender scan results |
+**CMD 6** — Write scan config (use the Write tool, not Bash):
+```json
+// File: PLACEHOLDER_PATH\.scs-sandbox\staging\scan-config.json
+{ "fileName": "<FILENAME>" }
+```
+
+**CMD 7** — Launch scan sandbox:
+```bash
+WindowsSandbox.exe "PLACEHOLDER_PATH/.scs-sandbox/scan.wsb"
+```
+
+**CMD 8** — Poll for scan completion (3s intervals, 10min timeout):
+```bash
+for i in $(seq 1 200); do if test -f "PLACEHOLDER_PATH/.scs-sandbox/results/SCAN_DONE"; then echo "SCAN_DONE found after $((i*3)) seconds"; exit 0; fi; if test -f "PLACEHOLDER_PATH/.scs-sandbox/results/SCAN_ERROR"; then echo "SCAN_ERROR detected"; exit 1; fi; sleep 3; done; echo "Timeout after 10 minutes"; exit 1
+```
+
+**CMD 9** — Read Defender results:
+```bash
+cat "PLACEHOLDER_PATH/.scs-sandbox/results/defender-results.json"
+```
+
+---
 
 ### Phase 3, Layer 2 — VirusTotal (Runs on Host)
 
-| CMD | Command | What It Does |
-|-----|---------|-------------|
-| 10 | `curl -s -H "x-apikey: $VT_API_KEY" "https://www.virustotal.com/api/v3/files/<HASH>"` | Checks if VirusTotal already has results for this file's hash |
-| 11 | `curl -s -H "x-apikey: $VT_API_KEY" -F "file=@<ARTIFACT-PATH>" "https://www.virustotal.com/api/v3/files"` | Uploads the artifact for scanning — **only if CMD-10 returns "not found"** |
-| 12 | `curl -s -H "x-apikey: $VT_API_KEY" "https://www.virustotal.com/api/v3/analyses/<ANALYSIS-ID>"` | Polls for scan completion — repeats every 30s until done; **only runs after CMD-11** |
-| 13 | `curl -s -H "x-apikey: $VT_API_KEY" "https://www.virustotal.com/api/v3/files/<HASH>"` | Retrieves the final full report — **only runs after CMD-12 completes** |
+**CMD 10** — Hash lookup (always run first):
+```bash
+curl -s -H "x-apikey: $VT_API_KEY" "https://www.virustotal.com/api/v3/files/<HASH>"
+```
+
+**CMD 11** — Upload for analysis (only if CMD 10 returns "not found"):
+```bash
+curl -s -H "x-apikey: $VT_API_KEY" -F "file=@PLACEHOLDER_PATH/.scs-sandbox/staging/<FILENAME>" "https://www.virustotal.com/api/v3/files"
+```
+
+**CMD 12** — Poll analysis results (only after CMD 11). Run this exact command, wait 30 seconds, and run it again. Repeat until the response shows the analysis is complete. Do NOT wrap this in a bash loop — run each curl call individually so you can read the response:
+```bash
+curl -s -H "x-apikey: $VT_API_KEY" "https://www.virustotal.com/api/v3/analyses/<ANALYSIS_ID>"
+```
+
+**CMD 13** — Retrieve full report (only after CMD 12 shows completion):
+```bash
+curl -s -H "x-apikey: $VT_API_KEY" "https://www.virustotal.com/api/v3/files/<HASH>"
+```
+
+**VT API key:** Must be set as environment variable `$VT_API_KEY`. Do NOT read the key from a file using `$(cat ...)` — the hook will not auto-approve commands with shell expansion.
+
+---
 
 ### Phase 3, Layer 3 — Vulnerability Audit (Runs on Host)
 
-| CMD | Command (varies by language) | What It Does |
-|-----|------------------------------|-------------|
-| 14a | `cargo audit` (Rust) | Checks for known CVEs in the dependency tree |
-| 14b | `govulncheck ./...` (Go) | Checks for known Go vulnerabilities |
-| 14c | `mvn org.owasp:dependency-check-maven:check` (Java) | Runs OWASP dependency vulnerability check |
-| 15 | `cargo deny check` (Rust only) | Checks licenses and security advisories |
+Use the command matching the project's language:
+
+**CMD 14a** (Rust):
+```bash
+cargo audit
+```
+
+**CMD 14b** (Go):
+```bash
+govulncheck ./...
+```
+
+**CMD 14c** (Java):
+```bash
+mvn org.owasp:dependency-check-maven:check
+```
+
+**CMD 15** (Rust only):
+```bash
+cargo deny check
+```
+
+**Note:** CMDs 14a-c and 15 are NOT auto-approved by the hook — they will prompt the user for approval. This is expected behavior since these are project-level commands that vary by language.
+
+---
 
 ### Phase 3, Layer 4 — Source Code Review Prep (Runs on Host)
 
-These commands prepare downloaded artifacts for Layer 4 source code review. They extract archive contents within the staging directory — nothing is executed.
+These commands prepare downloaded artifacts for source code review. They extract archive contents within the staging directory — nothing is executed.
 
-| CMD | Command | What It Does |
-|-----|---------|-------------|
-| L4-1 | `ls .scs-sandbox/staging/<ARTIFACT>` | Verifies the artifact exists before extraction |
-| L4-2 | `mkdir -p .scs-sandbox/staging/<REVIEW-DIR>` | Creates a subdirectory for extracted contents |
-| L4-3 | `python -c "import zipfile; z=zipfile.ZipFile('<ARTIFACT>'); [print(n) for n in z.namelist()]"` (run from staging dir) | Lists contents of a `.whl` or `.zip` artifact without extracting |
-| L4-4 | `python -c "import zipfile; z=zipfile.ZipFile('<ARTIFACT>'); z.extractall('<REVIEW-DIR>')"` (run from staging dir) | Extracts a `.whl` or `.zip` artifact for source review |
-| L4-5 | `tar -xzf .scs-sandbox/staging/<ARTIFACT>.tar.gz -C .scs-sandbox/staging/<REVIEW-DIR>/` | Extracts a `.tar.gz` artifact for source review |
-| L4-6 | `ls .scs-sandbox/staging/<REVIEW-DIR>/` | Lists extracted contents to verify extraction succeeded |
+**For `.whl` or `.zip` artifacts:**
+
+**L4-1** — Verify artifact exists:
+```bash
+ls "PLACEHOLDER_PATH/.scs-sandbox/staging/<FILENAME>"
+```
+
+**L4-2** — Create review directory:
+```bash
+mkdir -p "PLACEHOLDER_PATH/.scs-sandbox/staging/<REVIEW_DIR>"
+```
+
+**L4-3** — List contents without extracting:
+```bash
+cd "PLACEHOLDER_PATH/.scs-sandbox/staging" && python -c "import zipfile; z=zipfile.ZipFile('<FILENAME>'); [print(n) for n in z.namelist()]"
+```
+
+**L4-4** — Extract for source review:
+```bash
+cd "PLACEHOLDER_PATH/.scs-sandbox/staging" && python -c "import zipfile; z=zipfile.ZipFile('<FILENAME>'); z.extractall('<REVIEW_DIR>')"
+```
+
+**For `.tar.gz` artifacts:**
+
+**L4-5** — Extract for source review:
+```bash
+tar -xzf "PLACEHOLDER_PATH/.scs-sandbox/staging/<FILENAME>" -C "PLACEHOLDER_PATH/.scs-sandbox/staging/<REVIEW_DIR>/"
+```
+
+**After extraction (both types):**
+
+**L4-6** — List extracted contents:
+```bash
+ls "PLACEHOLDER_PATH/.scs-sandbox/staging/<REVIEW_DIR>/"
+```
 
 **Constraints on L4 commands:**
 - All paths MUST be within `.scs-sandbox/staging/` — extraction to any other location is forbidden
 - Only `zipfile` and `tarfile` standard library modules may be imported — no other Python imports
 - These commands read/extract only — they do NOT execute any code from the artifact
-- `cd` to the staging directory before running Python one-liners is permitted
+- `<FILENAME>` must not contain single quotes, double quotes, or shell metacharacters — artifact filenames from package registries are alphanumeric with hyphens, underscores, and dots only
+
+---
 
 ### Phase 4 — Post-CLEAN Actions (Only If All Layers Pass)
 
-| CMD | Command | What It Does |
-|-----|---------|-------------|
-| 16 | `cp .scs-sandbox/staging/<ARTIFACT> .trusted-artifacts/<subfolder>/` | Moves the vetted artifact to the trusted cache |
-| 17 | `sha256sum .trusted-artifacts/<subfolder>/<ARTIFACT>` | Verifies the copied file's hash matches what was scanned |
+**CMD 16** — Copy vetted artifact to trusted cache:
+```bash
+cp "PLACEHOLDER_PATH/.scs-sandbox/staging/<FILENAME>" "PLACEHOLDER_PATH/.trusted-artifacts/<SUBFOLDER>/"
+```
+
+**CMD 17** — Verify hash of copied artifact:
+```bash
+sha256sum "PLACEHOLDER_PATH/.trusted-artifacts/<SUBFOLDER>/<FILENAME>"
+```
+
+---
 
 ### Phase 5 — SBOM Generation
 
-| CMD | Command (varies by language) | What It Does |
-|-----|------------------------------|-------------|
-| 18a | `cargo tree --format "{p} {l}" > sbom-rust.txt` (Rust) | Generates the Software Bill of Materials |
-| 18b | `go mod graph > sbom-go.txt` (Go) | Generates the Software Bill of Materials |
-| 18c | `mvn dependency:tree > sbom-java.txt` (Java) | Generates the Software Bill of Materials |
+Use the command matching the project's language:
+
+**CMD 18a** (Rust):
+```bash
+cargo tree --format "{p} {l}" > sbom-rust.txt
+```
+
+**CMD 18b** (Go):
+```bash
+go mod graph > sbom-go.txt
+```
+
+**CMD 18c** (Java):
+```bash
+mvn dependency:tree > sbom-java.txt
+```
+
+**Note:** CMDs 18a-c use output redirection (`>`) and are NOT auto-approved by the hook — they will prompt the user for approval. This is expected.
+
+---
 
 ### Conditional Execution Notes
 
-- **CMD-11, 12, 13**: Only run if CMD-10 shows the hash is not in VirusTotal's database. If the hash IS found, these are skipped.
-- **CMD-16, 17, 18**: Only run if the final verdict is CLEAN. If any layer fails, the verdict is REJECT and these do not run.
-- **Multiple dependencies**: CMD-1 through CMD-13 repeat for each dependency being scanned. Same commands, same order, just with different placeholder values.
-- **Transitive dependencies**: CMD-10 (hash lookup) repeats for each transitive dependency. Upload (CMD-11) only if the hash isn't found.
+- **CMD 11, 12, 13**: Only run if CMD 10 shows the hash is not in VirusTotal's database. If the hash IS found with results, skip to reading those results.
+- **CMD 16, 17, 18**: Only run if the final verdict is CLEAN. If any layer fails, the verdict is REJECT and these do not run.
+- **Multiple dependencies**: CMD 1 through CMD 13 repeat for each dependency being scanned. Same templates, same order, just with different placeholder values.
+- **Transitive dependencies**: CMD 10 (hash lookup) repeats for each transitive dependency. Upload (CMD 11) only if the hash isn't found.
 - **Phase 0 cache hit**: If the dependency is found in `.trusted-artifacts/_registry.md` with a matching hash, ALL of the above is skipped. No Bash commands run at all.
 
 ### What Is NOT Authorized
@@ -524,4 +576,5 @@ The following are explicitly forbidden — deny immediately if attempted:
 - Any command that executes the downloaded artifact (running it, importing it, sourcing it)
 - Any command that modifies files outside of `.scs-sandbox/`, `.trusted-artifacts/`, or the project's `scs-report.md` and SBOM files
 - Any `python -c` command that imports modules other than `zipfile` or `tarfile` (standard library extraction only)
-- Any command not listed in the tables above
+- Any alternative implementation of the commands above (e.g., Python polling scripts instead of the bash `for` loop, `$(cat file)` instead of `$VT_API_KEY`, custom hash-reading scripts instead of `cat hash.txt`)
+- Any command not templated above

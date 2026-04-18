@@ -565,8 +565,8 @@ TESTS = [
      "allow"),
 
     # Polling loop for SCAN_DONE
-    ("ALLOW: polling loop for SCAN_DONE (real pattern)",
-     'for i in $(seq 1 100); do if test -f "PLACEHOLDER_PATH/.scs-sandbox/results/SCAN_DONE"; then echo "SCAN_DONE found"; exit 0; fi; if test -f "PLACEHOLDER_PATH/.scs-sandbox/results/SCAN_ERROR"; then echo "SCAN_ERROR detected"; cat "PLACEHOLDER_PATH/.scs-sandbox/results/SCAN_ERROR"; exit 1; fi; sleep 3; done; echo "Timeout"',
+    ("ALLOW: polling loop for SCAN_DONE (real pattern, 10min timeout)",
+     'for i in $(seq 1 200); do if test -f "PLACEHOLDER_PATH/.scs-sandbox/results/SCAN_DONE"; then echo "SCAN_DONE found"; exit 0; fi; if test -f "PLACEHOLDER_PATH/.scs-sandbox/results/SCAN_ERROR"; then echo "SCAN_ERROR detected"; cat "PLACEHOLDER_PATH/.scs-sandbox/results/SCAN_ERROR"; exit 1; fi; sleep 3; done; echo "Timeout"',
      "allow"),
 
     # Compound cat with fallback (real pattern)

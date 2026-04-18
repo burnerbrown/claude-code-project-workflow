@@ -131,6 +131,7 @@ Not all external software requires the same level of scrutiny. The full SCS work
    - The exact install command for each dependency is recorded in `scs-report.md` by the SCS agent after a CLEAN verdict
    - If an agent's install command would fetch from the internet (e.g., bare `pip install requests` without `--no-index`), the orchestrator MUST reject it and correct the command to use the local cache
    - After installation, verify the installed package hash matches the hash recorded in `_registry.md`
+   - **Exact version pins only.** Requirements files (`requirements.txt`, `Cargo.toml`, `go.mod`, `package.json`, etc.) must use exact version pins (`==` in pip, `=` in Cargo) — never compatible-release (`~=`), minimum (`>=`), or range operators. Loose pins allow the package manager to resolve newer versions that have not been SCS-scanned, causing silent version drift. The SCS agent's hash-pinned install manifest already uses exact pins — do not weaken them.
 
 6. **Minimum Package Age (30-Day Rule).** No external package may be downloaded for scanning until at least **30 calendar days** have passed since that specific version was published to its package registry (PyPI, npm, crates.io, Maven Central, etc.).
 

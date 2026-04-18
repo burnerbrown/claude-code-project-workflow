@@ -31,11 +31,10 @@ The default workflow is strictly sequential: 1 → 2 → 3 → 4 → 5 → 5.5 �
 ## How to Use Agents
 
 ### Loading an Agent
-To use a specialized agent, read its definition file and pass the contents as a prompt prefix to the Agent tool. The pattern is:
+To use a specialized agent, tell it to read its own definition file. Do NOT read the file into orchestrator context and paste it — let the agent read it in its own context. The pattern is:
 
-1. Read the agent file from `PLACEHOLDER_PATH\.agents\<agent-name>.md`
-2. Combine the agent definition with the specific task instructions
-3. Pass the combined prompt to the Agent tool with `subagent_type: "general-purpose"`
+1. Note the agent file path: `PLACEHOLDER_PATH\.agents\<agent-name>.md`
+2. Pass the file path and task instructions to the Agent tool with `subagent_type: "general-purpose"`
 
 **Example prompt structure for the Agent tool:**
 ```
@@ -44,7 +43,9 @@ To use a specialized agent, read its definition file and pass the contents as a 
 ---
 
 <agent-definition>
-{contents of PLACEHOLDER_PATH\.agents\senior-programmer.md}
+Before doing anything else, read your full agent definition from:
+PLACEHOLDER_PATH\.agents\senior-programmer.md
+That file contains your persona, principles, output format, and tool restrictions. Follow it exactly.
 </agent-definition>
 
 <task>
@@ -78,7 +79,9 @@ disallowedTools: Bash, WebFetch, WebSearch
 ---
 
 <agent-definition>
-{contents of senior-programmer.md}
+Before doing anything else, read your full agent definition from:
+PLACEHOLDER_PATH\.agents\senior-programmer.md
+That file contains your persona, principles, output format, and tool restrictions. Follow it exactly.
 </agent-definition>
 
 <task>
@@ -176,7 +179,7 @@ When a worker agent is first launched for a task, the Agent tool returns an **ag
 - Use `SendMessage` with the agent's ID as the `to` field to continue a previously-launched agent
 - Agent IDs are held in the orchestrator's working memory and naturally expire when the user does `/clear` between tasks — this is the correct lifecycle since each task gets fresh agents
 - No explicit cleanup is needed — the `/clear` between tasks handles it
-- **Fallback if an agent ID is lost** (e.g., due to context compression): Invoke a fresh agent. For SCS specifically, restart the scan for that dependency from the beginning — do NOT attempt to resume a half-completed scan with a fresh agent, as the new agent lacks context of what phases have already completed. This is safe because SCS scans are idempotent (re-downloading and re-scanning produces the same result)
+- **Fallback if resuming an agent fails** (for any reason): Launch a fresh agent. Tell it which phase/step to start from — do NOT summarize prior work in the prompt. The fresh agent must re-read all applicable files (agent definition and task-relevant files) to rebuild its own working knowledge. Pass file paths, not content — the same rule as any other agent invocation. For SCS specifically: specify the exact phase and step (e.g., "start from Phase 2 step 3 — clear sentinels and launch download sandbox"), and reference any checkpoint artifacts still on disk (e.g., "download-config.json and hash.txt are in staging").
 
 **Resume prompt structure (rework scenario):**
 
@@ -228,6 +231,24 @@ The resumed SCS agent already has its Phase 0/1 context, so there is no need to 
 | Project Manager | `project-manager.md` | **Optional project coordinator** — only invoked for multi-module projects with cross-module dependencies, complex send-back routing, agent conflicts, or user-requested progress reports. Tracks cross-module blockers, deferred items, and status via `PROJECT_STATUS.md`. See `workflows.md` "When to Invoke the Project Manager Agent" for criteria. Most single-module projects skip the PM entirely. |
 
 All agent files are located in: `PLACEHOLDER_PATH\.agents\`
+
+### SCS Agent Input Schema
+
+When invoking the SCS agent, pass exactly these fields in the `<task>` block — nothing more, nothing less:
+
+| Field | Example | Source |
+|-------|---------|--------|
+| `package` | `requests` | From dependency list |
+| `version` | `2.31.0` | From dependency list |
+| `url` | `https://files.pythonhosted.org/packages/.../requests-2.31.0-py3-none-any.whl` | From PyPI JSON API (orchestrator looks this up via WebFetch) |
+| `filename` | `requests-2.31.0-py3-none-any.whl` | From the URL |
+| `expected_sha256` | `58cd2187c01e...` | From PyPI JSON API |
+| `subfolder` | `packages` | One of: `packages`, `libraries`, `tools`, `frameworks` |
+| `ecosystem` | `python` | Determines which Layer 3 commands to use |
+| `report_path` | `scs-report.md` | Where to append scan results |
+| `start_phase` | `0` | Which phase to begin from (0 for new scan, or later if continuing after a checkpoint) |
+
+Do not add coordination notes, context paragraphs, or instructions about when to stop — the agent definition file contains all of that. The agent reads its own definition file and follows it.
 
 ### MANDATORY: SCS Download Verification (Anti-Substitution)
 
