@@ -82,7 +82,7 @@ Repeat the following cycle for each task/subtask until the checklist is complete
 5. **Agents do the work**:
    - Worker agents produce their deliverables (code, tests, reviews, etc.)
    - Follow the agent orchestration rules — sequential where required, parallel where allowed
-   - If an agent needs a dependency that wasn't scanned in Step 4, pause work on this task and follow the "Dependency Addition" workflow in `workflows.md` — scan the new dependency, then resume
+   - If an agent needs a dependency that wasn't scanned in Step 4, pause work on this task and follow the "Dependency Addition" workflow in `workflows.md` — this runs the two-stage SCS flow (batch Phase 1 across the new dependency and its transitives, then per-package Phase 2–5 on the approved packages). Resume the task after all verdicts are CLEAN.
 
 6. **Quality Gate evaluates, orchestrator routes**:
    - **The orchestrator runs a language-appropriate compile/syntax check as a quick sanity check before invoking the QG** — this catches obvious issues without a full agent invocation. Use `bash -n` for shell scripts, `cargo check` for Rust, `go build ./...` for Go, `mvn compile` for Java, `python -m py_compile` for Python, etc.
@@ -140,7 +140,7 @@ Repeat the following cycle for each task/subtask until the checklist is complete
 - **Database migration or schema issues**: **Resume** the Database Specialist with the QG's findings (non-reversible migration, missing indexes, normalization violations, SQL injection risk). If the issue is a security finding (CWE-89 injection, CWE-311 missing encryption), also route through the Security Reviewer after the fix.
 - **API design-level flaws found by reviewers**: If the Security Reviewer or Code Reviewer finds flaws that require API spec changes (not just implementation fixes), **resume** the API Designer with the reviewer's findings. After the spec is updated, **resume** the Senior Programmer to update the implementation to match. Both go through the QG gate.
 - **Performance verification shows regression or no improvement**: **Resume** the Senior Programmer with the Performance Optimizer's comparison data showing the regression. After the Programmer revises the optimization, **resume** the Performance Optimizer for re-verification. Both go through the QG gate.
-- **Dependency needed mid-implementation**: This should be rare — all dependencies should have been scanned in Step 4. Pause work that depends on this dependency. Follow the "Dependency Addition" workflow in `workflows.md` — scan just the new dependency, update the SBOM and Step 4 handoff, then resume where you left off. No need to redo prior steps unless the dependency is REJECTED and forces an architectural change.
+- **Dependency needed mid-implementation**: This should be rare — all dependencies should have been scanned in Step 4. Pause work that depends on this dependency. Follow the "Dependency Addition" workflow in `workflows.md` — scan just the new dependency and its transitives via the two-stage SCS flow (batch Phase 1 → per-package Phase 2–5), update the SBOM and Step 4 handoff, then resume where you left off. No need to redo prior steps unless the dependency is REJECTED and forces an architectural change.
 - **SCS scanning infrastructure fails**: If the sandbox fails to launch, a scanning tool crashes, or an API key is invalid, report the specific failure to the user with diagnostic information. Do not proceed with the dependency. Do not attempt the same scan more than twice — if the infrastructure issue persists, the user must resolve it before the dependency can be approved.
 - **Quality Gate produces questionable evaluation**: If the orchestrator suspects the QG missed obvious issues or produced an incomplete evaluation, see `policies.md` Conflict Resolution for the orchestrator-vs-QG escalation procedure.
 - **Agent conflict** (two agents disagree): Read `policies.md` for the conflict resolution priority. When in doubt, present both perspectives to the user.
@@ -201,7 +201,7 @@ Tests fall into two categories with different safety requirements:
 5. **Run the tests inside the sandbox** — the orchestrator executes the Test Engineer's test commands within the sandboxed environment, using the sandbox setup files (Dockerfile, docker-compose.yml, .wsb config) that the Test Engineer delivers as part of its output
 6. **Never run integration tests directly on the host machine** — even if "it would probably be fine"
 
-**Current environment note:** PLACEHOLDER_PLATFORM. Adjust sandbox choices based on your development machine's OS and available virtualization tools.
+**Current environment note:** The development machine runs PLACEHOLDER_PLATFORM. For Linux-targeting projects, use the appropriate Linux sandbox (Docker, WSL2, or a Linux VM) for integration tests.
 
 ## What to Avoid
 - Don't skip the Quality Gate evaluation — every task must be evaluated before marking complete

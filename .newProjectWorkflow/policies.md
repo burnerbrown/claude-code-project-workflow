@@ -123,7 +123,9 @@ Not all external software requires the same level of scrutiny. The full SCS work
    If verdict is REJECT → dependency is NOT used; find an alternative
    ```
 
-4. **The Pause Rule.** If the Supply Chain Security agent returns an INCOMPLETE verdict (e.g., VirusTotal rate-limited), ALL agents MUST STOP. No code may be written that uses, imports, or references the unscanned dependency. Wait until scanning completes — even if it takes hours or days. There are no exceptions.
+4. **The Pause Rule.** If the Supply Chain Security agent returns a **Phase 4 INCOMPLETE verdict** from a `per-package` scan (e.g., VirusTotal rate-limited mid-scan, sandbox timeout during download or Defender), ALL agents MUST STOP. No code may be written that uses, imports, or references the unscanned dependency. Wait until scanning completes — even if it takes hours or days. There are no exceptions.
+
+   **Scope clarification.** The Pause Rule applies ONLY to Phase 4 verdicts (CLEAN / CONDITIONAL / REJECT / INCOMPLETE) produced in `per-package` mode. It does **NOT** apply to Phase 1 **recommendations** (PROCEED / INVESTIGATE / REJECT) produced in `batch-phase1` mode — those are pre-scan triage that the user reviews interactively before any artifact is downloaded, and the user decides on each one without any agent being blocked from unrelated work. See `agent-orchestration.md` "The Two-Stage SCS Flow" for the mode distinction.
 
 5. **Install from Local Cache Only.** During implementation (Step 6), all vetted dependencies MUST be installed from the local `.trusted-artifacts/` cache — NEVER fetched from the internet (PyPI, npm registry, crates.io, Maven Central, etc.). This eliminates the time-of-check-to-time-of-use (TOCTOU) gap between when SCS scanned the dependency and when it is installed into the project.
    - Use offline/local install flags: `pip install --no-index --find-links`, `npm install <local-tarball>`, etc.

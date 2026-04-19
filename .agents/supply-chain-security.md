@@ -102,6 +102,17 @@ Write these two files to `.scs-sandbox\scripts\` once. They are mapped read-only
 
 ## Quarantine & Scan Workflow
 
+### Invocation Modes
+
+This agent has two modes, selected by the `mode` field in the task input:
+
+- **`batch-phase1`** — input contains a `packages` array. Run Phase 0 (cache check) and Phase 1 (assessment + project-level audit) on every package in the array, produce the batch report described under "Batch Phase 1 Output Format," and STOP. Do NOT run Phase 2 or beyond in this mode.
+- **`per-package`** — input contains a single package's fields plus `start_phase` (usually `2`). Run the phase sequence starting from `start_phase` through Phase 5 on that one package.
+
+If `mode` is omitted, default to `per-package`.
+
+---
+
 ### Phase 0: Trusted Artifacts Cache Check (Always First)
 Before downloading or scanning anything, check whether this dependency is already in the vetted cache:
 
@@ -116,6 +127,10 @@ Before downloading or scanning anything, check whether this dependency is alread
 
 **Re-scan detection:** If the dependency name+version appears in `scs-report.md` (prior scan exists) but is NOT in `_registry.md` (no cached artifact — prior verdict was CONDITIONAL or REJECT), this is a re-scan. Note in your output that this is a re-scan and reference the prior verdict from `scs-report.md`. Leftover files from prior scans are cleaned at the start of Phase 2 (see step 3).
 
+**Cache corruption (hash mismatch):** In both modes, a cache-hit package whose on-disk hash does NOT match `_registry.md` is treated as a cache miss. **Delete the corrupt cached artifact from `.trusted-artifacts/<subfolder>/` immediately upon detection** — this prevents any other process from using the stale bytes while the re-scan is pending. Also remove the `_registry.md` row for that entry. Flag it as a suspected-corrupt entry in the batch report or per-package output (so the orchestrator can surface it to the user) and include the package in the Phase 1 assessment pool as a re-scan candidate. In batch mode, the re-scan itself happens in the subsequent Phase 2–5 per-package invocation — batch mode's job is to detect, clean, and flag.
+
+**Batch-mode note:** In `batch-phase1` mode, run the Phase 0 check for every package in the `packages` array. Record each result (HIT / MISS / CORRUPT) in the batch report's Cache Status table. Cache HITS are **excluded from the per-package Phase 1 assessment** (they are already vetted), but they ARE included in the project-level tree/audit step below (so CVE regressions in previously-clean packages are still caught). Cache MISSES and CORRUPT entries proceed into Phase 1 assessment as normal.
+
 **CACHE HIT output format:**
 ```
 CACHE HIT — [Dependency Name] v[Version]
@@ -124,24 +139,129 @@ Hash verified: [SHA-256 hash] ✓
 Status: PRE-APPROVED — no new scan required
 ```
 
-### Phase 1: Pre-Download Assessment (No API calls needed)
-Before downloading anything, evaluate:
-1. **Is this dependency actually necessary?** Can the programming agent write this functionality instead?
-2. **Source reputation**: How many downloads/stars? How many maintainers? Last update date? Bus factor?
-3. **License compatibility**: Is the license compatible with the project? (Watch for GPL viral licensing)
-4. **Known vulnerabilities**: Check CVE databases, RustSec, Go vulnerability database, GitHub advisories
-5. **Transitive dependencies**: What does THIS dependency pull in? (Could be hundreds of sub-dependencies)
+### Phase 1: Pre-Download Assessment
 
-If the dependency fails pre-download assessment, recommend alternatives or writing the code in-house. **Report findings and wait for user approval before downloading.**
+Phase 1 reads only registry metadata, CVE data, license info, and dependency-tree output. No artifacts are downloaded, extracted, or executed. In `batch-phase1` mode, Phase 1 runs across every cache-miss package in the input list and produces the batch report (see "Batch Phase 1 Output Format" below). In `per-package` mode, Phase 1 runs on the single input package.
+
+#### Phase 1a: Project-Level Tree & Audit (Batch Mode Only, Run Once)
+
+Runs once per invocation in `batch-phase1` mode — NOT once per package. Skip this subphase entirely in `per-package` mode (it already ran when the project-wide batch scan was performed; re-running would be redundant).
+
+**Input expectation.** The orchestrator is responsible for resolving the full transitive graph BEFORE invoking this agent and including every transitive in the `packages` array (see the Transitive Dependency Rule below). Phase 1a re-runs the tree command as an independent verification — if the tree output reveals transitives the orchestrator did not include in the input `packages` array, flag this as an input mismatch in the batch report and assess those transitives as if they were MISSes (they have no cached status and no publish-date metadata yet — note the gap so the orchestrator can re-invoke with a corrected array, or accept the gap explicitly). Do NOT silently add them; surface the mismatch.
+
+1. **Dependency tree.** Run the ecosystem-appropriate tree command to produce the full transitive graph for the project as it would look after these packages are added:
+   - Rust: `cargo tree` (CMD 18a pattern)
+   - Go: `go mod graph` (CMD 18b pattern)
+   - Java: `mvn dependency:tree` (CMD 18c pattern)
+   - Python: `pip-audit` produces tree+audit in one call (see below) — or use `pip show`/`pipdeptree` output if provided by the orchestrator
+2. **Vulnerability audit.** Run the ecosystem-appropriate audit (these MAY produce noise the first time — cross-reference against the input package list):
+   - CMD 14a (Rust): `cargo audit`
+   - CMD 14b (Go): `govulncheck ./...`
+   - CMD 14c (Java): `mvn org.owasp:dependency-check-maven:check`
+   - CMD 14d (Python): `pip-audit`
+   - CMD 15 (Rust only): `cargo deny check`
+3. **Capture the raw output** and attribute each finding back to a specific package in the input list. Findings that reference packages NOT in the input list (pre-existing project deps) are still reported but marked "pre-existing."
+4. **Input-vs-tree reconciliation.** Compare the tree output's node set against the input `packages` array. Packages in the tree but NOT in the input are "input mismatches" — list them explicitly in the batch report under a separate "Input Mismatch" section so the orchestrator knows to re-invoke with a corrected array or accept the gap.
+5. **Transitive tree size signal.** If the tree pulls in 50+ new transitive dependencies as a result of the additions under review, flag this prominently in the batch report — excessively deep trees are a supply-chain concern, and the user may want to pick an alternative with fewer transitives.
+
+If the tree/audit commands fail to run (missing `Cargo.lock`, no `go.sum`, etc.), note the failure in the batch report and continue — Phase 1b can still run, and the orchestrator will handle the gap.
+
+#### Phase 1b: Per-Package Assessment (Cache Misses Only)
+
+Run this for each cache-miss package in the input list (batch mode) or for the single input package (per-package mode, though typically this has already happened in the preceding batch run). For each package:
+
+1. **Is this dependency actually necessary?** Can the programming agent write this functionality instead?
+2. **Source reputation.** How many downloads/stars? How many maintainers? Last update date? Bus factor? Any recent ownership changes?
+3. **License compatibility.** SPDX ID and any compatibility concerns (e.g., GPL viral licensing vs. the project's chosen license).
+4. **Known vulnerabilities.** Cross-reference the Phase 1a audit output AND the relevant public databases (CVE, RustSec, Go vulnerability database, GitHub Advisory, npm advisory, PyPI advisory).
+5. **Publication age (30-Day Rule).** Verify that the specific version was published to its registry at least 30 days ago (per `policies.md` rule 6). The orchestrator should already have pre-filtered these, but re-check and flag any violations — except under the narrow security-patch exception described in that rule.
+6. **Transitive role.** Mark each package as `direct` or `transitive of [parent]` using the tree output from Phase 1a.
+
+Produce a per-package **recommendation**, not a verdict:
+- `PROCEED` — no Phase 1 concerns; send to Phase 2 for scanning
+- `INVESTIGATE` — concern worth user review before committing to a heavy scan (e.g., unusually low downloads, recent maintainer change, non-blocking CVE)
+- `REJECT` — block on policy grounds (critical CVE with no fix, incompatible license, sub-30-day age with no security-patch exception, confirmed malicious indicators from public advisories)
+
+Phase 1 recommendations are **not** the same as the Phase 4 verdicts. They do NOT trigger the Pause Rule. The orchestrator reviews the batch report with the user before any package advances to Phase 2.
+
+#### Phase 1c: Rejection Cascade Impact (Batch Mode Only)
+
+For every package recommended `REJECT` in Phase 1b, compute the cascade impact so the user can see the blast radius of removing it:
+
+1. **Exclusive transitives** — packages in the input list that only appear because of the rejected package. If the rejected package is removed, these are no longer needed and should also be removed.
+2. **Shared transitives** — packages pulled in by the rejected package AND by at least one other package in the input list. These remain regardless.
+3. Report both sets in the batch report under "Rejection Cascade" (see output format below) so the user can decide: accept the cascade, or find an alternative to the rejected package that preserves the needed functionality.
+
+**Thin-facade special case.** If a `REJECT`ed package is a thin facade (re-exports everything from sub-crates/sub-packages, e.g. Rust's `clap` → `clap_builder` + `clap_derive`), treat those sub-packages as effectively direct dependencies in the cascade analysis — dropping the facade typically requires pulling the sub-packages in directly, which keeps them in the Phase 2 queue.
 
 ### Transitive Dependency Rule (CRITICAL)
 A malicious package 3 levels deep in the dependency tree is just as dangerous as a malicious direct dependency. ALL transitive dependencies must be assessed:
-1. Before approving any dependency, run `cargo tree` / `go mod graph` / `mvn dependency:tree` to list the FULL transitive dependency tree
-2. Report the total count of transitive dependencies to the user (e.g., "Adding crate X will also pull in 47 transitive dependencies")
-3. Run Layer 3 vulnerability audits (`cargo audit`, `govulncheck`) against the FULL tree, not just the direct dependency
-4. Run Layer 2 (VirusTotal) hash lookups for ALL transitive dependency `.crate` files — not just the direct dependency's artifact. Hash lookups consume only 1 API call each. Upload for full analysis only if the hash is not found in VT's database. **Special case:** if the direct dependency is a thin facade (re-exports everything from sub-crates, e.g. `clap` → `clap_builder` + `clap_derive`), treat those sub-crates as effectively direct dependencies and apply ALL four scan layers to them, not just a prioritized review.
+1. The project-level dependency tree and audit run once in Phase 1a (batch mode) — this covers the FULL transitive graph, not just direct dependencies. The orchestrator must include every transitive in the `packages` array.
+2. Report the total count of transitive dependencies in the batch report (e.g., "Adding crate X will also pull in 47 transitive dependencies")
+3. Phase 1a vulnerability audits cover the FULL tree, not just direct dependencies
+4. Run Layer 2 (VirusTotal) hash lookups for ALL transitive dependency artifacts — this happens per-package in Phase 3. Hash lookups consume only 1 API call each. Upload for full analysis only if the hash is not found in VT's database.
 5. For Layer 4 source code analysis: prioritize reviewing transitive dependencies that have low download counts, single maintainers, or recent ownership changes — these are the highest supply chain risk
-6. If the transitive tree is excessively large (50+ dependencies for a single addition), flag this as a concern and recommend alternatives with fewer dependencies
+6. If the transitive tree is excessively large (50+ dependencies for a single addition), Phase 1a must flag it in the batch report and the orchestrator should present alternatives with fewer dependencies to the user
+
+### Batch Phase 1 Output Format
+
+In `batch-phase1` mode, produce exactly one report (Markdown) and return it to the orchestrator. Do not append this to `scs-report.md` — that file holds final per-package verdicts, not Phase 1 recommendations. The orchestrator attaches the batch report to its working notes and uses it to decide what to scan in Phase 2–5.
+
+```
+# Batch Phase 1 Report
+
+## Input Summary
+- Total packages: N  (M direct, K transitive)
+- Ecosystem: [python | rust | go | java]
+- Run date: YYYY-MM-DD
+- Report path for Phase 2+ verdicts: [report_path from input]
+
+## Cache Status
+| Package | Version | Cache | Notes |
+|---------|---------|-------|-------|
+| [name]  | [ver]   | HIT / MISS / CORRUPT | [registry row if HIT; reason if CORRUPT; blank if MISS] |
+
+Summary: X HITs, Y MISSes, Z CORRUPTs. HITs skip per-package assessment. MISSes and CORRUPTs enter Phase 1b.
+
+## Dependency Tree (from Phase 1a)
+[Trimmed tree output showing only the packages under review and their ancestors/descendants within the input list.]
+
+## Vulnerability Audit Findings (from Phase 1a)
+| Package | Version | Advisory | Severity | Fixed In | Notes |
+|---------|---------|----------|----------|----------|-------|
+| ...     | ...     | ...      | ...      | ...      | ...   |
+
+If none: "No vulnerabilities found by [tool name]."
+If pre-existing findings appeared: mark them "pre-existing (not in this batch)".
+
+## Per-Package Assessment (MISS and CORRUPT packages only)
+### [Package Name] v[Version]
+- **Necessity**: [assessment]
+- **Reputation**: downloads [N/mo or total], stars [N], maintainers [N], last update [YYYY-MM-DD]
+- **License**: [SPDX ID] — [compatibility assessment]
+- **Publication age**: published [YYYY-MM-DD], age [N days] — [PASS / FAIL 30-day rule]
+- **CVE status**: [clean / list of CVE IDs with severity]
+- **Transitive role**: direct | transitive of [parent package(s)]
+- **Recommendation**: PROCEED / INVESTIGATE / REJECT — [one-line reason]
+
+(repeat for each MISS/CORRUPT package)
+
+## Rejection Cascade (only if any REJECT recommendations)
+If [Package X] is rejected:
+- Exclusive transitives (would also be removed): [list]
+- Shared transitives (remain — pulled in by other packages): [list]
+- Net impact: N packages removed, M packages remain for Phase 2–5
+
+(repeat per REJECTed package)
+
+## Recommended Next Actions
+- Approved for Phase 2–5 scanning: [list of package+version]
+- Cache hits (already approved, no scan needed): [list]
+- Blocked pending user decision (INVESTIGATE or REJECT): [list with one-line reasons]
+- Suggested removals if user accepts rejections: [list]
+```
+
+After producing this report, STOP. Do NOT launch sandboxes, download artifacts, or run any Phase 2+ commands in batch mode.
 
 ### Phase 2: Download to Quarantine (Download Sandbox)
 1. Write `download-config.json` to `.scs-sandbox\staging\` — `{ "url": "<download-url>", "fileName": "<artifact-filename>" }`
@@ -155,12 +275,14 @@ A malicious package 3 levels deep in the dependency tree is just as dangerous as
 ### Phase 3: Automated Scanning (Multi-Layer)
 
 **Where each layer runs:**
-| Layer | Runs In |
-|-------|---------|
-| 1 — Windows Defender | **Scan sandbox** (network OFF) |
-| 2 — VirusTotal | **Host** (network ON) |
-| 3 — cargo audit / govulncheck | **Host** (network ON) |
-| 4 — Source code review | **Host** (agent reads files) |
+| Layer | Runs In | When |
+|-------|---------|------|
+| 1 — Windows Defender | **Scan sandbox** (network OFF) | Phase 3 (per-package) |
+| 2 — VirusTotal | **Host** (network ON) | Phase 3 (per-package) |
+| 3 — cargo audit / govulncheck / pip-audit | **Host** (network ON) | **Phase 1a (batch)** — not re-run per-package |
+| 4 — Source code review | **Host** (agent reads files) | Phase 3 (per-package) |
+
+**Layer 3 has moved to Phase 1a** — it's a project-level command and is more useful run once against the full dependency set than repeatedly per-package. In `per-package` mode, Layer 3 is skipped; assume the preceding batch Phase 1 already ran it. If this is an ad-hoc per-package invocation with no preceding batch, the orchestrator is responsible for supplying Layer 3 findings (or invoking a single-package batch first).
 
 #### Layer 1: Windows Defender Local Scan (Runs Inside Scan Sandbox)
 1. Write `scan-config.json` to `.scs-sandbox\staging\` — `{ "fileName": "<artifact-filename>" }`
@@ -190,8 +312,10 @@ Will resume scanning automatically when limit resets."
 ```
 **Do not proceed. Do not allow other agents to use unscanned code. Wait.**
 
-#### Layer 3: Language-Specific Vulnerability Audit (No rate limit)
-Run the appropriate language-specific audit command (see CMDs 14a-c, 15 in the Authorized Bash Command Reference).
+#### Layer 3: Language-Specific Vulnerability Audit
+Runs in Phase 1a (batch mode), not here. In `per-package` mode, skip this layer — reference the Phase 1a findings from the preceding batch scan for this package. If no batch scan preceded this per-package invocation, flag the gap in the output so the orchestrator can trigger a batch run.
+
+The authorized commands (CMDs 14a-d, 15) are unchanged; only their phase placement moved.
 
 #### Layer 4: Source Code Analysis (Agent reads the code)
 Manually review the dependency source code for:
@@ -258,7 +382,7 @@ Include: package name, version, license, source URL, scan date, verdict.
 ## The Pause Rule (CRITICAL)
 ```
 ╔══════════════════════════════════════════════════════════════════╗
-║  IF any dependency has verdict INCOMPLETE:                       ║
+║  IF any dependency has a Phase 4 verdict of INCOMPLETE:          ║
 ║    → ALL agents MUST STOP                                        ║
 ║    → NO code may be written that imports/uses the dependency     ║
 ║    → NO tests may be written against the dependency              ║
@@ -269,14 +393,19 @@ Include: package name, version, license, source URL, scan date, verdict.
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
+**Scope.** The Pause Rule applies to Phase 4 verdicts from `per-package` mode (CLEAN / CONDITIONAL / REJECT / INCOMPLETE). It does NOT apply to Phase 1 **recommendations** (PROCEED / INVESTIGATE / REJECT) produced in `batch-phase1` mode — those are pre-scan triage that precede any heavy scanning, and the user reviews them interactively. An INVESTIGATE or REJECT recommendation in Phase 1 pauses only the dependency-addition workflow itself until the user decides; unrelated work may continue.
+
 ## VirusTotal API Setup
 Requires `$VT_API_KEY` environment variable. See CMDs 10-13 for usage.
 
 ## Output Format
-For each dependency scanned, produce:
+
+In `batch-phase1` mode, see "Batch Phase 1 Output Format" under Phase 1 above — produce that report only.
+
+In `per-package` mode, for the single dependency scanned, produce:
 1. **Dependency Info**: Name, version, source, SHA-256 hash
-2. **Pre-Download Assessment**: Reputation, license, necessity justification
-3. **Scan Results**: Results from each scanning layer with pass/fail
+2. **Pre-Download Assessment**: Reference the batch Phase 1 entry for this package (reputation, license, necessity — do not re-derive)
+3. **Scan Results**: Results from each scanning layer with pass/fail. Layer 3 references Phase 1a findings; do not re-run the audit.
 4. **Source Code Review**: Findings from manual code analysis
 5. **Verdict**: CLEAN / CONDITIONAL / REJECT / INCOMPLETE
 6. **SBOM Entry**: Formatted entry for the project's software bill of materials

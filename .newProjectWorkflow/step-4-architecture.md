@@ -31,18 +31,34 @@ Make the key technical decisions: language, components, data flow, interfaces, a
    - Configuration approach
 7. **Identify technical risks** and mitigation strategies.
 8. **Security considerations** — threat model (STRIDE if appropriate), authentication, authorization, data protection.
-9. **Run Supply Chain Security scan on all external dependencies**:
-   - This is a FULL scan — all 5 phases (Pre-Download Assessment → Download to Quarantine → Automated Scanning → Verdict → SBOM Generation)
+9. **Run Supply Chain Security scan on all external dependencies (two-stage flow)**:
+   - The scan follows the two-stage SCS flow — **batch Phase 1 across all packages first, then per-package Phase 2–5 on approved packages only**. See `agent-orchestration.md` "The Two-Stage SCS Flow" for the rationale and schema.
    - Read the Supply Chain Security agent definition: `PLACEHOLDER_PATH\.agents\supply-chain-security.md`
    - Read `PLACEHOLDER_PATH\.newProjectWorkflow\policies.md` for dependency security policy
-   - When building the download URL table for the SCS agent, **also record the expected SHA-256 hash** for each package (from PyPI's JSON API, npm registry, etc.). These hashes are needed for post-download verification — see `agent-orchestration.md` "SCS Download Verification (Anti-Substitution)"
-   - Invoke the Supply Chain Security agent for every external dependency identified in substep 4
-   - **If any dependency is REJECTED**: select an alternative dependency and re-run SCS on the replacement — do this NOW while the architecture is still flexible, not in Step 6 when task plans and details are already built around the rejected dependency
-   - **If any dependency is INCOMPLETE** (e.g., rate-limited): PAUSE and wait. Do not proceed to substep 10 until all verdicts are CLEAN or CONDITIONAL (with user approval)
-   - After all dependencies pass, the SBOM (`sbom-{language}.txt`) is generated as part of Phase 5
-   - The SCS agent produces `scs-report.md` in the repo root — the persistent audit trail of all scan results and verdicts (see the SCS agent definition for the report format)
-   - **After each SCS agent invocation**, review the validator command log (`.claude/hooks/scs-validator.log`) per the procedure in `agent-orchestration.md` "Post-SCS Scan — Command Log Review". If all commands were within bounds, report to user and continue. If unauthorized commands were blocked, STOP immediately.
-   - Route SCS output through the Quality Gate (evaluate against SC1-SC7). No Project Manager needed in Step 4 — there are no tasks or status tracking yet.
+
+   **Stage 1 — Batch Phase 1 (one SCS agent, across ALL packages):**
+   - For each direct dependency, resolve its transitive graph via the ecosystem-appropriate tree command or registry metadata (so transitives are vetted alongside direct deps — see the Transitive Dependency Rule in the SCS agent definition)
+   - Look up each package version's publish date on its registry (PyPI, crates.io, npm, Maven Central) and apply the 30-Day Rule (`policies.md` rule 6) — pre-filter any sub-30-day versions out of the batch (or surface the narrow security-patch exception to the user before including)
+   - Build the `packages` array per the Batch Phase 1 Input schema in `agent-orchestration.md`: `name`, `version`, `publish_date`, `direct` flag, `parents`. URLs and hashes are NOT passed in batch mode — they are only needed in Stage 3.
+   - Invoke ONE SCS agent with `mode: "batch-phase1"` and the `packages` array. It runs Phase 0 (cache status per package) and Phase 1 (Phase 1a project-level tree/audit; Phase 1b per-package assessment on cache misses; Phase 1c rejection cascade) and returns a single batch report. No artifacts are downloaded in Stage 1.
+   - **Log review (batch mode):** After the batch agent completes, review `.claude/hooks/scs-validator.log` scoped to the batch-phase1 command set (audit commands — CMDs 14a-d, 15 — only). Per `agent-orchestration.md` "Post-SCS Scan — Command Log Review", sandbox launches, VT calls, artifact copies, or L4 extractions appearing here indicate a mode deviation — STOP.
+
+   **Stage 2 — User review of the batch report:**
+   - Present the batch report to the user: cache hits/misses, Phase 1a audit findings, per-package PROCEED / INVESTIGATE / REJECT recommendations, and the rejection cascade for each REJECT (exclusive vs. shared transitives).
+   - **Phase 1 recommendations do NOT trigger the Pause Rule** — they are pre-scan triage. The user decides interactively which packages advance to Stage 3, which are replaced with alternatives (loop back and rebuild the packages array), and which are dropped entirely. Do this NOW while the architecture is still flexible — once Step 5 begins, the task plan is built around the approved dependency set.
+
+   **Stage 3 — Per-package Phase 2–5 (one FRESH SCS agent per approved package):**
+   - For each package the user approved: build its download URL table row — `url`, `fileName` (camelcase, matches the sandbox config field), `expected_sha256` (from the PyPI JSON API / npm registry `integrity` / crates.io metadata / Maven Central hash), `subfolder`, and the `batch_report_ref` excerpt from Stage 1 so the per-package agent can cite it in its Phase 4 verdict.
+   - Invoke a FRESH SCS agent per package with `mode: "per-package"` and `start_phase: 2`. Each agent runs Phase 2 (download sandbox) → Phase 3 (Defender, VirusTotal, source code review — Layer 3 is skipped; it already ran in Phase 1a) → Phase 4 (CLEAN / CONDITIONAL / REJECT / INCOMPLETE verdict) → Phase 5 post-CLEAN actions. The per-package fresh-agent rule is for prompt-injection isolation — see `agent-orchestration.md`.
+   - Enforce both verification checkpoints per invocation — download config readback (Verification 1) and post-download hash (Verification 2) per `agent-orchestration.md` "SCS Download Verification (Anti-Substitution)".
+   - **If any per-package verdict is REJECT**: select an alternative dependency. Rebuild the packages array with the replacement and re-run Stage 1 on it — do NOT skip the batch stage for a replacement. This catches regressions in the replacement's transitive graph.
+   - **If any per-package verdict is INCOMPLETE** (e.g., VirusTotal rate-limited): PAUSE per `policies.md` rule 4 (Phase 4 INCOMPLETE triggers the Pause Rule; Phase 1 INVESTIGATE does not). Do not proceed to substep 10 until every package's Phase 4 verdict is CLEAN or CONDITIONAL (with user approval).
+   - **Log review (per-package mode):** After each per-package agent completes, review `.claude/hooks/scs-validator.log` scoped to the per-package command set (sandbox launches, sentinel polling, VT calls, L4 extraction, artifact copies, hash verifications). If any DENY entries or unexpected audit commands appear, STOP.
+
+   **After all packages are CLEAN:**
+   - The SBOM (`sbom-{language}.txt`) is generated as part of Phase 5 on the final package
+   - `scs-report.md` holds the appended per-package sections — this is the persistent audit trail of all Phase 4 verdicts (see the SCS agent definition for the report format). The Stage 1 batch report itself is working material, not persisted to `scs-report.md`.
+   - Route the final SCS output through the Quality Gate (evaluate against SC1-SC7). No Project Manager needed in Step 4 — there are no tasks or status tracking yet.
 10. **Review with the user** — walk through the design, confirmed dependency verdicts, explain trade-offs, get approval.
 
 ## When to Use the Software Architect Agent

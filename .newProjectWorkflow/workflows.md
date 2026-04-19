@@ -483,28 +483,41 @@ Software Architect (provide context) → QG → Documentation Writer → QG
 
 ## Dependency Addition (During Step 5, 5.5, or 6)
 
-All dependencies should be identified and scanned in **Step 4**. This workflow is for the case where a new dependency is discovered after Step 4 that was not anticipated during architecture. This scans only the new dependency — it does NOT require redoing any prior steps.
+All dependencies should be identified and scanned in **Step 4**. This workflow is for the case where one or more new dependencies are discovered after Step 4 that were not anticipated during architecture. The scan follows the **two-stage SCS flow** (batch Phase 1 → per-package Phase 2–5) described in `agent-orchestration.md` "The Two-Stage SCS Flow" — even for a single new dependency, which runs as a single-element batch followed by one per-package invocation.
 
 ```
-New dependency identified
+New dependency (or set of dependencies) identified
     ↓
-Check .trusted-artifacts/_registry.md for exact name + version
+For each package: check .trusted-artifacts/_registry.md for exact name + version (cache probe)
     ↓
-CACHE HIT (hash verified) → dependency pre-approved → Update SBOM & Step 4 handoff → Resume where you left off
-    ↓ (only if NOT in cache)
-Pause current work → User approves → Supply Chain Security (full 5-phase scan) → Log Review → QG → CLEAN verdict → Update SBOM, scs-report.md & Step 4 handoff → Resume where you left off
+All packages CACHE HIT (hash verified) → all pre-approved → Update SBOM & Step 4 handoff → Resume
+    ↓ (any cache miss)
+Pause dependent work → User approves the addition(s) in principle
+    ↓
+Orchestrator pre-screens: resolve transitives (cargo tree / pipdeptree / registry lookup), look up publish dates (30-day rule) and build packages array
+    ↓
+SINGLE SCS agent (mode: batch-phase1) → returns batch report with PROCEED / INVESTIGATE / REJECT per package + rejection cascade
+    ↓
+Log Review (batch mode) → User reviews batch report + cascade → User decides which packages advance to Phase 2–5
+    ↓
+For each approved package: FRESH SCS agent (mode: per-package, start_phase: 2) → Log Review (per-package mode) → Phase 4 verdict
+    ↓
+If all verdicts CLEAN → Update SBOM, scs-report.md & Step 4 handoff → Resume where you left off
 ```
 
-1. **Any Agent or Orchestrator**: Identifies need for a dependency not in the Step 4 SBOM
-2. **Orchestrator**: Check `.trusted-artifacts/_registry.md` — if the exact name + version is present and the hash verifies against the cached artifact on disk, the dependency is pre-approved. Skip to step 8 (CLEAN path — no scan was performed, so steps 3-7 are skipped). No user approval needed for cached artifacts.
-3. **Orchestrator** (if NOT in cache): Pause current work on tasks that would use this dependency
-4. **User** (if NOT in cache): Explicitly approves the dependency request
-5. **Supply Chain Security** (if NOT in cache): Full 5-phase scan on the new dependency only (Phase 0 will confirm it's not in cache, then run Phases 1–5)
-6. **Orchestrator**: Review the SCS validator command log (`.claude/hooks/scs-validator.log`) — see `agent-orchestration.md` "Post-SCS Scan — Command Log Review" for the full procedure. If all commands were within bounds, report to user and continue. If unauthorized commands were blocked, STOP and report to user immediately.
-7. **QG**: Evaluate against criteria SC1-SC7.
-8. If CLEAN: dependency approved; artifact moved to `.trusted-artifacts/`; registry updated; append scan results to `scs-report.md`; update the SBOM and Step 4 handoff; resume where you left off
-9. If INCOMPLETE: Pause work that depends on this dependency per the Pause Rule (other unrelated work can continue)
-10. If REJECT: Find an alternative and re-scan, or refactor to avoid the dependency. Only escalate to redo prior steps if the rejection forces an architectural change with no alternatives
+1. **Any Agent or Orchestrator**: Identifies need for one or more dependencies not in the Step 4 SBOM.
+2. **Orchestrator — cache probe**: For every package (direct and any transitives already known), check `.trusted-artifacts/_registry.md` for the exact name + version. Each entry is treated as a cache probe result — HIT, MISS, or CORRUPT. If ALL packages HIT and all hashes verify on disk, the batch is pre-approved — skip to step 10 (CLEAN path). No user approval needed when everything is cached.
+3. **Orchestrator** (if any MISS/CORRUPT): Pause current work on tasks that would use the unvetted dependency.
+4. **User** (if any MISS/CORRUPT): Explicitly approves adding the dependency (or set of dependencies) in principle, before any scanning.
+5. **Orchestrator — pre-screen & packages array**: Resolve the FULL transitive graph via the ecosystem-appropriate tree command or registry metadata before the batch invocation — do not leave transitive resolution for the batch agent to discover during Phase 1a, because Phase 1a's tree is a verification step, not the input source. Look up each package version's publish date (30-day rule); collect `name`, `version`, `publish_date`, `direct` flag, and `parents` (derived from the tree output, NOT from package-supplied metadata). Build the `packages` array per the Batch Phase 1 Input schema in `agent-orchestration.md`. **Include EVERY package in the array — cache HITs, MISSes, and CORRUPTs alike.** The batch agent excludes HITs from per-package Phase 1b assessment (they are already vetted) but includes them in the Phase 1a project-level tree/audit so that CVE regressions in previously-clean packages are still caught. Phase 0 in the batch agent will re-confirm each package's cache status.
+6. **Supply Chain Security (one invocation, `mode: "batch-phase1"`)**: Runs Phase 0 (re-confirm cache status per package) and Phase 1 (Phase 1a project-level tree/audit; Phase 1b per-package assessment on MISSes/CORRUPTs; Phase 1c rejection cascade if any REJECT recommendations). Returns a **batch report**. Stops after the report — no artifacts downloaded, no sandboxes launched.
+7. **Orchestrator — batch log review**: Review `.claude/hooks/scs-validator.log` scoped to the batch-phase1 command set (audit commands only) — see `agent-orchestration.md` "Post-SCS Scan — Command Log Review". If the log shows sandbox launches, VT calls, or other per-package commands, STOP: the agent deviated from batch mode.
+8. **User — review batch report**: The orchestrator presents the batch report, including the rejection cascade (for each REJECT recommendation, the packages that would be transitively orphaned and the packages that would remain). The user decides which packages advance to Phase 2–5 scanning, which are replaced with alternatives (loop back to step 5 with a revised packages array), and which are dropped entirely. INVESTIGATE recommendations get a user verdict here — approve, reject, or request more info — without triggering the Pause Rule.
+9. **Supply Chain Security (one FRESH invocation per approved package, `mode: "per-package"`, `start_phase: 2`)**: For each package the user approved for scanning, launch a fresh SCS agent that runs Phase 2 (download sandbox) → Phase 3 (Defender, VirusTotal, source review — Layer 3 audit is NOT re-run; it was handled in Phase 1a) → Phase 4 (verdict) → Phase 5 post-CLEAN actions. Verification checkpoints (download config readback, post-download hash) and per-package log review apply to each invocation.
+   - If any per-package Phase 4 verdict is **INCOMPLETE**: Pause Rule applies — see `policies.md` rule 4. Work that depends on the unscanned dependency halts until the scan resumes and completes. Work on unrelated packages in the same batch can still proceed.
+   - If any per-package Phase 4 verdict is **REJECT**: find an alternative (loop back to step 5 with a revised packages array) or refactor to avoid the dependency. Only escalate to redo prior steps if the rejection forces an architectural change with no alternatives.
+10. **QG** (after all per-package verdicts return CLEAN or CONDITIONAL-with-approval): Evaluate against criteria SC1-SC7 over the set of scanned dependencies.
+11. **Orchestrator — wrap up**: For each approved dependency, artifact is in `.trusted-artifacts/`, `_registry.md` has a row, `scs-report.md` has the per-package section, SBOM is updated, Step 4 handoff is updated. Resume the work that was paused.
 
 ---
 

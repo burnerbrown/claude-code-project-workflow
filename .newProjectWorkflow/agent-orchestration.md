@@ -161,10 +161,11 @@ When a worker agent is first launched for a task, the Agent tool returns an **ag
 - **Hardware Engineer**: Resume when QG sends hardware design back — it retains knowledge of power architecture, pin assignments, component selections, and interface specifications. Also resume when Component Sourcing or DFM Reviewer flags issues requiring design changes
 - **Performance Optimizer**: Resume for the verification phase — it retains context of its original analysis findings for before/after comparison. Also resume if QG sends recommendations back for revision
 - **Project Manager**: Resume within a task session when the PM is active (multi-module projects) — it retains cross-module dependency and status context. For single-module projects where the PM is not invoked, this is N/A
-- **Supply Chain Security**: Resume within a single direct dependency's scan when the orchestrator hands control back after verification checkpoints (Verification 1: config readback, Verification 2: hash check). The agent retains its Phase 0/1 context (cache check results, pre-download assessment findings, dependency details) so it can continue directly into sandbox launch and scanning without rebuilding context.
-  - **Invoke fresh** for each new direct dependency scan — this provides prompt injection isolation (a compromised agent from scanning dependency A does not carry over to dependency B) and avoids context bloat from previous scan data (VT reports, source review excerpts, etc.).
-  - **Transitive dependencies are separate scans.** Each transitive dependency gets a fresh SCS agent invocation. They are maintained by different authors with independent risk profiles — a compromised transitive could taint the agent's assessment of other transitives if resumed.
-  - **On verification failure:** If Verification 1 or 2 fails, discard this agent's ID immediately. Do not resume it — if the user decides to retry, invoke a fresh SCS agent.
+- **Supply Chain Security**: Two invocation patterns, governed by the `mode` field.
+  - **Batch Phase 1 (`mode: "batch-phase1"`) — single agent across all packages.** This is a deliberate carve-out from the fresh-per-package rule that applies everywhere else in this workflow. The batch agent receives the ENTIRE package list (direct + transitives) and runs Phase 0 (cache check) plus Phase 1 (project-level tree/audit and per-package assessment) across all of them in one invocation. It returns an aggregate batch report and then stops. The carve-out is safe because Phase 1 reads only **registry metadata, CVE databases, license data, and dependency-tree output** — no untrusted artifact source code enters the agent's context, so there is no cross-package prompt-injection vector. After the report comes back, discard the agent ID — the batch agent is never reused for Phase 2+ work.
+  - **Per-package Phases 2–5 (`mode: "per-package"`) — fresh per dependency.** For each package that batch Phase 1 approved for scanning, invoke a **fresh** SCS agent. This provides prompt-injection isolation (a compromised agent from scanning dependency A cannot carry over to dependency B), because Phase 2–5 reads downloaded source code (Layer 4) and that source could contain injection payloads. Transitive dependencies get their own fresh per-package invocations — they are maintained by different authors with independent risk profiles.
+  - **Resume within a single per-package scan** when the orchestrator hands control back after verification checkpoints (Verification 1: config readback, Verification 2: hash check). The per-package agent retains its in-flight context (dependency details, cache check result, download config) so it can continue directly into sandbox launch and scanning without rebuilding context.
+  - **On verification failure:** If Verification 1 or 2 fails, discard the per-package agent's ID immediately. Do not resume it — if the user decides to retry, invoke a fresh SCS agent.
 
 **Which agents to invoke fresh each time:**
 - **Quality Gate**: Each QG invocation evaluates a different agent's output with different criteria — fresh invocations are appropriate
@@ -232,23 +233,62 @@ The resumed SCS agent already has its Phase 0/1 context, so there is no need to 
 
 All agent files are located in: `PLACEHOLDER_PATH\.agents\`
 
+### The Two-Stage SCS Flow (Batch Phase 1 → Per-Package Phase 2–5)
+
+All SCS scanning follows a two-stage flow. This applies to the Step 4 dependency scan, the Dependency Addition workflow, and any other situation where one or more new dependencies need to be vetted:
+
+**Stage 1 — Batch Phase 1.** The orchestrator identifies every package that needs scanning (direct dependencies + all transitives, via `cargo tree` / `pipdeptree` / registry metadata lookups before invocation). It looks up each package's publish date (30-day rule), URL, expected SHA-256 hash, and transitive parent(s), and assembles a single `packages` array. It then invokes ONE SCS agent in `mode: "batch-phase1"`. That agent runs Phase 0 (cache check) + Phase 1 (project-level tree/audit and per-package assessment) across every package in the array and returns an aggregate batch report with PROCEED / INVESTIGATE / REJECT recommendations plus a rejection cascade.
+
+**Stage 2 — User review.** The orchestrator presents the batch report to the user. For every package recommended REJECT, the report includes the cascade impact (which other packages in the list become orphaned if this one is removed). The user decides which packages proceed, which get replaced with alternatives, and which get dropped entirely.
+
+**Stage 3 — Per-package Phase 2–5.** For each package the user approved for scanning, the orchestrator invokes a **fresh** SCS agent in `mode: "per-package"` with `start_phase: 2`. That agent runs Download → Defender → VirusTotal → Source Review → Verdict → Cache + SBOM entry for just that one package. The existing verification checkpoints (Verification 1: download config readback, Verification 2: hash check) and the command log review apply to each per-package invocation.
+
+**Why the two stages.** Phase 1 is a metadata-only assessment that benefits from seeing every package at once (dependency trees, audit output, cross-package cascade analysis). Phases 2–5 touch downloaded artifact source code, which introduces a cross-package prompt-injection risk — so those stay one-package-per-fresh-agent. The plan catches CVE / license / reputation / 30-day-age issues in Stage 1 before investing in heavy sandbox scans that would be wasted on a package the user is going to reject anyway.
+
+**Ad-hoc single-package scans.** If exactly one new package needs scanning (e.g., emergency addition during Step 6), the orchestrator still uses batch mode with a single-element `packages` array — this keeps Phase 1a's project-level tree/audit logic intact for that package's full transitive graph. It does NOT shortcut to per-package mode.
+
+---
+
 ### SCS Agent Input Schema
 
-When invoking the SCS agent, pass exactly these fields in the `<task>` block — nothing more, nothing less:
+Pass exactly the fields for the selected mode in the `<task>` block — nothing more, nothing less. Do not add coordination notes, context paragraphs, or instructions about when to stop; the agent definition file contains all of that.
+
+#### Batch Phase 1 Input (`mode: "batch-phase1"`)
 
 | Field | Example | Source |
 |-------|---------|--------|
-| `package` | `requests` | From dependency list |
+| `mode` | `"batch-phase1"` | Literal string |
+| `ecosystem` | `python` | Determines which tree/audit commands to use |
+| `report_path` | `scs-report.md` | Where Phase 2+ verdicts will later be appended (the batch report itself is returned to the orchestrator, not written here) |
+| `packages` | see below | Array of every package to assess (direct + transitives) |
+
+Each entry in the `packages` array has:
+
+| Field | Example | Source |
+|-------|---------|--------|
+| `name` | `requests` | From dependency list |
 | `version` | `2.31.0` | From dependency list |
+| `publish_date` | `2023-05-22` | From PyPI/crates.io/npm registry metadata (orchestrator looks this up via WebFetch before invocation) |
+| `direct` | `true` | `true` if listed directly by the user/agent; `false` if pulled in transitively |
+| `parents` | `["other-pkg 1.0.0"]` | For transitives: the package(s) that pull this in. Empty array for direct deps. **Must be derived from the ecosystem's tree command output (`cargo tree`, `pipdeptree`, `mvn dependency:tree`, etc.) — NOT from registry metadata that a package can control.** The cascade analysis in Phase 1c relies on this field being trustworthy; a package falsely claiming its parents could subvert the rejection cascade. |
+
+The orchestrator is responsible for pre-filtering the `packages` array: apply the 30-day rule, resolve transitives, and look up publish dates before constructing the array. Do NOT pass URLs or hashes in batch mode — those are only needed in Phase 2+ (per-package).
+
+#### Per-Package Input (`mode: "per-package"`)
+
+| Field | Example | Source |
+|-------|---------|--------|
+| `mode` | `"per-package"` | Literal string |
+| `package` | `requests` | From the batch-approved list |
+| `version` | `2.31.0` | From the batch-approved list |
 | `url` | `https://files.pythonhosted.org/packages/.../requests-2.31.0-py3-none-any.whl` | From PyPI JSON API (orchestrator looks this up via WebFetch) |
-| `filename` | `requests-2.31.0-py3-none-any.whl` | From the URL |
+| `fileName` | `requests-2.31.0-py3-none-any.whl` | From the URL. Camelcase matches the field name in `download-config.json` that the sandbox script reads. |
 | `expected_sha256` | `58cd2187c01e...` | From PyPI JSON API |
 | `subfolder` | `packages` | One of: `packages`, `libraries`, `tools`, `frameworks` |
-| `ecosystem` | `python` | Determines which Layer 3 commands to use |
-| `report_path` | `scs-report.md` | Where to append scan results |
-| `start_phase` | `0` | Which phase to begin from (0 for new scan, or later if continuing after a checkpoint) |
-
-Do not add coordination notes, context paragraphs, or instructions about when to stop — the agent definition file contains all of that. The agent reads its own definition file and follows it.
+| `ecosystem` | `python` | Reference only — Layer 3 is not re-run in per-package mode |
+| `report_path` | `scs-report.md` | Where to append this package's Phase 4 verdict |
+| `start_phase` | `2` | Should be `2` in the normal flow (Phase 0/1 already ran in batch). Only deviate if resuming after a verification checkpoint. |
+| `batch_report_ref` | `"Phase 1a findings for this package: [short excerpt or a handoff note]"` | Brief handoff of the per-package Phase 1 findings from the batch report, so the agent can reference them in its Phase 4 verdict without re-deriving |
 
 ### MANDATORY: SCS Download Verification (Anti-Substitution)
 
@@ -309,16 +349,23 @@ The SCS command validator hook catches unauthorized *commands*, but it cannot ve
 
 ### MANDATORY: Post-SCS Scan — Command Log Review
 
-After **every** SCS agent invocation (whether in Step 4, Step 6, or the Dependency Addition workflow), the orchestrator MUST review the validator hook's decision log before proceeding.
+After **every** SCS agent invocation — in **either** mode (`batch-phase1` or `per-package`), and in any step (4, 6, or the Dependency Addition workflow) — the orchestrator MUST review the validator hook's decision log before proceeding. The expected set of ALLOW entries differs by mode; scope the review accordingly.
 
 **What:** A PreToolUse hook (`scs-validator.py`) automatically validates every Bash command the SCS agent runs against the authorized command table. It logs every decision (ALLOW, DENY, PASS-THROUGH) with timestamp, command, and reason to `.claude/hooks/scs-validator.log`.
 
 **Procedure:**
 
-1. After the SCS agent completes (regardless of verdict), read `.claude/hooks/scs-validator.log`
+1. After the SCS agent completes (regardless of verdict or mode), read `.claude/hooks/scs-validator.log`
 2. Check for **DENY** entries — these mean the SCS agent attempted unauthorized commands. This is a security concern.
 3. Check for **PASS-THROUGH** entries — these mean the agent ran commands not in the authorized list that required manual user approval. These are not necessarily problems, but unexpected ones should be investigated.
-4. Check that **ALLOW** entries match expected SCS operations (sandbox launches, sentinel polling, VirusTotal lookups, artifact copies, hash verifications, source extraction for review).
+4. Check that **ALLOW** (and PASS-THROUGH) entries match the expected command set **for the mode that was just run**:
+
+   | Mode | Expected commands | Commands that should NOT appear |
+   |------|-------------------|--------------------------------|
+   | `batch-phase1` | Only the Phase 1a project-level audit commands: CMDs 14a–d (`cargo audit`, `govulncheck ./...`, `mvn …dependency-check…`, `pip-audit`) and CMD 15 (`cargo deny check`, Rust only). These are typically PASS-THROUGH (user-approved), not ALLOW. | Any sandbox launch (CMD 3, CMD 7), sentinel polling (CMD 4, CMD 8), VirusTotal call (CMDs 10–13), artifact copy/hash (CMDs 16, 17), L4 extraction (L4-1 through L4-6), or SBOM generation (CMDs 18a-c). If any of these appear in batch mode, the agent deviated from its mode and the scan results must not be trusted. |
+   | `per-package` | Sandbox launches (CMD 3, CMD 7), sentinel clears and polling (CMD 2, CMD 4, CMD 8), hash read (CMD 5), VirusTotal lookups (CMDs 10–13), Defender result read (CMD 9), L4 source extraction (L4-1 through L4-6), post-CLEAN artifact copy and hash verification (CMDs 16, 17), and — on the final package only — the SBOM command (CMD 18a-c). | Any audit command (CMDs 14a–d, CMD 15) — those belonged to Phase 1a and should have run in the preceding batch invocation, not here. If they appear in per-package mode, note it: it indicates the agent re-ran project-level commands (redundant but not malicious). Flag it to the user, do not block. |
+
+   Ad-hoc single-package scans still run in `batch-phase1` mode followed by a separate `per-package` invocation — each log review applies to its own invocation.
 
 **If all commands were within bounds:**
 - Report to the user: *"SCS validator log reviewed — all agent commands were within authorized bounds."*
