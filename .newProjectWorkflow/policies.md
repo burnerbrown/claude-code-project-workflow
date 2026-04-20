@@ -83,6 +83,79 @@ Not all external software requires the same level of scrutiny. The full SCS work
 
 **Why the distinction matters:** A compromised library ships malicious code to every user of the product. A compromised development tool could inject malicious code into every binary it builds — serious, and mitigated by provenance verification (official source, hash, signature) plus security scanning (Defender, CVE checks, conditional VirusTotal), rather than the SBOM/license/dependency-tree analysis designed for libraries. The attack vectors and mitigations are different, so the verification processes should be different.
 
+### Scope: System Package Managers
+
+Linux/Unix OS-level libraries installed via `apt` (Debian/Ubuntu), `dnf`/`yum` (RHEL family), `apk` (Alpine), `pacman` (Arch), `zypper` (SUSE). Third scope category: they ship on the deployment target like project deps, but come from distro-curated GPG-signed archives rather than language registries.
+
+**Triggers.** Step 4 dep planning; Step 6 "Dependency needed mid-implementation"; any Dockerfile `RUN apt-get install` / `RUN dnf install` / `RUN apk add`.
+
+**Build-time vs. runtime.** Projects often install `-dev`/`-devel` at build (`libssl-dev`) and ship runtime counterparts (`libssl3`). Both go through Tier A/B independently. SBOM flags: `build_only`, `runtime` (one package can carry both).
+
+**Cross-distro.** Different distros in different environments (Alpine in Docker, Ubuntu on dev, Fedora on CI) are scanned independently — one SBOM section per distro. Per-ecosystem cache: an Ubuntu scan does not satisfy Alpine.
+
+**Docker base images.** Pre-installed packages belong to the base image's SBOM, not this project's. **Digest-pinned `FROM` required** (`FROM ubuntu:22.04@sha256:...`); tag-only forbidden. Scan covers only packages the project's `RUN ...install` adds. Multi-stage: per-stage; anything copied into the final stage must appear in its SBOM. Residual risk: a vulnerable pre-installed package isn't caught here — relies on the publisher's posture plus our CVE check on project additions (cross-references pre-installed if it's a transitive). Enforcement: Step 4 blocks new projects from tag-only `FROM`; existing projects get flagged at first Step 6 system-package scan and pause until the Dockerfile is updated. Distroless images (`gcr.io/distroless/*`) are out-of-scope — no package manager to query; image digest is the SBOM entry; trust rests on the publisher.
+
+Tier depends on the source of every package in the resolved transitive graph, not just the direct package.
+
+#### Tier A — official distro repositories (lightweight path)
+
+Eligibility (ALL must hold for every package in the graph):
+
+1. **Origin.**
+   - apt: `Origin: Debian`/`Ubuntu`, suite in {`main`, `security`, `restricted`, `universe`, `multiverse`, `<release>-updates`, `<release>-security`}. `<release>-backports` is Tier A if distro-signed; SBOM sets `from_backports: true`.
+   - dnf/yum: Red Hat, Fedora Project, Amazon Linux, Rocky, AlmaLinux, or CentOS Stream official repos. GPG fingerprint matches the distro's published key.
+   - apk: Alpine `main` or `community`, signed via `alpine-keys`.
+2. **GPG signature valid** AND key fingerprint matches the distro's published fingerprint (not just "some key worked").
+3. **Not deprecated/EOL** for the distro release in use.
+
+Scan steps (batch-phase1):
+
+1. Resolve transitive graph (CMD 19a/b/c).
+2. Verify every package's origin (`apt-cache policy` / `dnf info` / `apk info -a`). Any non-Tier-A origin in graph → whole install drops to Tier B. See "Whole-graph rule" below.
+3. CVE check: distro security tracker + OSV-DB (CMD 20a/b/c). Critical unpatched CVE → `recommendation: "REJECT"`; orchestrator blocks install and surfaces CVE + mitigations (alternative package, backport, wait-for-patch) to user.
+4. License check from package metadata.
+5. SBOM entry: `{ecosystem, package, version, source_repo, suite, license, cve_status, build_only, runtime, from_backports}`.
+6. No sandbox, no Defender, no VirusTotal.
+
+**Tradeoff, not equivalence.** Tier A skips Defender/VT because the threat model differs from PyPI/crates.io: on language registries anyone can publish anything, so signature alone doesn't protect content; distro repos have vetted maintainers + archive-level GPG tying per-file SHA256 to a signed manifest. Neither path catches sophisticated maintainer infiltration pre-disclosure (xz-utils / CVE-2024-3094) — CVE check handles it post-disclosure for both. Attack-surface shape differs: fewer distro maintainers, each with higher leverage per position; PyPI/crates.io has a larger surface with lower individual leverage.
+
+**Whole-graph rule.** apt's version-pinning can silently replace a main-repo transitive with a PPA version when the PPA publishes a higher version number. Example: request `libssl-dev` from Debian main (`3.0.4-1`), but a PPA in sources.list has `libcrypto=3.0.5-1ppa1` → apt pulls the PPA version transitively. Enforcing "entire graph Tier A" closes this without per-preference-file inspection. Same attack for dnf (`protect=1`); weaker for apk.
+
+**Re-scan triggers (signal-based).** Tier A scan stays valid while ALL hold: (a) `apt-cache policy` / `dnf info` / `apk info -a` shows the scanned version is still the candidate, (b) no new CVE for that version in the distro security tracker, (c) sources list / configured repos unchanged. Any break → re-run Tier A for affected packages before install. Mid-Step-6: orchestrator pauses affected tasks, runs fresh batch-phase1, surfaces new CVEs or tier changes to user, resumes only after user approval.
+
+**Post-install graph verification.** After install, orchestrator diffs `apt list --installed` / `dnf list installed` / `apk info -v` against the scanned graph. Mismatch blocks the build and triggers re-scan of diverged packages.
+
+#### Tier B — PPAs, third-party repos, standalone packages (full path)
+
+Triggers (any of):
+
+- Package (direct or transitive) from a PPA, third-party apt/dnf repo (`add-apt-repository`, `/etc/apt/sources.list.d/*`, `/etc/yum.repos.d/*`).
+- Standalone `.deb`/`.rpm`/`.apk` from vendor site / GitHub release.
+- Repo with a manually-added key (`apt-key add`, `rpm --import`) not matching a distro-published key.
+- Snap (`snap install`) or Flatpak (`flatpak install`) from any remote. Default Tier B (Flathub / Snap Store per-vendor verification ≠ distro-wide curation; classic-confinement snaps are raw binaries). Specific vendor remotes can be case-by-case reclassified if (a) vendor publishes signed manifests, (b) curation process is documented, (c) disclosure history is available — user approves per-vendor reclassification, no automatic decision.
+
+Scan: Full existing per-package Phase 0–5 (download sandbox, Defender, conditional VT, source review, Phase 4 verdict, `.trusted-artifacts/` cache). **Layer 4 source review MUST inspect `postinst`/`prerm`/`postrm` scripts** — postinst can `apt-get install` runtime deps, breaking the offline-install assumption. Network required at install time → escalate to user. Install offline: `dpkg -i <local.deb>`, `rpm -ivh <local.rpm>`, `apk add --no-network --repository <local>`.
+
+#### Interactions with existing rules
+
+**Rule 5 (Install from Local Cache Only).** Tier A isn't file-cacheable (apt/dnf/apk install needs live repo metadata); integrity = pkg-manager signature verify + exact version pin + post-install graph verify. Unpinned commands (`apt install libssl-dev`, no `=<version>`) are rejected at orchestrator review, same as bare `pip install requests`. Tier B `.deb`/`.rpm`/`.apk` IS cached in `.trusted-artifacts/`.
+
+**Rule 6 (30-Day Rule).** Tier A from official stable repos (`-security`, `<release>`, `<release>-updates`): exempt — distro testing pipeline + security-team review provide analogous protection; urgent CVE backports must not be gated. Applies to Debian `unstable`/`experimental`, Ubuntu `proposed`, and `-backports` counted from upload to the backports suite. Tier B: applies as written.
+
+**Rule 4 (Pause Rule).** Tier B Phase 4 INCOMPLETE triggers it. Tier A has no Phase 4 → can't produce INCOMPLETE. Existing Rule 4 Pause Rule scope clarification already covers this — no change needed.
+
+**Rule 3 (Approval workflow).** Same cache → pre-screen → approval → scan → install flow. Registry key: 4-tuple `{ecosystem, package, version, suite}` for system packages; language packages keep 3-tuple. Phase 0 cache-match dispatches on ecosystem. No migration of existing language-package entries.
+
+#### SCS agent mode
+
+No new mode. Both tiers use existing two-stage flow:
+- **`batch-phase1`:** resolve graph + origin-verify + CVE + license for all packages. Batch report gets new `tier: "A"|"B"` column. Tier A packages do not advance to Phase 2–5 regardless of recommendation — INVESTIGATE or REJECT still blocks install, it just doesn't trigger a full download scan. Tier B advances to per-package.
+- **`per-package`:** fresh agent per Tier B package. Identical to pip/cargo flow.
+
+Ecosystem enum extended: `python, rust, go, java, apt, dnf, apk, pacman, zypper`.
+
+**Homebrew / winget / scoop / chocolatey** for dev tools → existing "Development Tools" provenance path (in the "Scope: Project Dependencies vs. Development Tools" section above). If used to install a dep that ships in the deliverable, treat as Tier B. For macOS `.dylib`/`.pkg` artifacts the download-sandbox + Windows-Defender model doesn't apply — require vendor-published hash verification + Defender-equivalent scan on the dev Mac + manual source review + user approval. Full macOS sandbox workflow is a future extension.
+
 ### Rules (Apply to ALL Agents, No Exceptions)
 
 1. **Write it yourself first.** Always prefer writing code in-house over adding a dependency. Only request an external dependency when writing it yourself would be unreasonable (e.g., cryptographic primitives, hardware abstraction layers, protocol implementations).
@@ -134,6 +207,7 @@ Not all external software requires the same level of scrutiny. The full SCS work
    - If an agent's install command would fetch from the internet (e.g., bare `pip install requests` without `--no-index`), the orchestrator MUST reject it and correct the command to use the local cache
    - After installation, verify the installed package hash matches the hash recorded in `_registry.md`
    - **Exact version pins only.** Requirements files (`requirements.txt`, `Cargo.toml`, `go.mod`, `package.json`, etc.) must use exact version pins (`==` in pip, `=` in Cargo) — never compatible-release (`~=`), minimum (`>=`), or range operators. Loose pins allow the package manager to resolve newer versions that have not been SCS-scanned, causing silent version drift. The SCS agent's hash-pinned install manifest already uses exact pins — do not weaken them.
+   - **System packages (apt/dnf/apk):** Tier A isn't file-cached (apt/dnf/apk install needs live repo metadata); integrity = pkg-manager signature verify + exact version pin + post-install graph verify. Tier B `.deb`/`.rpm`/`.apk` IS cached in `.trusted-artifacts/`. See "Scope: System Package Managers."
 
 6. **Minimum Package Age (30-Day Rule).** No external package may be downloaded for scanning until at least **30 calendar days** have passed since that specific version was published to its package registry (PyPI, npm, crates.io, Maven Central, etc.).
 
@@ -153,6 +227,8 @@ Not all external software requires the same level of scrutiny. The full SCS work
    - The exception and its justification must be documented in `scs-report.md`
 
    If these conditions are not met, the exception does not apply. When in doubt, wait the 30 days.
+
+   **System packages (apt/dnf/apk) — tier-dependent.** Tier A from official stable repos (`-security`, `<release>`, `<release>-updates`): exempt — distro testing + security-team review provide analogous protection; urgent CVE backports must not be gated. Applies to `-backports` counted from upload to the backports suite. Tier B: applies as written. See "Scope: System Package Managers."
 
 7. **Pre-approved tools** (no scanning or provenance verification needed):
    - Rust compiler, `rustup`, `cargo` (the tool itself, not crates)

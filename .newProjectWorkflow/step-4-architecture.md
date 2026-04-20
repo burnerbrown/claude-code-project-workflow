@@ -35,6 +35,7 @@ Make the key technical decisions: language, components, data flow, interfaces, a
    - The scan follows the two-stage SCS flow — **batch Phase 1 across all packages first, then per-package Phase 2–5 on approved packages only**. See `agent-orchestration.md` "The Two-Stage SCS Flow" for the rationale and schema.
    - Read the Supply Chain Security agent definition: `PLACEHOLDER_PATH\.agents\supply-chain-security.md`
    - Read `PLACEHOLDER_PATH\.newProjectWorkflow\policies.md` for dependency security policy
+   - **System-level dependencies (apt/dnf/apk/etc.)** route through the same Stage 1 → 2 → 3 flow with distro-aware tree/origin commands (CMDs 19a-c, 20a-c). Tier A packages end at Stage 1 regardless of recommendation; Tier B advances to Stage 3. Dockerfiles using `RUN apt-get install` / `RUN apk add` must use **digest-pinned base images** (`FROM ubuntu:22.04@sha256:...`); tag-only `FROM` forbidden. See `policies.md` "Scope: System Package Managers."
 
    **Stage 1 — Batch Phase 1 (one SCS agent, across ALL packages):**
    - For each direct dependency, resolve its transitive graph via the ecosystem-appropriate tree command or registry metadata (so transitives are vetted alongside direct deps — see the Transitive Dependency Rule in the SCS agent definition)

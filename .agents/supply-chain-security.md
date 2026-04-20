@@ -125,6 +125,8 @@ Before downloading or scanning anything, check whether this dependency is alread
    d. If hash **does not match** → the cached artifact has been modified or corrupted. Delete the cached copy, flag as REJECT, and run a full scan (Phases 1–5) on a fresh download.
 4. **If not found** → proceed to Phase 1.
 
+**Cache key by ecosystem.** Language ecosystems (`python, rust, go, java`): match 3-tuple `{ecosystem, package, version}`. System ecosystems (`apt, dnf, apk, pacman, zypper`): match 4-tuple `{ecosystem, package, version, suite}` — same package+version in different suites (e.g., `bullseye` vs. `bullseye-backports`) has different trust and must not alias. Existing 3-tuple entries unchanged.
+
 **Re-scan detection:** If the dependency name+version appears in `scs-report.md` (prior scan exists) but is NOT in `_registry.md` (no cached artifact — prior verdict was CONDITIONAL or REJECT), this is a re-scan. Note in your output that this is a re-scan and reference the prior verdict from `scs-report.md`. Leftover files from prior scans are cleaned at the start of Phase 2 (see step 3).
 
 **Cache corruption (hash mismatch):** In both modes, a cache-hit package whose on-disk hash does NOT match `_registry.md` is treated as a cache miss. **Delete the corrupt cached artifact from `.trusted-artifacts/<subfolder>/` immediately upon detection** — this prevents any other process from using the stale bytes while the re-scan is pending. Also remove the `_registry.md` row for that entry. Flag it as a suspected-corrupt entry in the batch report or per-package output (so the orchestrator can surface it to the user) and include the package in the Phase 1 assessment pool as a re-scan candidate. In batch mode, the re-scan itself happens in the subsequent Phase 2–5 per-package invocation — batch mode's job is to detect, clean, and flag.
@@ -154,12 +156,18 @@ Runs once per invocation in `batch-phase1` mode — NOT once per package. Skip t
    - Go: `go mod graph` (CMD 18b pattern)
    - Java: `mvn dependency:tree` (CMD 18c pattern)
    - Python: `pip-audit` produces tree+audit in one call (see below) — or use `pip show`/`pipdeptree` output if provided by the orchestrator
+   - apt: `apt-rdepends --follow=Depends,PreDepends <pkg>` (CMD 19a)
+   - dnf: `dnf repoquery --requires --recursive --resolve <pkg>` (CMD 19b)
+   - apk: `apk info -R <pkg>` iterated until fixed point (CMD 19c)
 2. **Vulnerability audit.** Run the ecosystem-appropriate audit (these MAY produce noise the first time — cross-reference against the input package list):
    - CMD 14a (Rust): `cargo audit`
    - CMD 14b (Go): `govulncheck ./...`
    - CMD 14c (Java): `mvn org.owasp:dependency-check-maven:check`
    - CMD 14d (Python): `pip-audit`
    - CMD 15 (Rust only): `cargo deny check`
+   - CMD 20a (apt): OSV-DB + Debian Security Tracker cross-reference per package in graph
+   - CMD 20b (dnf): OSV-DB + Red Hat security-data API
+   - CMD 20c (apk): OSV-DB + Alpine `secdb`
 3. **Capture the raw output** and attribute each finding back to a specific package in the input list. Findings that reference packages NOT in the input list (pre-existing project deps) are still reported but marked "pre-existing."
 4. **Input-vs-tree reconciliation.** Compare the tree output's node set against the input `packages` array. Packages in the tree but NOT in the input are "input mismatches" — list them explicitly in the batch report under a separate "Input Mismatch" section so the orchestrator knows to re-invoke with a corrected array or accept the gap.
 5. **Transitive tree size signal.** If the tree pulls in 50+ new transitive dependencies as a result of the additions under review, flag this prominently in the batch report — excessively deep trees are a supply-chain concern, and the user may want to pick an alternative with fewer transitives.
@@ -176,6 +184,7 @@ Run this for each cache-miss package in the input list (batch mode) or for the s
 4. **Known vulnerabilities.** Cross-reference the Phase 1a audit output AND the relevant public databases (CVE, RustSec, Go vulnerability database, GitHub Advisory, npm advisory, PyPI advisory).
 5. **Publication age (30-Day Rule).** Verify that the specific version was published to its registry at least 30 days ago (per `policies.md` rule 6). The orchestrator should already have pre-filtered these, but re-check and flag any violations — except under the narrow security-patch exception described in that rule.
 6. **Transitive role.** Mark each package as `direct` or `transitive of [parent]` using the tree output from Phase 1a.
+7. **Origin verification (system-package ecosystems only).** For every package in the transitive graph, run origin query: apt → `apt-cache policy` (verify `500` priority matches Tier A suite); dnf → `dnf info` (verify `From repo` matches Tier A repo); apk → `apk info -a` (verify `repository` is `main`/`community`). All origins eligible → `tier: "A"`. Any non-Tier-A origin in graph → whole install `tier: "B"`; record failing package in the Rejection Cascade section. Closes PPA shadow / version-pinning attack — see `policies.md` "Scope: System Package Managers / Whole-graph rule."
 
 Produce a per-package **recommendation**, not a verdict:
 - `PROCEED` — no Phase 1 concerns; send to Phase 2 for scanning
@@ -212,7 +221,7 @@ In `batch-phase1` mode, produce exactly one report (Markdown) and return it to t
 
 ## Input Summary
 - Total packages: N  (M direct, K transitive)
-- Ecosystem: [python | rust | go | java]
+- Ecosystem: [python | rust | go | java | apt | dnf | apk | pacman | zypper]
 - Run date: YYYY-MM-DD
 - Report path for Phase 2+ verdicts: [report_path from input]
 
@@ -242,9 +251,12 @@ If pre-existing findings appeared: mark them "pre-existing (not in this batch)".
 - **Publication age**: published [YYYY-MM-DD], age [N days] — [PASS / FAIL 30-day rule]
 - **CVE status**: [clean / list of CVE IDs with severity]
 - **Transitive role**: direct | transitive of [parent package(s)]
+- **Tier** (system-package ecosystems only): A | B — [origin summary]
 - **Recommendation**: PROCEED / INVESTIGATE / REJECT — [one-line reason]
 
 (repeat for each MISS/CORRUPT package)
+
+**Tier interpretation.** `tier: "A"|"B"`. Tier A + any recommendation → ends at Phase 1 (no per-package Phase 2–5). Tier B + any recommendation → advances. Tier A has no Phase 4 and cannot produce INCOMPLETE.
 
 ## Rejection Cascade (only if any REJECT recommendations)
 If [Package X] is rejected:
@@ -693,6 +705,55 @@ mvn dependency:tree > sbom-java.txt
 
 ---
 
+### Phase 1a — Dependency tree + CVE audit (system-package ecosystems)
+
+Use the commands matching the project's ecosystem. Each CMD iterates per package in the input list — substitute the placeholders and run the block once per package.
+
+**CMD 19a** (apt — transitive dependency tree):
+```bash
+apt-rdepends --follow=Depends,PreDepends <PKG>
+```
+
+**CMD 19b** (dnf — transitive dependency tree):
+```bash
+dnf repoquery --requires --recursive --resolve <PKG>
+```
+
+**CMD 19c** (apk — transitive dependency tree; iterate until fixed point if `-R` doesn't recurse):
+```bash
+apk info -R <PKG>
+```
+
+**CMD 20a** (apt — CVE lookup per package; OSV-DB primary, Debian Security Tracker cross-reference):
+```bash
+curl -s -X POST "https://api.osv.dev/v1/query" -H "Content-Type: application/json" -d "{\"package\":{\"name\":\"<PKG>\",\"ecosystem\":\"Debian:<VERSION>\"},\"version\":\"<PKGVER>\"}" > "osv-<PKG>.json"
+curl -s "https://security-tracker.debian.org/tracker/source-package/<PKG>/data.json" > "dst-<PKG>.json"
+```
+
+**CMD 20b** (dnf — CVE lookup per package; OSV-DB primary, Red Hat security-data API cross-reference):
+```bash
+curl -s -X POST "https://api.osv.dev/v1/query" -H "Content-Type: application/json" -d "{\"package\":{\"name\":\"<PKG>\",\"ecosystem\":\"Rocky Linux:<VERSION>\"},\"version\":\"<PKGVER>\"}" > "osv-<PKG>.json"
+curl -s "https://access.redhat.com/hydra/rest/securitydata/cve.json?package=<PKG>" > "rh-<PKG>.json"
+```
+
+**CMD 20c** (apk — CVE lookup per package; OSV-DB primary, Alpine `secdb` cross-reference):
+```bash
+curl -s -X POST "https://api.osv.dev/v1/query" -H "Content-Type: application/json" -d "{\"package\":{\"name\":\"<PKG>\",\"ecosystem\":\"Alpine:v<BRANCH>\"},\"version\":\"<PKGVER>\"}" > "osv-<PKG>.json"
+curl -s "https://secdb.alpinelinux.org/v<BRANCH>/main.json" > "alpine-secdb.json"
+```
+
+**Placeholder substitutions:**
+- `<PKG>` — package name
+- `<PKGVER>` — exact version being scanned (e.g., `3.0.2-0ubuntu1.18`)
+- `<VERSION>` — distro major version (e.g., `12` for Debian, `22.04` for Ubuntu; Rocky/Alma/Fedora release number)
+- `<BRANCH>` — Alpine release branch (e.g., `3.18`)
+
+**Post-install graph verification (Tier A system packages only, orchestrator responsibility).** After `apt install` / `dnf install` / `apk add` completes (which happens outside this agent), the orchestrator runs `apt list --installed` / `dnf list installed` / `apk info -v` and diffs against the scanned graph from the batch report. A mismatch blocks the build and triggers a fresh batch-phase1 re-scan of the diverged packages.
+
+**Note:** CMDs 19a-c and 20a-c are NOT auto-approved by the hook — they will prompt the user for approval. This is expected (same behavior as CMDs 14a-d and 15).
+
+---
+
 ### Conditional Execution Notes
 
 - **CMD 11, 12, 13**: Only run if CMD 10 shows the hash is not in VirusTotal's database. If the hash IS found with results, skip to reading those results.
@@ -704,7 +765,12 @@ mvn dependency:tree > sbom-java.txt
 ### What Is NOT Authorized
 
 The following are explicitly forbidden — deny immediately if attempted:
-- Any `curl`, `wget`, or `Invoke-WebRequest` to a URL that is NOT `https://www.virustotal.com/api/v3/`
+- Any `curl`, `wget`, or `Invoke-WebRequest` to a URL that is NOT one of the allowed endpoints:
+  - `https://www.virustotal.com/api/v3/` (Layer 2 VirusTotal)
+  - `https://api.osv.dev/v1/query` (CMD 20a/b/c — OSV-DB)
+  - `https://security-tracker.debian.org/tracker/source-package/*/data.json` (CMD 20a — Debian Security Tracker)
+  - `https://access.redhat.com/hydra/rest/securitydata/cve.json` (CMD 20b — Red Hat security-data API)
+  - `https://secdb.alpinelinux.org/v*/main.json` (CMD 20c — Alpine secdb)
 - Any `pip install`, `npm install`, `cargo add`, `go get`, or package manager install command
 - Any `git clone` or repository download
 - Any command that executes the downloaded artifact (running it, importing it, sourcing it)

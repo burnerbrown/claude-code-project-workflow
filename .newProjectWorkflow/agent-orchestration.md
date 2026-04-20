@@ -247,6 +247,8 @@ All SCS scanning follows a two-stage flow. This applies to the Step 4 dependency
 
 **Ad-hoc single-package scans.** If exactly one new package needs scanning (e.g., emergency addition during Step 6), the orchestrator still uses batch mode with a single-element `packages` array — this keeps Phase 1a's project-level tree/audit logic intact for that package's full transitive graph. It does NOT shortcut to per-package mode.
 
+**System-package ecosystems (apt/dnf/apk/pacman/zypper)** follow the same two-stage flow with ecosystem-specific tree/origin commands (CMDs 19a-c, 20a-c). Tier A ends at batch-phase1 regardless of recommendation; Tier B advances to per-package. See `policies.md` "Scope: System Package Managers" for tier classification rules.
+
 ---
 
 ### SCS Agent Input Schema
@@ -258,7 +260,7 @@ Pass exactly the fields for the selected mode in the `<task>` block — nothing 
 | Field | Example | Source |
 |-------|---------|--------|
 | `mode` | `"batch-phase1"` | Literal string |
-| `ecosystem` | `python` | Determines which tree/audit commands to use |
+| `ecosystem` | `python` | One of: `python`, `rust`, `go`, `java`, `apt`, `dnf`, `apk`, `pacman`, `zypper`. Determines which tree/audit commands to use. |
 | `report_path` | `scs-report.md` | Where Phase 2+ verdicts will later be appended (the batch report itself is returned to the orchestrator, not written here) |
 | `packages` | see below | Array of every package to assess (direct + transitives) |
 
@@ -285,7 +287,7 @@ The orchestrator is responsible for pre-filtering the `packages` array: apply th
 | `fileName` | `requests-2.31.0-py3-none-any.whl` | From the URL. Camelcase matches the field name in `download-config.json` that the sandbox script reads. |
 | `expected_sha256` | `58cd2187c01e...` | From PyPI JSON API |
 | `subfolder` | `packages` | One of: `packages`, `libraries`, `tools`, `frameworks` |
-| `ecosystem` | `python` | Reference only — Layer 3 is not re-run in per-package mode |
+| `ecosystem` | `python` | One of: `python`, `rust`, `go`, `java`, `apt`, `dnf`, `apk`, `pacman`, `zypper`. Reference only — Layer 3 is not re-run in per-package mode. |
 | `report_path` | `scs-report.md` | Where to append this package's Phase 4 verdict |
 | `start_phase` | `2` | Should be `2` in the normal flow (Phase 0/1 already ran in batch). Only deviate if resuming after a verification checkpoint. |
 | `batch_report_ref` | `"Phase 1a findings for this package: [short excerpt or a handoff note]"` | Brief handoff of the per-package Phase 1 findings from the batch report, so the agent can reference them in its Phase 4 verdict without re-deriving |
@@ -362,8 +364,8 @@ After **every** SCS agent invocation — in **either** mode (`batch-phase1` or `
 
    | Mode | Expected commands | Commands that should NOT appear |
    |------|-------------------|--------------------------------|
-   | `batch-phase1` | Only the Phase 1a project-level audit commands: CMDs 14a–d (`cargo audit`, `govulncheck ./...`, `mvn …dependency-check…`, `pip-audit`) and CMD 15 (`cargo deny check`, Rust only). These are typically PASS-THROUGH (user-approved), not ALLOW. | Any sandbox launch (CMD 3, CMD 7), sentinel polling (CMD 4, CMD 8), VirusTotal call (CMDs 10–13), artifact copy/hash (CMDs 16, 17), L4 extraction (L4-1 through L4-6), or SBOM generation (CMDs 18a-c). If any of these appear in batch mode, the agent deviated from its mode and the scan results must not be trusted. |
-   | `per-package` | Sandbox launches (CMD 3, CMD 7), sentinel clears and polling (CMD 2, CMD 4, CMD 8), hash read (CMD 5), VirusTotal lookups (CMDs 10–13), Defender result read (CMD 9), L4 source extraction (L4-1 through L4-6), post-CLEAN artifact copy and hash verification (CMDs 16, 17), and — on the final package only — the SBOM command (CMD 18a-c). | Any audit command (CMDs 14a–d, CMD 15) — those belonged to Phase 1a and should have run in the preceding batch invocation, not here. If they appear in per-package mode, note it: it indicates the agent re-ran project-level commands (redundant but not malicious). Flag it to the user, do not block. |
+   | `batch-phase1` | Only the Phase 1a project-level audit commands: CMDs 14a–d (`cargo audit`, `govulncheck ./...`, `mvn …dependency-check…`, `pip-audit`), CMD 15 (`cargo deny check`, Rust only), and CMDs 19a-c + 20a-c (`apt-rdepends`, `dnf repoquery`, `apk info -R`, plus the OSV-DB / distro-security-tracker `curl` calls for system-package ecosystems). These are typically PASS-THROUGH (user-approved), not ALLOW. | Any sandbox launch (CMD 3, CMD 7), sentinel polling (CMD 4, CMD 8), VirusTotal call (CMDs 10–13), artifact copy/hash (CMDs 16, 17), L4 extraction (L4-1 through L4-6), or SBOM generation (CMDs 18a-c). If any of these appear in batch mode, the agent deviated from its mode and the scan results must not be trusted. |
+   | `per-package` | Sandbox launches (CMD 3, CMD 7), sentinel clears and polling (CMD 2, CMD 4, CMD 8), hash read (CMD 5), VirusTotal lookups (CMDs 10–13), Defender result read (CMD 9), L4 source extraction (L4-1 through L4-6), post-CLEAN artifact copy and hash verification (CMDs 16, 17), and — on the final package only — the SBOM command (CMD 18a-c). | Any audit command (CMDs 14a–d, CMD 15) or system-package Phase 1a command (CMDs 19a-c, 20a-c) — those belonged to Phase 1a and should have run in the preceding batch invocation, not here. If they appear in per-package mode, note it: it indicates the agent re-ran project-level commands (redundant but not malicious). Flag it to the user, do not block. |
 
    Ad-hoc single-package scans still run in `batch-phase1` mode followed by a separate `per-package` invocation — each log review applies to its own invocation.
 
