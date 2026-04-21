@@ -34,6 +34,30 @@ For the full QG routing procedure — how to invoke the QG, prompt structure, ve
 
 **File placement**: Every agent's output must be placed in the correct repo folder as defined by the Step 4 project structure. The orchestrator verifies correct file placement before committing. If a task requires a folder that doesn't exist yet, create it before committing.
 
+### Standard Review Tail
+
+Most Step 6 workflows end with the same review sequence. Two variants are referenced by name throughout this file:
+
+**Standard Review Tail** (includes Compliance — for net-new features, APIs, databases, firmware, embedded features):
+```
+Security Reviewer + Code Reviewer (parallel) → QG → Compliance Reviewer → QG → Documentation Writer → QG
+```
+
+**Short Review Tail** (skips Compliance — for bug fixes, refactors, DevOps configs, performance work, firmware updates that don't add new functionality):
+```
+Security Reviewer + Code Reviewer (parallel) → QG → Documentation Writer → QG
+```
+
+**Steps (both variants):**
+- **Security Reviewer + Code Reviewer**: Run in parallel. Security checks vulnerabilities; Code review checks quality/maintainability. Each workflow below may add domain-specific focus inline (e.g., injection for DB, API security for API, firmware memory safety for embedded).
+- **QG**: Evaluate both — security against SR1-SR8, code review against CR1-CR7
+- **Compliance Reviewer** (Standard only): Assess against NIST/CISA/OWASP standards, produce compliance report
+- **QG** (Standard only): Evaluate against criteria CO1-CO8
+- **Documentation Writer**: Recommend documentation additions/changes based on the completed, verified output
+- **QG**: Evaluate against criteria D1-D8
+
+Workflows below cite "Standard Review Tail" or "Short Review Tail" instead of re-listing these steps.
+
 ### Research Inventory Phase (Mandatory for All Worker Agents)
 
 **Before any worker agent begins implementation**, the orchestrator runs a Research Inventory phase to identify what external resources the agent will need, giving the user full visibility before anything is accessed.
@@ -67,8 +91,8 @@ The Research Inventory Phase has two stages: **Declare & Approve** (before any r
    URLs are handled in Stage 2 (see below).
 
 3. Orchestrator pre-screens the manifest before showing it to the user.
-   The orchestrator applies the domain allowlist (see policies.md "Web Content
-   Trust Policy" rule 4) and uses judgment to sort items into three buckets:
+   The orchestrator applies the Domain Allowlist rule (see policies.md "Web
+   Content Trust Policy") and uses judgment to sort items into three buckets:
 
    AUTO-APPROVED (orchestrator approves without asking the user):
    - WebSearch topics (low risk — returns snippets only, no full pages loaded)
@@ -132,7 +156,7 @@ WebSearch and WebFetch are fundamentally different operations. WebSearch discove
 
 5. The orchestrator extracts relevant facts from the research agent's
    findings and passes ONLY those facts (not raw page content) to the
-   implementation agent. See policies.md "Web Content Trust Policy" rule 3.
+   implementation agent. See the Separate Research Agents rule in policies.md "Web Content Trust Policy".
 ```
 
 **Why two phases?** The agent can predict *what topics* it needs to research but cannot predict *which URLs* a search engine will return. Stage 2 handles this naturally: search first (low risk), then checkpoint before fetching discovered pages (higher risk).
@@ -151,10 +175,10 @@ WebSearch and WebFetch are fundamentally different operations. WebSearch discove
 - The folder and its contents are gitignored, so they never appear in commits or clutter the repository.
 
 **Web safety notes:** Quick reminders — see `policies.md` "Web Content Trust Policy" for full rules.
-- **WebSearch**: Returns snippets only, lower risk than WebFetch. Agents should extract facts only — but snippet content could still influence the agent, so the structural protections (agent separation, orchestrator sanitization, QG injection detection) are the real safeguards (rule 6).
-- **WebFetch**: Loads raw HTML/text into agent context — no scripts execute on the host, but content could contain prompt injection. URLs must be pre-approved via the domain allowlist (rules 1-4).
-- **Agent separation**: The agent that fetches web content must NEVER be the one that writes project code. Orchestrator sanitizes findings before passing to implementation agents (rule 3).
-- **No web research during implementation**: All research happens in the Research Inventory phase. Unexpected needs trigger a new research cycle (rule 5).
+- **WebSearch**: Returns snippets only, lower risk than WebFetch. Agents should extract facts only — but snippet content could still influence the agent, so the structural protections (agent separation, orchestrator sanitization, QG injection detection) are the real safeguards (see the WebSearch Risk rule in `policies.md` Web Content Trust Policy).
+- **WebFetch**: Loads raw HTML/text into agent context — no scripts execute on the host, but content could contain prompt injection. URLs must be pre-approved via the Domain Allowlist rule in `policies.md` Web Content Trust Policy.
+- **Agent separation**: The agent that fetches web content must NEVER be the one that writes project code. Orchestrator sanitizes findings before passing to implementation agents (see the Separate Research Agents rule in `policies.md` Web Content Trust Policy).
+- **No web research during implementation**: All research happens in the Research Inventory phase. Unexpected needs trigger a new research cycle (see the No Web Research During Implementation rule in `policies.md` Web Content Trust Policy).
 - **Package downloads**: Approved dependencies must be installed from the local `.trusted-artifacts/` cache with hash verification against `_registry.md` — never re-fetched from the internet. New dependencies not in the cache require a full SCS scan.
 - **Development tools**: Provenance verification plus Defender scan and CVE check (mandatory for all tools); VirusTotal scan (required for lesser-known tools, optional for well-established tools from verified official sources). See `policies.md` "Scope: Project Dependencies vs. Development Tools."
 
@@ -180,23 +204,18 @@ For simple, single-module projects where the checklist defines the full agent se
 **Note**: The Software Architect and Supply Chain Security agents are invoked during **Step 4 (Architecture)**, not during Step 6 task execution. By the time Step 6 begins, the architecture is finalized and all dependencies have CLEAN SCS verdicts. The workflow below covers only the per-task implementation agents used in Step 6.
 
 ```
-Programmer → QG → Test Engineer → QG → Security Review + Code Review (parallel) → QG → Compliance Reviewer → QG → Documentation Writer → QG
+Programmer → QG → Test Engineer → QG → [Standard Review Tail]
 ```
 
 1. **Senior Programmer**: Implement the code based on the Step 4 architecture (using only approved dependencies)
 2. **QG**: Evaluate programmer output against criteria P1-P10
 3. **Test Engineer**: Write comprehensive tests including security test cases
 4. **QG**: Evaluate test engineer output against criteria T1-T10
-5. **Security Reviewer + Code Reviewer**: Run in parallel to review the final code
-6. **QG**: Evaluate both reviews — security against SR1-SR8, code review against CR1-CR7
-7. **Compliance Reviewer**: Assess against NIST/CISA/OWASP standards, produce compliance report
-8. **QG**: Evaluate compliance output against criteria CO1-CO8
-9. **Documentation Writer**: Recommend GitHub documentation additions/changes based on the completed, verified code
-10. **QG**: Evaluate documentation output against criteria D1-D8
+5. **Standard Review Tail** — see "Standard Review Tail" section above
 
 ## New API Endpoint
 ```
-API Designer → QG → Programmer → QG → Test Engineer → QG → Security Review + Code Review (parallel) → QG → Compliance Reviewer → QG → Documentation Writer → QG
+API Designer → QG → Programmer → QG → Test Engineer → QG → [Standard Review Tail]
 ```
 
 1. **API Designer**: Design the API spec
@@ -205,16 +224,11 @@ API Designer → QG → Programmer → QG → Test Engineer → QG → Security 
 4. **QG**: Evaluate against criteria P1-P10
 5. **Test Engineer**: Write tests
 6. **QG**: Evaluate against criteria T1-T10
-7. **Security Reviewer + Code Reviewer**: Run in parallel — Security Reviewer checks for API security issues; Code Reviewer checks code quality and maintainability
-8. **QG**: Evaluate both reviews — security against SR1-SR8, code review against CR1-CR7
-9. **Compliance Reviewer**: Final compliance check
-10. **QG**: Evaluate against criteria CO1-CO8
-11. **Documentation Writer**: Recommend API docs, README updates, etc.
-12. **QG**: Evaluate against criteria D1-D8
+7. **Standard Review Tail** — Security Reviewer focuses on API-specific vulnerabilities; Documentation Writer recommends API docs and README updates
 
 ## Database Work
 ```
-Database Specialist → QG → Programmer (for ORM/query code) → QG → Test Engineer → QG → Security Review + Code Review (parallel) → QG → Compliance Reviewer → QG → Documentation Writer → QG
+Database Specialist → QG → Programmer (for ORM/query code) → QG → Test Engineer → QG → [Standard Review Tail]
 ```
 
 1. **Database Specialist**: Design schema, migrations, queries
@@ -223,19 +237,14 @@ Database Specialist → QG → Programmer (for ORM/query code) → QG → Test E
 4. **QG**: Evaluate against criteria P1-P10
 5. **Test Engineer**: Write tests for database operations
 6. **QG**: Evaluate against criteria T1-T10
-7. **Security Reviewer + Code Reviewer**: Run in parallel — Security Reviewer checks for injection, encryption, access control issues; Code Reviewer checks code quality and query patterns
-8. **QG**: Evaluate both reviews — security against SR1-SR8, code review against CR1-CR7
-9. **Compliance Reviewer**: Assess data protection controls (encryption at rest, access control, data classification) against NIST/CISA standards
-10. **QG**: Evaluate against criteria CO1-CO8
-11. **Documentation Writer**: Recommend schema docs, migration guides, etc.
-12. **QG**: Evaluate against criteria D1-D8
+7. **Standard Review Tail** — Security Reviewer focuses on injection, encryption, access control; Compliance Reviewer focuses on data protection controls (encryption at rest, access control, data classification); Documentation Writer recommends schema docs and migration guides
 
 ## Embedded/RTOS Feature
 
 **Note**: The Embedded Specialist's architecture design and any SCS dependency scanning are handled in **Step 4**. The workflow below covers Step 6 per-task implementation.
 
 ```
-Embedded Specialist (implement) → QG → Test Engineer → QG → Security Review + Code Review (parallel) → QG → Compliance Reviewer → QG → Documentation Writer → QG
+Embedded Specialist (implement) → QG → Test Engineer → QG → [Standard Review Tail]
 ```
 Note: The Embedded Specialist handles both design and implementation for firmware work, since the hardware constraints tightly couple architecture and code. The design phase happens in Step 4; the implementation phase happens here in Step 6.
 
@@ -243,12 +252,7 @@ Note: The Embedded Specialist handles both design and implementation for firmwar
 2. **QG**: Evaluate implementation against criteria ES1-ES7
 3. **Test Engineer**: Write tests (simulation + hardware test plan)
 4. **QG**: Evaluate against criteria T1-T10
-5. **Security Reviewer + Code Reviewer**: Run in parallel — Security Reviewer checks firmware security; Code Reviewer checks code quality, memory safety patterns, and hardware abstraction layer consistency
-6. **QG**: Evaluate both reviews — security against SR1-SR8, code review against CR1-CR7
-7. **Compliance Reviewer**: Assess compliance
-8. **QG**: Evaluate against criteria CO1-CO8
-9. **Documentation Writer**: Recommend hardware docs, firmware guides, pin mappings, etc.
-10. **QG**: Evaluate against criteria D1-D8
+5. **Standard Review Tail** — Security Reviewer focuses on firmware security; Code Reviewer focuses on memory safety patterns and HAL consistency; Documentation Writer recommends hardware docs, firmware guides, pin mappings
 
 ## Hardware + Firmware Full Development (New Board Design)
 
@@ -307,7 +311,7 @@ Hardware Engineer (consolidate) → QG → DFM Reviewer (full design) → QG →
 
 ### Step 6 Firmware Implementation Track
 ```
-Embedded Specialist (implement) → QG → Test Engineer → QG → Security Review + Code Review (parallel) → QG → Compliance Reviewer → QG → Documentation Writer → QG
+Embedded Specialist (implement) → QG → Test Engineer → QG → [Standard Review Tail]
 ```
 Same as the existing Embedded/RTOS Feature workflow — firmware tasks can begin as soon as the shared interface specification is stable (after Step 4), even before all hardware subsystem tasks are complete. Firmware tasks that depend on specific subsystem details (e.g., "audio driver needs the I2S pin assignments from Task H3") must wait for that subsystem task to complete.
 
@@ -335,7 +339,7 @@ These are ad-hoc invocations, not a fixed workflow sequence — they happen as n
 **Use when:** Writing firmware for an existing board (e.g., ESP32 DevKit, STM32 Nucleo, Raspberry Pi Pico, or a previously designed custom board). No new hardware design needed.
 
 ```
-Embedded Specialist (implement) → QG → Test Engineer → QG → Security Review + Code Review (parallel) → QG → Compliance Reviewer → QG → Documentation Writer → QG
+Embedded Specialist (implement) → QG → Test Engineer → QG → [Standard Review Tail]
 ```
 
 Identical to the **Embedded/RTOS Feature** workflow, except the Embedded Specialist references the board's existing datasheet and pinout rather than designing hardware from scratch.
@@ -344,12 +348,7 @@ Identical to the **Embedded/RTOS Feature** workflow, except the Embedded Special
 2. **QG**: Evaluate against criteria ES1-ES7
 3. **Test Engineer**: Write tests (simulation + hardware test plan)
 4. **QG**: Evaluate against criteria T1-T10
-5. **Security Reviewer + Code Reviewer**: Run in parallel
-6. **QG**: Evaluate both reviews
-7. **Compliance Reviewer**: Assess compliance
-8. **QG**: Evaluate against criteria CO1-CO8
-9. **Documentation Writer**: Recommend docs — pinout reference, firmware guide, flashing instructions
-10. **QG**: Evaluate against criteria D1-D8
+5. **Standard Review Tail** — Documentation Writer recommends pinout reference, firmware guide, flashing instructions
 
 ---
 
@@ -375,7 +374,7 @@ Hardware Engineer (revision) → QG → Component Sourcing (if new parts) → QG
 ### Step 6 Firmware Updates (if needed)
 If hardware changes require firmware modifications (new pin assignments, different peripherals, changed communication protocols):
 ```
-Embedded Specialist (update) → QG → Test Engineer (regression) → QG → Security Review + Code Review (parallel) → QG → Documentation Writer → QG
+Embedded Specialist (update) → QG → Test Engineer (regression) → QG → [Short Review Tail]
 ```
 
 ---
@@ -404,59 +403,52 @@ Hardware Engineer (production design) → QG → Component Sourcing → QG → H
 ### Step 6 Firmware Porting
 The existing prototype firmware is ported to the production board's pin mapping and peripherals:
 ```
-Embedded Specialist (port) → QG → Test Engineer (regression + HW test plan) → QG → Security Review + Code Review (parallel) → QG → Documentation Writer → QG
+Embedded Specialist (port) → QG → Test Engineer (regression + HW test plan) → QG → [Short Review Tail]
 ```
 
 ---
 
 ## Bug Fix
 ```
-Programmer (diagnose + fix) → QG → Test Engineer (regression test) → QG → [Security Review + Code Review (parallel) → QG (if significant fix)] → Documentation Writer → QG
+Programmer (diagnose + fix) → QG → Test Engineer (regression test) → QG → [Short Review Tail — Security+Code only if significant fix]
 ```
 
 1. **Senior Programmer**: Diagnose root cause, implement the fix, explain what went wrong and why
 2. **QG**: Evaluate against criteria P1-P10
 3. **Test Engineer**: Write a regression test that fails without the fix and passes with it
 4. **QG**: Evaluate against criteria T1-T10
-5. **Security Reviewer + Code Reviewer** (if significant fix — security-relevant changes, large refactors, or changes touching multiple modules): Run in parallel to review the fix
-6. **QG**: Evaluate both reviews — security against SR1-SR8, code review against CR1-CR7
-7. **Documentation Writer**: Recommend any documentation updates (changelog, known issues, etc.)
-8. **QG**: Evaluate against criteria D1-D8
+5. **Short Review Tail** — skip Security+Code unless this is a significant fix (security-relevant changes, large refactors, or changes touching multiple modules); Documentation Writer recommends changelog/known-issues updates
 
 ## Refactoring
 ```
-Programmer (refactor) → QG → Test Engineer (verify + add tests) → QG → Security Review + Code Review (parallel) → QG → Documentation Writer → QG
+Programmer (refactor) → QG → Test Engineer (verify + add tests) → QG → [Short Review Tail]
 ```
 
 1. **Senior Programmer**: Refactor the code, ensuring all existing tests still pass
 2. **QG**: Evaluate against criteria P1-P10
 3. **Test Engineer**: Verify test coverage, add tests for any untested behavior discovered during refactoring
 4. **QG**: Evaluate against criteria T1-T10
-5. **Security Reviewer + Code Reviewer**: Run in parallel — Security Reviewer checks that the refactoring didn't introduce vulnerabilities (especially if touching auth, input validation, crypto, or error handling code); Code Reviewer verifies the refactoring maintains existing behavior and improves quality
-6. **QG**: Evaluate both reviews — security against SR1-SR8, code review against CR1-CR7
-7. **Documentation Writer**: Recommend any documentation updates reflecting the refactored structure
-8. **QG**: Evaluate against criteria D1-D8
+5. **Short Review Tail** — Security Reviewer is especially important if the refactor touches auth, input validation, crypto, or error handling; Code Reviewer verifies behavior is preserved
 
 Note: Architecture review is NOT typically needed for refactoring unless the refactoring changes component boundaries or interfaces.
 
 ## DevOps / Infrastructure
 ```
-DevOps Engineer → QG → Test Engineer (validation) → QG → Security Review + Code Review (parallel) → QG → Documentation Writer → QG
+DevOps Engineer → QG → Test Engineer (validation) → QG → [Short Review Tail]
 ```
 
 1. **DevOps Engineer**: Create Dockerfiles, CI/CD pipelines, build scripts, or deployment configs
 2. **QG**: Evaluate against criteria DO1-DO6
 3. **Test Engineer**: Write validation tests for DevOps configs — e.g., Docker image builds successfully, container starts and passes health check, CI pipeline dry-run succeeds, docker-compose services connect correctly. Classify each validation as host-safe or sandbox-required. The orchestrator executes the validation commands.
 4. **QG**: Evaluate against criteria T1-T10 (scoped to DevOps validation — focus on T1-T4, T6, T8-T9)
-5. **Security Reviewer + Code Reviewer**: Run in parallel — Security Reviewer checks for hardcoded secrets, supply chain scanning gaps, privilege escalation, non-root enforcement; Code Reviewer checks maintainability, inline documentation, configuration best practices
-6. **QG**: Evaluate both reviews — security against SR1-SR8, code review against CR1-CR7
-7. **Documentation Writer**: Recommend usage docs, troubleshooting guides, deployment runbooks
-8. **QG**: Evaluate against criteria D1-D8
+5. **Short Review Tail** — Security Reviewer focuses on hardcoded secrets, supply-chain scanning gaps, privilege escalation, non-root enforcement; Code Reviewer focuses on maintainability, inline documentation, config best practices; Documentation Writer recommends usage docs, troubleshooting guides, deployment runbooks
 
 ## Performance Investigation
 ```
 Performance Optimizer (analyze) → QG → Programmer (implement) → QG → Test Engineer (regression) → QG → Security Review + Code Review (parallel) → QG → Performance Optimizer (verify) → QG → Documentation Writer → QG
 ```
+
+Note: This workflow interleaves Performance Optimizer's verification step between the Security+Code reviews and Documentation — so it uses Short-Review-Tail components piecewise rather than the named tail.
 
 1. **Performance Optimizer**: Analyze and identify bottlenecks
 2. **QG**: Evaluate against criteria PO1-PO6
@@ -464,9 +456,9 @@ Performance Optimizer (analyze) → QG → Programmer (implement) → QG → Tes
 4. **QG**: Evaluate against criteria P1-P10
 5. **Test Engineer**: Verify existing tests still pass (regression check) and add tests for optimized code paths
 6. **QG**: Evaluate against criteria T1-T10
-7. **Security Reviewer + Code Reviewer**: Run in parallel — Security Reviewer checks for security regressions from optimizations (weakened crypto, disabled bounds checks, reduced logging); Code Reviewer checks code quality
+7. **Security Reviewer + Code Reviewer**: Run in parallel — Security Reviewer focuses on security regressions from optimizations (weakened crypto, disabled bounds checks, reduced logging); Code Reviewer checks code quality
 8. **QG**: Evaluate both reviews — security against SR1-SR8, code review against CR1-CR7
-9. **Performance Optimizer**: Verify improvements with benchmarks (resume the Performance Optimizer agent from its initial invocation in substep 1 above, so it can compare current results against its original analysis findings)
+9. **Performance Optimizer**: Verify improvements with benchmarks (resume the Performance Optimizer agent from step 1 (Performance Optimizer analysis) so it can compare against its original analysis findings)
 10. **QG**: Evaluate against criteria PO1-PO6
 11. **Documentation Writer**: Recommend performance documentation updates (benchmarks, configuration tuning guides, etc.)
 12. **QG**: Evaluate against criteria D1-D8
@@ -506,18 +498,18 @@ If all verdicts CLEAN → Update SBOM, scs-report.md & Step 4 handoff → Resume
 ```
 
 1. **Any Agent or Orchestrator**: Identifies need for one or more dependencies not in the Step 4 SBOM.
-2. **Orchestrator — cache probe**: For every package (direct and any transitives already known), check `.trusted-artifacts/_registry.md` for the exact name + version. Each entry is treated as a cache probe result — HIT, MISS, or CORRUPT. If ALL packages HIT and all hashes verify on disk, the batch is pre-approved — skip to step 10 (CLEAN path). No user approval needed when everything is cached.
+2. **Orchestrator — cache probe**: For every package (direct and any transitives already known), check `.trusted-artifacts/_registry.md` for the exact name + version. Each entry is treated as a cache probe result — HIT, MISS, or CORRUPT. If ALL packages HIT and all hashes verify on disk, the batch is pre-approved — skip to step 10 (QG evaluation after per-package scans — CLEAN path). No user approval needed when everything is cached.
 3. **Orchestrator** (if any MISS/CORRUPT): Pause current work on tasks that would use the unvetted dependency.
 4. **User** (if any MISS/CORRUPT): Explicitly approves adding the dependency (or set of dependencies) in principle, before any scanning.
-5. **Orchestrator — pre-screen & packages array**: Resolve the FULL transitive graph via the ecosystem-appropriate tree command or registry metadata before the batch invocation — do not leave transitive resolution for the batch agent to discover during Phase 1a, because Phase 1a's tree is a verification step, not the input source. Look up each package version's publish date (30-day rule); collect `name`, `version`, `publish_date`, `direct` flag, and `parents` (derived from the tree output, NOT from package-supplied metadata). Build the `packages` array per the Batch Phase 1 Input schema in `agent-orchestration.md`. **Include EVERY package in the array — cache HITs, MISSes, and CORRUPTs alike.** The batch agent excludes HITs from per-package Phase 1b assessment (they are already vetted) but includes them in the Phase 1a project-level tree/audit so that CVE regressions in previously-clean packages are still caught. Phase 0 in the batch agent will re-confirm each package's cache status.
+5. **Orchestrator — pre-screen & packages array**: Resolve the FULL transitive graph via the ecosystem-appropriate tree command or registry metadata before the batch invocation — do not leave transitive resolution for the batch agent to discover during Phase 1a, because Phase 1a's tree is a verification step, not the input source. Look up each package version's publish date (apply the 30-Day Rule per `policies.md` section "Minimum Package Age (30-Day Rule)"); collect `name`, `version`, `publish_date`, `direct` flag, and `parents` (derived from the tree output, NOT from package-supplied metadata). Build the `packages` array per the Batch Phase 1 Input schema in `agent-orchestration.md`. **Include EVERY package in the array — cache HITs, MISSes, and CORRUPTs alike.** The batch agent excludes HITs from per-package Phase 1b assessment (they are already vetted) but includes them in the Phase 1a project-level tree/audit so that CVE regressions in previously-clean packages are still caught. Phase 0 in the batch agent will re-confirm each package's cache status.
 
    **System-package ecosystems (apt/dnf/apk/pacman/zypper):** set `ecosystem` per-package in the packages array. Origin verify + tier classification happen in Phase 1b. Registry key is 4-tuple `{ecosystem, package, version, suite}`. Batch report has `tier` column — Tier A packages all end at Stage 1 after user review (no Phase 2–5); Tier B packages advance to per-package Phase 2–5. See `policies.md` "Scope: System Package Managers."
 6. **Supply Chain Security (one invocation, `mode: "batch-phase1"`)**: Runs Phase 0 (re-confirm cache status per package) and Phase 1 (Phase 1a project-level tree/audit; Phase 1b per-package assessment on MISSes/CORRUPTs; Phase 1c rejection cascade if any REJECT recommendations). Returns a **batch report**. Stops after the report — no artifacts downloaded, no sandboxes launched.
 7. **Orchestrator — batch log review**: Review `.claude/hooks/scs-validator.log` scoped to the batch-phase1 command set (audit commands only) — see `agent-orchestration.md` "Post-SCS Scan — Command Log Review". If the log shows sandbox launches, VT calls, or other per-package commands, STOP: the agent deviated from batch mode.
-8. **User — review batch report**: The orchestrator presents the batch report, including the rejection cascade (for each REJECT recommendation, the packages that would be transitively orphaned and the packages that would remain). The user decides which packages advance to Phase 2–5 scanning, which are replaced with alternatives (loop back to step 5 with a revised packages array), and which are dropped entirely. INVESTIGATE recommendations get a user verdict here — approve, reject, or request more info — without triggering the Pause Rule.
+8. **User — review batch report**: The orchestrator presents the batch report, including the rejection cascade (for each REJECT recommendation, the packages that would be transitively orphaned and the packages that would remain). The user decides which packages advance to Phase 2–5 scanning, which are replaced with alternatives (loop back to step 5 — pre-screen & packages array — with a revised packages array), and which are dropped entirely. INVESTIGATE recommendations get a user verdict here — approve, reject, or request more info — without triggering the Pause Rule.
 9. **Supply Chain Security (one FRESH invocation per approved package, `mode: "per-package"`, `start_phase: 2`)**: For each package the user approved for scanning, launch a fresh SCS agent that runs Phase 2 (download sandbox) → Phase 3 (Defender, VirusTotal, source review — Layer 3 audit is NOT re-run; it was handled in Phase 1a) → Phase 4 (verdict) → Phase 5 post-CLEAN actions. Verification checkpoints (download config readback, post-download hash) and per-package log review apply to each invocation.
-   - If any per-package Phase 4 verdict is **INCOMPLETE**: Pause Rule applies — see `policies.md` rule 4. Work that depends on the unscanned dependency halts until the scan resumes and completes. Work on unrelated packages in the same batch can still proceed.
-   - If any per-package Phase 4 verdict is **REJECT**: find an alternative (loop back to step 5 with a revised packages array) or refactor to avoid the dependency. Only escalate to redo prior steps if the rejection forces an architectural change with no alternatives.
+   - If any per-package Phase 4 verdict is **INCOMPLETE**: the Pause Rule applies — see the Pause Rule in `policies.md`. Work that depends on the unscanned dependency halts until the scan resumes and completes. Work on unrelated packages in the same batch can still proceed.
+   - If any per-package Phase 4 verdict is **REJECT**: find an alternative (loop back to step 5 — pre-screen & packages array — with a revised packages array) or refactor to avoid the dependency. Only escalate to redo prior steps if the rejection forces an architectural change with no alternatives.
 10. **QG** (after all per-package verdicts return CLEAN or CONDITIONAL-with-approval): Evaluate against criteria SC1-SC7 over the set of scanned dependencies.
 11. **Orchestrator — wrap up**: For each approved dependency, artifact is in `.trusted-artifacts/`, `_registry.md` has a row, `scs-report.md` has the per-package section, SBOM is updated, Step 4 handoff is updated. Resume the work that was paused.
 

@@ -91,15 +91,10 @@ Repeat until user approves the push
 ---
 
 ## Branch Strategy
-- Suggest creating a feature branch for each new feature or significant change
+- Suggest a feature branch for each new feature or significant change
 - Bug fixes can go on a dedicated branch or directly on the working branch (user's preference)
-- Never push to `main`/`master` without explicit user instruction
 
 ---
 
 ## Commit Message Standards
-- Use conventional commit format: `type(scope): description`
-  - Types: `feat`, `fix`, `refactor`, `test`, `docs`, `build`, `ci`, `perf`, `security`
-- Include relevant context (what was changed and why)
-- Reference issue numbers if applicable
-- Include QG approval reference where applicable (e.g., "QG approved criteria P1-P10")
+Conventional commits: `type(scope): description`. Types: `feat`, `fix`, `refactor`, `test`, `docs`, `build`, `ci`, `perf`, `security`. Include why the change was made, reference issue numbers when applicable, and reference QG approval where relevant (e.g., "QG approved criteria P1-P10").

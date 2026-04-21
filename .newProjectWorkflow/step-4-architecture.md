@@ -16,7 +16,7 @@ Make the key technical decisions: language, components, data flow, interfaces, a
 3. **Invoke the Software Architect agent** (if warranted — see "When to Use the Software Architect Agent" below). For simpler projects, the orchestrator handles architecture conversationally.
 4. **Choose technologies**:
    - Programming language(s) — reference the Language Selection Guide if agents are being used
-   - Frameworks and libraries (identify all external dependencies — these will be scanned in substep 9 below)
+   - Frameworks and libraries (identify all external dependencies — these will be scanned in substep 9 (SCS scan) below)
    - Data storage (database, file system, etc.)
    - Communication protocols (REST, gRPC, MQTT, etc.)
    - Present options with trade-offs and let the user decide
@@ -39,7 +39,7 @@ Make the key technical decisions: language, components, data flow, interfaces, a
 
    **Stage 1 — Batch Phase 1 (one SCS agent, across ALL packages):**
    - For each direct dependency, resolve its transitive graph via the ecosystem-appropriate tree command or registry metadata (so transitives are vetted alongside direct deps — see the Transitive Dependency Rule in the SCS agent definition)
-   - Look up each package version's publish date on its registry (PyPI, crates.io, npm, Maven Central) and apply the 30-Day Rule (`policies.md` rule 6) — pre-filter any sub-30-day versions out of the batch (or surface the narrow security-patch exception to the user before including)
+   - Look up each package version's publish date on its registry (PyPI, crates.io, npm, Maven Central) and apply the 30-Day Rule (`policies.md` section "Minimum Package Age (30-Day Rule)") — pre-filter any sub-30-day versions out of the batch (or surface the narrow security-patch exception to the user before including)
    - Build the `packages` array per the Batch Phase 1 Input schema in `agent-orchestration.md`: `name`, `version`, `publish_date`, `direct` flag, `parents`. URLs and hashes are NOT passed in batch mode — they are only needed in Stage 3.
    - Invoke ONE SCS agent with `mode: "batch-phase1"` and the `packages` array. It runs Phase 0 (cache status per package) and Phase 1 (Phase 1a project-level tree/audit; Phase 1b per-package assessment on cache misses; Phase 1c rejection cascade) and returns a single batch report. No artifacts are downloaded in Stage 1.
    - **Log review (batch mode):** After the batch agent completes, review `.claude/hooks/scs-validator.log` scoped to the batch-phase1 command set (audit commands — CMDs 14a-d, 15 — only). Per `agent-orchestration.md` "Post-SCS Scan — Command Log Review", sandbox launches, VT calls, artifact copies, or L4 extractions appearing here indicate a mode deviation — STOP.
@@ -50,10 +50,10 @@ Make the key technical decisions: language, components, data flow, interfaces, a
 
    **Stage 3 — Per-package Phase 2–5 (one FRESH SCS agent per approved package):**
    - For each package the user approved: build its download URL table row — `url`, `fileName` (camelcase, matches the sandbox config field), `expected_sha256` (from the PyPI JSON API / npm registry `integrity` / crates.io metadata / Maven Central hash), `subfolder`, and the `batch_report_ref` excerpt from Stage 1 so the per-package agent can cite it in its Phase 4 verdict.
-   - Invoke a FRESH SCS agent per package with `mode: "per-package"` and `start_phase: 2`. Each agent runs Phase 2 (download sandbox) → Phase 3 (Defender, VirusTotal, source code review — Layer 3 is skipped; it already ran in Phase 1a) → Phase 4 (CLEAN / CONDITIONAL / REJECT / INCOMPLETE verdict) → Phase 5 post-CLEAN actions. The per-package fresh-agent rule is for prompt-injection isolation — see `agent-orchestration.md`.
-   - Enforce both verification checkpoints per invocation — download config readback (Verification 1) and post-download hash (Verification 2) per `agent-orchestration.md` "SCS Download Verification (Anti-Substitution)".
+   - Invoke a FRESH SCS agent per package with `mode: "per-package"` and `start_phase: 2`. Each agent runs Phase 2 (download sandbox) → Phase 3 (Defender, VirusTotal, source code review — Layer 3 is skipped; it already ran in Phase 1a) → Phase 4 (CLEAN / CONDITIONAL / REJECT / INCOMPLETE verdict) → Phase 5 post-CLEAN actions. The per-package fresh-agent rule exists for prompt-injection isolation — see `agent-orchestration.md` section "Agent Lifecycle: Resume on Rework" under Supply Chain Security.
+   - Enforce both verification checkpoints per invocation per `agent-orchestration.md` section "MANDATORY: SCS Download Verification (Anti-Substitution)".
    - **If any per-package verdict is REJECT**: select an alternative dependency. Rebuild the packages array with the replacement and re-run Stage 1 on it — do NOT skip the batch stage for a replacement. This catches regressions in the replacement's transitive graph.
-   - **If any per-package verdict is INCOMPLETE** (e.g., VirusTotal rate-limited): PAUSE per `policies.md` rule 4 (Phase 4 INCOMPLETE triggers the Pause Rule; Phase 1 INVESTIGATE does not). Do not proceed to substep 10 until every package's Phase 4 verdict is CLEAN or CONDITIONAL (with user approval).
+   - **If any per-package verdict is INCOMPLETE** (e.g., VirusTotal rate-limited): PAUSE per the Pause Rule in `policies.md` (Phase 4 INCOMPLETE triggers it; Phase 1 INVESTIGATE does not). Do not proceed to substep 10 (Review with the user) until every package's Phase 4 verdict is CLEAN or CONDITIONAL (with user approval).
    - **Log review (per-package mode):** After each per-package agent completes, review `.claude/hooks/scs-validator.log` scoped to the per-package command set (sandbox launches, sentinel polling, VT calls, L4 extraction, artifact copies, hash verifications). If any DENY entries or unexpected audit commands appear, STOP.
 
    **After all packages are CLEAN:**
@@ -67,46 +67,14 @@ Make the key technical decisions: language, components, data flow, interfaces, a
 - When a formal STRIDE threat model is warranted
 - When the design involves unfamiliar technology domains
 - For simpler projects, this step can be done conversationally without the agent
-- When the Architect agent IS used: invoke it for substeps 4-8 above, then route its output through the Quality Gate (evaluate against A1-A11) before proceeding to the SCS scan (substep 9). No Project Manager needed in Step 4. The Architect's output includes the dependency list that SCS will scan.
+- When the Architect agent IS used: invoke it for substeps 4-8 above (technology choices through security design), then route its output through the Quality Gate (evaluate against A1-A11) before proceeding to the SCS scan (substep 9). No Project Manager needed in Step 4. The Architect's output includes the dependency list that SCS will scan.
 
 ## When to Use Hardware Design Agents (Hardware Projects)
-If the project involves circuit board design (custom PCB), invoke additional agents during this step. See `workflows.md` for the specific workflow pattern (e.g., "Hardware + Firmware Full Development", "Hardware Revision", "Prototype to Production"). The general flow is:
+If the project involves circuit board design (custom PCB), invoke additional agents during this step. See `workflows.md` section "Hardware + Firmware Full Development" (and related: "Hardware Revision", "Prototype to Production") for the full per-agent sequence, inputs/outputs per agent, and the Step 4 vs. Step 6 split (high-level architecture here, per-subsystem detail and consolidation in Step 6).
 
-1. **Hardware Engineer agent (high-level architecture only)**: Design the board-level architecture — MCU selection, block diagram, power domain identification, communication protocol selection, pin reservation per subsystem, and subsystem inventory. This is the **high-level blueprint**, not the detailed per-subsystem circuit design. The detailed circuit design for each subsystem happens in Step 6 (see below). This runs in **parallel** with the Software Architect (if present) — both produce their respective designs and a **shared interface specification** (pin assignments, communication protocols, timing requirements). Route through QG (criteria HE1-HE6, HE11, HE12 — the architecture-level criteria).
+Step 4 produces, at minimum: MCU selection, block diagram, power domains, communication protocols, pin reservation, subsystem inventory, preliminary critical-IC identification, design risk register, and selected fab house with its design rules. Full BOM, per-subsystem schematic/layout detail, and KiCad reference files are Step 6 outputs.
 
-   **What the Hardware Engineer produces in Step 4:**
-   - MCU selection with comparison table (HE3)
-   - Block diagram showing all subsystems and power domains (HE2)
-   - Communication protocol summary for all inter-component links (HE4)
-   - Power domain identification — which voltage rails are needed and why (high-level; detailed regulator selection happens per-subsystem in Step 6) (HE5 — partial)
-   - Pin reservation table — MCU pins allocated per subsystem, but detailed pin-to-component wiring is done per-subsystem in Step 6 (HE6 — partial)
-   - Subsystem inventory — a numbered list of all hardware subsystems that will be designed as individual tasks in Step 5/6 (e.g., "1. Power input + regulation, 2. MCU core, 3. Audio amplifier, 4. LED driver, 5. Sensor bus")
-   - Design risk register (HE11)
-   - Preliminary component identification for MCU and critical ICs (with datasheet evidence) (HE12)
-
-   **What the Hardware Engineer does NOT produce in Step 4:**
-   - Detailed schematic design notes per subsystem (HE8) — deferred to Step 6 per-subsystem tasks
-   - Complete BOM with every passive and connector (HE9) — only critical ICs identified; full BOM built up per-subsystem in Step 6
-   - Detailed interface specifications per connector (HE7) — deferred to relevant subsystem task
-   - PCB layout guidance (HE10) — deferred to a final consolidation task in Step 6 after all subsystems are designed
-   - KiCad reference files (produced during the Step 6 consolidation task — see `hardware-engineer.md` for the three operational modes: High-Level Architecture, Per-Subsystem Design, and Consolidation) — built up incrementally during Step 6 subsystem tasks, consolidated at the end
-
-2. **Component Sourcing agent**: Validate the Hardware Engineer's critical component selections (MCU, major ICs) — check lifecycle status, availability, second-sourcing, cost. The full BOM validation happens incrementally during Step 6 as each subsystem's components are selected. Route through QG (criteria CS1-CS8, scoped to the components identified so far).
-
-3. **Fab House Selection** (orchestrator-driven, after critical components are identified): Now that the MCU and major ICs are known, evaluate which PCB fab house is the best fit based on the most demanding packages. This breaks the chicken-and-egg problem. The flow is:
-   - Review the critical components for fab-critical requirements: What's the finest pad pitch? Are there BGAs? Does the design need impedance control, blind/buried vias?
-   - Compare these requirements against the user's preferred fab house (from Step 2 discovery). Can it handle everything?
-   - **If yes**: Confirm the preferred fab house. Document its specific design rules (min trace/space, min drill, layer count, surface finish options) for the DFM Reviewer and for Step 6 subsystem tasks to follow.
-   - **If no**: Present the gap and offer two paths:
-     - **Change the fab**: Recommend alternative fab houses that can handle the requirements, with cost/capability trade-offs
-     - **Change the components**: Ask the Hardware Engineer to suggest alternative components that stay within the preferred fab's capabilities (e.g., QFP instead of BGA)
-   - The user makes the final decision. Document the chosen fab house, its capabilities, and its design rules in the Step 4 handoff.
-
-4. **DFM Reviewer agent**: Review the high-level architecture for manufacturability **against the selected fab house's specific capabilities**. At this stage, the review focuses on: MCU/IC package feasibility, layer count requirements, and any board-level constraints that would affect all subsystems. The detailed per-subsystem DFM review happens during Step 6 after each subsystem is designed. Route through QG (criteria DFM1-DFM8, scoped to architecture-level concerns).
-
-5. **Shared Interface Specification**: After both the Hardware Engineer and Software Architect complete their designs, verify that the pin mapping, communication protocols, and timing requirements are consistent between the hardware design and the firmware architecture. Any conflicts must be resolved before proceeding to Step 5.
-
-The hardware design track produces its own handoff content that is merged into the Step 4 handoff file (see handoff template below). The handoff includes the subsystem inventory that Step 5 uses to create per-subsystem hardware tasks.
+The Hardware Engineer track runs in **parallel** with the Software Architect track; both must reconcile on the shared interface specification (pin assignments, protocols, timing) before Step 4 is complete. The handoff includes the subsystem inventory that Step 5 uses to create per-subsystem hardware tasks.
 
 ## What to Avoid
 - Don't start writing code — that's Step 6
@@ -117,7 +85,7 @@ The hardware design track produces its own handoff content that is merged into t
 - Don't skip the security considerations
 
 ## Repository Scaffolding
-After the user approves the architecture, **scaffold the project repository** based on the project structure defined in substep 5 above. Now that we know the language, framework, and folder layout, create the actual structure in the repo:
+After the user approves the architecture, **scaffold the project repository** based on the project structure defined in substep 5 above (Design the system structure). Now that we know the language, framework, and folder layout, create the actual structure in the repo:
 
 1. **Create the folder structure** defined in the architecture (e.g., `src/`, `lib/`, `cmd/`, `tests/`, `docs/`, etc. — whatever is appropriate for the chosen language and framework)
 2. **Create a `.gitignore`** appropriate for the chosen language/framework (e.g., Rust → `target/`, Go → binaries, Java → `target/`, `*.class`, Node → `node_modules/`, etc.). **Always include these standard entries regardless of project type:**

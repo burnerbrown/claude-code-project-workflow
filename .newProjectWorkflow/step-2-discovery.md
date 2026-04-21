@@ -26,11 +26,10 @@ Refine the concept through back-and-forth discussion. Explore the idea from mult
      - Is hand-soldering required, or is reflow assembly available?
      - Any regulatory requirements? (CE, FCC, UL — affects EMC and safety design)
      - Any existing dev kit or prototype to build from?
-     - **PCB fabrication preferences** (do NOT finalize the fab house here — final selection happens in Step 4 after component choices are known, since components determine required fab capabilities):
+     - **PCB fabrication preferences** (gather preferences only — final fab-house selection happens in Step 4 once component choices determine required capabilities):
        - Have you used a PCB fab house before? Which one? Were you happy with them? (e.g., JLCPCB, PCBWay, OSH Park, Eurocircuit, local fab)
        - Will you use the fab's assembly service (SMT pick-and-place) or assemble the boards yourself?
        - Is cost a priority, or are advanced capabilities (fine-pitch, HDI, impedance control) more important?
-       - Note: We will help you choose the best fab house for this project in Step 4, after the Hardware Engineer selects components. Some components (fine-pitch QFN, BGA, etc.) require fab capabilities that not all houses offer. We'll match the fab to your actual design needs rather than guessing up front.
    - **Prior Art**: Has the user tried other solutions? What worked or didn't?
 3. **Challenge assumptions** gently — if something seems under-specified or risky, point it out.
 4. **Build a shared mental model** — by the end, both you and the user should have the same picture of what this project involves.

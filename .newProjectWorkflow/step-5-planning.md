@@ -37,9 +37,7 @@ Break the architecture into an ordered sequence of implementation tasks. Each ta
 If the project includes hardware design (custom PCB), the implementation plan must address TWO tracks:
 
 ### Firmware Track (Automated — Agent-Driven)
-Standard implementation tasks executed by agents during Step 6:
-- Peripheral drivers, application logic, communication stacks
-- These follow the normal task workflow (Embedded Specialist → QG → Test Engineer → QG → reviews → QG → etc.)
+Standard implementation tasks executed by agents during Step 6 — peripheral drivers, application logic, communication stacks. Follows the "Embedded/RTOS Feature" workflow in `workflows.md`.
 
 ### Hardware Design Track (Agent-Driven — Per-Subsystem)
 The Step 4 hardware architecture identified a list of subsystems (e.g., "1. Power input + regulation, 2. MCU core, 3. Audio amplifier, 4. LED driver, 5. Sensor bus"). Each subsystem becomes its own implementation task in Step 6, designed by the Hardware Engineer agent with focused context:

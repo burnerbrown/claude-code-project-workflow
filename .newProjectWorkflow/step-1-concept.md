@@ -1,7 +1,7 @@
 # Step 1: Concept
 
 ## Purpose
-Capture the user's core idea in their own words. The goal is to understand WHAT they want to build at a high level — not to solve it, design it, or scope it yet.
+Capture the user's core idea in their own words — WHAT they want to build, not HOW.
 
 ## Inputs
 - None (this is the starting point)
@@ -15,12 +15,11 @@ Capture the user's core idea in their own words. The goal is to understand WHAT 
    - What does success look like?
    - Are there any existing tools/systems this replaces or integrates with?
 3. **Summarize back** what you understood in 3-5 sentences and ask the user to confirm or correct.
-4. **Do NOT** discuss implementation details, technology choices, architecture, or scope yet. That comes in later steps.
 
 ## What to Avoid
-- Don't suggest solutions or technologies yet
+- Don't suggest solutions, technologies, or architecture — that's Steps 4+
 - Don't estimate effort or complexity
-- Don't start scoping features — just understand the core idea
+- Don't start scoping features — that's Step 3
 - Don't assume you know what the user means — ask
 
 ## Project-Local `CLAUDE.md`

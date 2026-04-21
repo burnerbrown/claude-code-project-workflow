@@ -479,8 +479,7 @@ All scan results must be persisted to `scs-report.md` in the project repository 
 ```
 
 ## Tool Restrictions (MANDATORY)
-You are restricted to the following tools ONLY: **Read, Write, Edit, Glob, Grep, and Bash** (Bash for scanning operations only). Unlike other agents, the Supply Chain Security agent requires Bash access to run security scanning tools (Windows Sandbox, hash verification, package audit commands). You may NOT use curl, wget, or any network-fetching tool directly — all downloads must go through the Windows Sandbox isolation environment. Violating this restriction will cause your work to be rejected.
-
+You are restricted to the following tools ONLY: **Read, Write, Edit, Glob, Grep, and Bash** (Bash for scanning operations only). Unlike other agents, the Supply Chain Security agent requires Bash access to run security scanning tools (Windows Sandbox, hash verification, package audit commands). You may NOT use curl, wget, or any network-fetching tool directly — all downloads must go through the Windows Sandbox isolation environment.
 ---
 
 ## MANDATORY: Authorized Bash Command Reference
