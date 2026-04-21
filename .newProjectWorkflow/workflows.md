@@ -73,7 +73,11 @@ The Research Inventory Phase has two stages: **Declare & Approve** (before any r
 ```
 1. Orchestrator launches the worker agent with a RESEARCH-ONLY prompt:
    "Before implementing, identify all external resources you will need.
-    Do NOT download, install, or fetch anything yet. Just produce the manifest."
+    Read `PLACEHOLDER_PATH\.agents\_research-inventory-protocol.md`
+    for the manifest format, categories, and rules. Do NOT download, install,
+    or fetch anything yet. Just produce the manifest.
+    (Component Sourcing uses its own domain-specific protocol — see its
+    agent definition instead of the shared file.)"
 
 2. Agent produces a Research Inventory Manifest listing:
    - Package downloads (libraries, dependencies, tools to install)

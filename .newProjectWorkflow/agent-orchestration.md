@@ -109,6 +109,8 @@ When launching agents, **pass file paths and instructions — not file contents.
 ### Important: Research Inventory Before Implementation
 **Before launching any worker agent for implementation**, the orchestrator MUST run a Research Inventory phase. The agent identifies all external resources it needs (downloads, web fetches, tool installs, web searches) in a manifest. The orchestrator reviews the manifest, assesses each item, and presents recommendations to the user. The agent proceeds only with user-approved resources. **If the manifest is empty, the orchestrator auto-continues without user input.** See `workflows.md` "Research Inventory Phase" for the full procedure.
 
+**Shared protocol for research-mode invocations.** The manifest format, categories, and rules live in a single shared file — `PLACEHOLDER_PATH\.agents\_research-inventory-protocol.md` — rather than being duplicated in every worker agent's definition. When launching a worker agent in research-only mode, the orchestrator's task prompt MUST include the instruction to read that file (see the research-mode prompt in `workflows.md` "Research Inventory Phase"). Note: Component Sourcing uses its own domain-specific variant (defined in `component-sourcing.md`) and does NOT use the shared protocol — it performs web research as part of its implementation role, not a separate research phase.
+
 ### Important: Quality Gate Routing
 **All worker agent output must be routed through the Quality Gate (QG) for evaluation.** The orchestrator's workflow for every agent handoff is:
 
