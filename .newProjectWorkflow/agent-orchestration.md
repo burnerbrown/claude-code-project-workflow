@@ -65,17 +65,17 @@ That file contains your persona, principles, output format, and tool restriction
 
 | Profile | Frontmatter | Agents |
 |---------|-------------|--------|
-| **Worker (file-only)** | `tools: Read, Write, Edit, Glob, Grep`<br>`disallowedTools: Bash, WebFetch, WebSearch` | Senior Programmer, Test Engineer, Embedded Systems Specialist, Hardware Engineer, Database Specialist, API Designer, DevOps Engineer, Performance Optimizer |
-| **Reviewer (file-only)** | `tools: Read, Write, Edit, Glob, Grep`<br>`disallowedTools: Bash, WebFetch, WebSearch` | Quality Gate, Security Reviewer, Code Reviewer, Compliance Reviewer, DFM Reviewer, Documentation Writer, Software Architect, Project Manager |
-| **Web research allowed** | `tools: Read, Write, Edit, Glob, Grep, WebSearch, WebFetch`<br>`disallowedTools: Bash` | Component Sourcing |
-| **Bash allowed (scanning)** | `tools: Read, Write, Edit, Glob, Grep, Bash`<br>`disallowedTools: WebFetch, WebSearch` | Supply Chain Security |
+| **Worker (file-only)** | `tools: Read, Write, Edit, Glob, Grep`<br>`disallowedTools: Bash, PowerShell, WebFetch, WebSearch` | Senior Programmer, Test Engineer, Embedded Systems Specialist, Hardware Engineer, Database Specialist, API Designer, DevOps Engineer, Performance Optimizer |
+| **Reviewer (file-only)** | `tools: Read, Write, Edit, Glob, Grep`<br>`disallowedTools: Bash, PowerShell, WebFetch, WebSearch` | Quality Gate, Security Reviewer, Code Reviewer, Compliance Reviewer, DFM Reviewer, Documentation Writer, Software Architect, Project Manager |
+| **Web research allowed** | `tools: Read, Write, Edit, Glob, Grep, WebSearch, WebFetch`<br>`disallowedTools: Bash, PowerShell` | Component Sourcing |
+| **Bash allowed (scanning)** | `tools: Read, Write, Edit, Glob, Grep, Bash`<br>`disallowedTools: PowerShell, WebFetch, WebSearch` | Supply Chain Security |
 
 #### Example: Launching the Senior Programmer with enforced restrictions
 
 ```
 ---
 tools: Read, Write, Edit, Glob, Grep
-disallowedTools: Bash, WebFetch, WebSearch
+disallowedTools: Bash, PowerShell, WebFetch, WebSearch
 ---
 
 <agent-definition>
@@ -228,7 +228,7 @@ The resumed SCS agent already has its Phase 0/1 context, so there is no need to 
 | Component Sourcing | `component-sourcing.md` | **Step 4**: BOM validation — component lifecycle, availability, second-sourcing, cost analysis, supply chain risk. Runs after Hardware Engineer produces preliminary BOM. |
 | DFM Reviewer | `dfm-reviewer.md` | **Step 4** (primary): Design-for-manufacturability review — PCB fabrication feasibility, assembly concerns, thermal review, testability, mechanical fit. Runs in Step 4 after components are finalized. **Step 6 only** during Hardware Revision workflows (see `workflows.md`) or ad-hoc when the user requests a DFM review of their KiCad layout. |
 | API Designer | `api-designer.md` | Designing REST or gRPC APIs, writing OpenAPI specs, protobuf definitions |
-| Supply Chain Security | `supply-chain-security.md` | **Step 4**: Full 5-phase scan of all external dependencies. In Step 6, only used if a new dependency is discovered mid-implementation (emergency workflow). **Always check `.trusted-artifacts/_registry.md` before invoking — if the dependency is cached and hash-verified, skip the scan entirely.** Must run synchronously — do NOT use `run_in_background: true`. |
+| Supply Chain Security | `supply-chain-security.md` | **Step 4**: Full 5-phase scan of all external dependencies. In Step 6, only used if a new dependency is discovered mid-implementation (emergency workflow). **Always check `.trusted-artifacts/_registry.md` before invoking — if the dependency is cached and hash-verified, skip the scan entirely.** Must run synchronously — do NOT use `run_in_background: true`. **First-time use:** the sandbox infrastructure must be installed once per machine — see `.newProjectWorkflow/scs-sandbox-setup.md`. If a sandbox launch fails, direct the user to that doc. |
 | Compliance Reviewer | `compliance-reviewer.md` | Final-gate NIST/CISA/OWASP compliance assessment |
 | Quality Gate | `quality-gate.md` | **Evaluates every agent's output against acceptance criteria** — produces APPROVED/SENT BACK/APPROVED WITH CONDITIONS verdicts with specific feedback and code snippets. |
 | Project Manager | `project-manager.md` | **Optional project coordinator** — only invoked for multi-module projects with cross-module dependencies, complex send-back routing, agent conflicts, or user-requested progress reports. Tracks cross-module blockers, deferred items, and status via `PROJECT_STATUS.md`. See `workflows.md` "When to Invoke the Project Manager Agent" for criteria. Most single-module projects skip the PM entirely. |
@@ -366,8 +366,8 @@ After **every** SCS agent invocation — in **either** mode (`batch-phase1` or `
 
    | Mode | Expected commands | Commands that should NOT appear |
    |------|-------------------|--------------------------------|
-   | `batch-phase1` | Only the Phase 1a project-level audit commands: CMDs 14a–d (`cargo audit`, `govulncheck ./...`, `mvn …dependency-check…`, `pip-audit`), CMD 15 (`cargo deny check`, Rust only), and CMDs 19a-c + 20a-c (`apt-rdepends`, `dnf repoquery`, `apk info -R`, plus the OSV-DB / distro-security-tracker `curl` calls for system-package ecosystems). These are typically PASS-THROUGH (user-approved), not ALLOW. | Any sandbox launch (CMD 3, CMD 7), sentinel polling (CMD 4, CMD 8), VirusTotal call (CMDs 10–13), artifact copy/hash (CMDs 16, 17), L4 extraction (L4-1 through L4-6), or SBOM generation (CMDs 18a-c). If any of these appear in batch mode, the agent deviated from its mode and the scan results must not be trusted. |
-   | `per-package` | Sandbox launches (CMD 3, CMD 7), sentinel clears and polling (CMD 2, CMD 4, CMD 8), hash read (CMD 5), VirusTotal lookups (CMDs 10–13), Defender result read (CMD 9), L4 source extraction (L4-1 through L4-6), post-CLEAN artifact copy and hash verification (CMDs 16, 17), and — on the final package only — the SBOM command (CMD 18a-c). | Any audit command (CMDs 14a–d, CMD 15) or system-package Phase 1a command (CMDs 19a-c, 20a-c) — those belonged to Phase 1a and should have run in the preceding batch invocation, not here. If they appear in per-package mode, note it: it indicates the agent re-ran project-level commands (redundant but not malicious). Flag it to the user, do not block. |
+   | `batch-phase1` | Only the Phase 1a project-level audit commands: CMDs 14a–d (`cargo audit`, `govulncheck ./...`, `mvn …dependency-check…`, `pip-audit`), CMD 15 (`cargo deny check`, Rust only), and CMDs 19a-c + 20a-c (`apt-rdepends`, `dnf repoquery`, `apk info -R`, plus the OSV-DB / distro-security-tracker `curl` calls for system-package ecosystems). These are typically PASS-THROUGH (user-approved), not ALLOW. | Any sandbox launch (CMD 3, CMD 7), sentinel polling (CMD 4, CMD 8), VirusTotal call (CMDs 10–13), artifact copy/hash (CMDs 16, 17), L4 extraction (L4-1 through L4-6), or SBOM generation (CMDs 18a-d). If any of these appear in batch mode, the agent deviated from its mode and the scan results must not be trusted. |
+   | `per-package` | Sandbox launches (CMD 3, CMD 7), sentinel clears and polling (CMD 2, CMD 4, CMD 8), hash read (CMD 5), VirusTotal lookups (CMDs 10–13), Defender result read (CMD 9), L4 source extraction (L4-1 through L4-6), post-CLEAN artifact copy and hash verification (CMDs 16, 17), end-of-scan staging cleanup (CMDs 2b, 2c — skipped on INCOMPLETE), and — on the final package only — the SBOM command (CMD 18a-d). | Any audit command (CMDs 14a–d, CMD 15) or system-package Phase 1a command (CMDs 19a-c, 20a-c) — those belonged to Phase 1a and should have run in the preceding batch invocation, not here. If they appear in per-package mode, note it: it indicates the agent re-ran project-level commands (redundant but not malicious). Flag it to the user, do not block. |
 
    Ad-hoc single-package scans still run in `batch-phase1` mode followed by a separate `per-package` invocation — each log review applies to its own invocation.
 

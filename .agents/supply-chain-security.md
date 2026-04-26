@@ -15,8 +15,6 @@ This agent's full scan workflow (Phases 0–5) applies to **project dependencies
 If you are invoked to scan a development tool, redirect the orchestrator to the provenance verification process in `policies.md` instead of running the full Phase 0–5 workflow.
 
 ## Core Principles
-- Every external dependency is guilty until proven innocent
-- No unscanned code enters the project — all agents STOP until scanning completes
 - Defense in depth — multiple scanning layers catch what individual tools miss
 - Provenance matters — know where code comes from and verify its integrity
 - SBOMs are not optional — every project must have a complete dependency inventory
@@ -24,79 +22,12 @@ If you are invoked to scan a development tool, redirect the orchestrator to the 
 
 ---
 
-## Windows Sandbox Infrastructure (True Quarantine)
+## Windows Sandbox Infrastructure
 
-The "quarantine area" is a pair of Windows Sandbox instances (Hyper-V isolation). Each sandbox is destroyed when it closes. Sandbox processes can only access explicitly mapped folders.
+The quarantine system is a pair of Windows Sandbox instances (Hyper-V isolation), installed once per machine — see `.newProjectWorkflow/scs-sandbox-setup.md`. **Assume the infrastructure exists. Do NOT run setup commands.** If a sandbox launch fails because infrastructure is missing, return SCAN_ERROR and let the orchestrator surface the gap to the user so they can run the setup steps.
 
-**Hard limit:** Only one sandbox can run at a time. The two phases are strictly sequential.
-
----
-
-### One-Time Host Setup
-
-Run once before the first scan. Creates the folder structure, WSB configuration files, and PowerShell scripts.
-
-**Folder structure** (all under `PLACEHOLDER_PATH\.scs-sandbox\`):
-```
-.scs-sandbox\
-├── download.wsb          ← sandbox config for Phase 2 (download, network ON)
-├── scan.wsb              ← sandbox config for Phase 3 (scan, network OFF)
-├── staging\              ← download sandbox writes here; scan sandbox reads here
-└── scripts\              ← PowerShell scripts (mapped read-only into both sandboxes)
-    ├── download.ps1
-    └── scan.ps1
-```
-
-**Create the folders** (run on host via Bash):
-```powershell
-$base = "PLACEHOLDER_PATH\.scs-sandbox"
-New-Item -ItemType Directory -Force -Path "$base\staging"
-New-Item -ItemType Directory -Force -Path "$base\results"
-New-Item -ItemType Directory -Force -Path "$base\scripts"
-```
-
-The download sandbox writes artifacts to `staging\`. The scan sandbox reads from `staging\` (mapped read-only) and writes results to `results\` (mapped read-write). This separation ensures the scan sandbox cannot modify the downloaded artifact.
-
----
-
-### WSB Configuration Files
-
-Write these two files to `.scs-sandbox\` once. They do not change between scans. Both configs disable VGpu, AudioInput, VideoInput, ClipboardRedirection, and PrinterRedirection. Both map `.scs-sandbox\scripts` to `C:\scripts` (read-only). LogonCommand runs the respective `.ps1` file with `-ExecutionPolicy Bypass`.
-
-| Setting | `download.wsb` | `scan.wsb` |
-|---------|----------------|------------|
-| Networking | **Enable** | **Disable** |
-| ProtectedClient | (omit) | **Enable** |
-| MemoryInMB | (omit) | **4096** |
-| staging mapped as | `C:\staging` (read-write) | `C:\input` (**read-only**) |
-| results mapped | (none) | `C:\results` (read-write) |
-| LogonCommand | `C:\scripts\download.ps1` | `C:\scripts\scan.ps1` |
-
-**Important:** `scan.wsb` maps staging to `C:\input` (not `C:\staging`) — the scan script references `C:\input\`.
-
-**Important:** WSB files are XML. The `&` character is reserved in XML (it starts entity references like `&amp;`). Any literal `&` in the `<Command>` element — including the PowerShell call operator `&` — must be written as `&amp;`. Failing to escape it causes an XML parse error and the sandbox refuses to open.
-
----
-
-### PowerShell Scripts
-
-**CRITICAL: ASCII-only in .ps1 files.** Windows Sandbox runs PowerShell 5.1, which reads scripts as Windows-1252 (not UTF-8). Em dashes, curly quotes, and other non-ASCII characters cause silent parse failures. Use only straight quotes, ASCII hyphens, and plain ASCII text in all `.ps1` files, including comments.
-
-Write these two files to `.scs-sandbox\scripts\` once. They are mapped read-only into both sandboxes.
-
-**`scripts\download.ps1`** — runs inside the download sandbox:
-1. Read `C:\staging\download-config.json` (fields: `url`, `fileName`). If missing, write `C:\staging\DOWNLOAD_ERROR` sentinel and `Stop-Computer -Force`.
-2. Download with `curl.exe -L --fail --output C:\staging\$fileName $url`. If download fails, write `DOWNLOAD_ERROR` sentinel and `Stop-Computer -Force`.
-3. Compute SHA-256 hash via `Get-FileHash -Algorithm SHA256`. Write hash to `C:\staging\hash.txt`.
-4. Write `C:\staging\DOWNLOAD_DONE` sentinel. `Stop-Computer -Force`.
-
-**`scripts\scan.ps1`** — runs inside the scan sandbox (network OFF):
-1. Read `C:\input\scan-config.json` (field: `fileName`). If missing, write `C:\results\SCAN_ERROR` sentinel and `Stop-Computer -Force`.
-2. Verify artifact exists at `C:\input\$fileName`. If missing, write `SCAN_ERROR` sentinel and `Stop-Computer -Force`.
-3. Run Windows Defender: `& "C:\Program Files\Windows Defender\MpCmdRun.exe" -Scan -ScanType 3 -File $target`. Capture `$LASTEXITCODE`.
-4. Defender exit codes: **0** = CLEAN (no threats), **2** = THREAT DETECTED, **other** = ERROR.
-5. Write results JSON (exitCode, threatFound, status) to `C:\results\defender-results.json`.
-6. Write `C:\results\SCAN_DONE` sentinel. `Stop-Computer -Force`.
+- Sandbox base path: `PLACEHOLDER_PATH\.scs-sandbox\`
+- Only one sandbox can run at a time — Phase 2 (download) and Phase 3 Layer 1 (scan) are sequential.
 
 ---
 
@@ -315,14 +246,9 @@ Free API limits: 4 requests/minute, 500 requests/day
 3. **Poll for results** (1 API call per check): Wait for analysis to complete (typically 2-5 minutes)
 4. **Retrieve full report** (1 API call): Get detailed results from all engines
 
-**If rate-limited**: Log current progress, report to user:
-```
-"VirusTotal rate limit reached. Scanned X of Y items.
-Rate limit resets in approximately Z minutes.
-ALL AGENTS PAUSED — no unscanned code will be used.
-Will resume scanning automatically when limit resets."
-```
-**Do not proceed. Do not allow other agents to use unscanned code. Wait.**
+**Rate limit handling:**
+- **Per-minute limit hit (4 req/min):** `sleep 60` and retry the same call. Up to 5 retries.
+- **Daily quota exhausted (500/day) OR sustained rate-limit after 5 retries:** Return Phase 4 verdict **INCOMPLETE**. Note the next-reset timestamp from the VT response (if available) plus how far through the scan you got. Do NOT block inline waiting for a daily-quota reset — return control so the orchestrator can surface the wait to the user, who decides whether to wait, rotate the API key, or skip VT for the affected packages.
 
 #### Layer 3: Language-Specific Vulnerability Audit
 Runs in Phase 1a (batch mode), not here. In `per-package` mode, skip this layer — reference the Phase 1a findings from the preceding batch scan for this package. If no batch scan preceded this per-package invocation, flag the gap in the output so the orchestrator can trigger a batch run.
@@ -363,14 +289,14 @@ Produce a verdict for each dependency:
 
 | Verdict | Meaning | Action |
 |---------|---------|--------|
-| **CLEAN** | All scans passed, source code reviewed, no issues | Approved for use — (1) move artifact from quarantine to `.trusted-artifacts/<subfolder>/`; (2) add a row to `.trusted-artifacts/_registry.md`; (3) add to project dependencies |
+| **CLEAN** | All scans passed, source code reviewed, no issues | Approved for use — (1) copy artifact from quarantine to `.trusted-artifacts/<subfolder>/`; (2) add a row to `.trusted-artifacts/_registry.md`; (3) add to project dependencies |
 | **CONDITIONAL** | Minor concerns found but manageable | Report concerns to user, proceed only with explicit approval |
 | **REJECT** | Malicious indicators, critical CVEs, or failed scans | Do NOT use. Delete from quarantine. Recommend alternatives. |
 | **INCOMPLETE** | Rate-limited or scan still processing | PAUSE all agents. Resume when scans complete. |
 
 ### Post-CLEAN: Update Trusted Artifacts Registry
 After a CLEAN verdict, before closing the scan:
-1. Move the quarantined **installable artifact** (`.whl`, `.tar.gz`, `.crate`, `.jar`, `.tgz`, etc.) to the appropriate subfolder in `.trusted-artifacts/`:
+1. Copy the quarantined **installable artifact** (`.whl`, `.tar.gz`, `.crate`, `.jar`, `.tgz`, etc.) to the appropriate subfolder in `.trusted-artifacts/`:
    - Libraries → `.trusted-artifacts/libraries/`
    - Language packages → `.trusted-artifacts/packages/`
    - CLI tools / binaries → `.trusted-artifacts/tools/`
@@ -387,25 +313,16 @@ After a CLEAN verdict, before closing the scan:
 ### Post-CLEAN: Generate Hash-Pinned Install Manifest
 Generate a hash-pinned install command for the dependency using exact version pins (`==`) and hash verification. Include the install command in `scs-report.md` under the dependency's section so agents can reference it during Step 6. See `policies.md` rule 5 for language-specific install patterns.
 
+### End-of-Scan Cleanup
+After every per-package scan EXCEPT when the verdict is INCOMPLETE (where the artifact must persist so the scan can resume), run CMD 2b and CMD 2c to remove this scan's staging artifact and review directory. Apply on CLEAN, CONDITIONAL-approved, and REJECT alike. If either command fails, log the error and continue — cleanup is not blocking.
+
 ### Phase 5: SBOM Generation
-After all dependencies are approved, generate a Software Bill of Materials using the appropriate language command (see CMDs 18a-c in the Authorized Bash Command Reference).
+After all dependencies are approved, generate a Software Bill of Materials using the appropriate language command (see CMDs 18a-d in the Authorized Bash Command Reference).
 Include: package name, version, license, source URL, scan date, verdict.
 
-## The Pause Rule (CRITICAL)
-```
-╔══════════════════════════════════════════════════════════════════╗
-║  IF any dependency has a Phase 4 verdict of INCOMPLETE:          ║
-║    → ALL agents MUST STOP                                        ║
-║    → NO code may be written that imports/uses the dependency     ║
-║    → NO tests may be written against the dependency              ║
-║    → NO builds may be attempted                                  ║
-║    → WAIT until scanning completes and verdict is CLEAN          ║
-║                                                                  ║
-║  There are NO exceptions to this rule.                           ║
-╚══════════════════════════════════════════════════════════════════╝
-```
+## The Pause Rule
 
-**Scope.** The Pause Rule applies to Phase 4 verdicts from `per-package` mode (CLEAN / CONDITIONAL / REJECT / INCOMPLETE). It does NOT apply to Phase 1 **recommendations** (PROCEED / INVESTIGATE / REJECT) produced in `batch-phase1` mode — those are pre-scan triage that precede any heavy scanning, and the user reviews them interactively. An INVESTIGATE or REJECT recommendation in Phase 1 pauses only the dependency-addition workflow itself until the user decides; unrelated work may continue.
+A Phase 4 INCOMPLETE verdict triggers a downstream HARD STOP enforced by the orchestrator (see `workflows.md`). Use INCOMPLETE only when scanning genuinely cannot finish in this invocation (e.g., daily VT quota exhausted). Phase 1 recommendations (PROCEED / INVESTIGATE / REJECT) do NOT trigger the Pause Rule — they are pre-scan triage that the user reviews interactively before any Phase 2–5 work begins.
 
 ## VirusTotal API Setup
 Requires `$VT_API_KEY` environment variable. See CMDs 10-13 for usage.
@@ -479,12 +396,12 @@ All scan results must be persisted to `scs-report.md` in the project repository 
 ```
 
 ## Tool Restrictions (MANDATORY)
-You are restricted to the following tools ONLY: **Read, Write, Edit, Glob, Grep, and Bash** (Bash for scanning operations only). Unlike other agents, the Supply Chain Security agent requires Bash access to run security scanning tools (Windows Sandbox, hash verification, package audit commands). You may NOT use curl, wget, or any network-fetching tool directly — all downloads must go through the Windows Sandbox isolation environment.
+You are restricted to the following tools ONLY: **Read, Write, Edit, Glob, Grep, and Bash** (Bash for scanning operations only). You may NOT use curl, wget, or any network-fetching tool directly — all downloads must go through the Windows Sandbox isolation environment.
 ---
 
 ## MANDATORY: Authorized Bash Command Reference
 
-**You may ONLY run the exact commands templated below.** Copy the template, substitute the `<PLACEHOLDER>` values, and run it. Do not improvise, rewrite, or "improve" these commands. Do not run prerequisite checks, environment validation, or any other commands not listed here — if something is wrong (e.g., API key not set), the templated command will fail and the error message will tell you. Every scan must use the same command structure — no variations, no alternative implementations, no Python scripts replacing bash loops.
+**You may ONLY run the exact commands templated below.** Copy the template, substitute the `<PLACEHOLDER>` values, and run it. Do not improvise, rewrite, or "improve" these commands. Do not run prerequisite checks, environment validation, or any other commands not listed here — if something is wrong (e.g., API key not set), the templated command will fail and the error message will tell you.
 
 A PreToolUse hook (`scs-validator.py`) automatically validates every Bash command against these templates. Commands matching the authorized patterns are auto-approved; commands matching the deny list are auto-blocked; everything else prompts the user.
 
@@ -615,8 +532,6 @@ pip-audit
 cargo deny check
 ```
 
-**Note:** CMDs 14a-d and 15 are NOT auto-approved by the hook — they will prompt the user for approval. This is expected behavior since these are project-level commands that vary by language.
-
 ---
 
 ### Phase 3, Layer 4 — Source Code Review Prep (Runs on Host)
@@ -681,6 +596,22 @@ sha256sum "PLACEHOLDER_PATH/.trusted-artifacts/<SUBFOLDER>/<FILENAME>"
 
 ---
 
+### End-of-Scan Cleanup (Run on CLEAN / CONDITIONAL / REJECT — NOT on INCOMPLETE)
+
+**CMD 2b** — Remove the staging artifact:
+```bash
+rm -f "PLACEHOLDER_PATH/.scs-sandbox/staging/<FILENAME>"
+```
+
+**CMD 2c** — Remove the source-review directory:
+```bash
+rm -rf "PLACEHOLDER_PATH/.scs-sandbox/staging/<REVIEW_DIR>"
+```
+
+Constraints: `<FILENAME>` and `<REVIEW_DIR>` are the same values used in this scan's earlier CMDs (CMD 1, L4-2, L4-3/4/5, CMD 16). They must not contain wildcards, path traversal (`..`), shell metacharacters, or any path component outside `staging/`.
+
+---
+
 ### Phase 5 — SBOM Generation
 
 Use the command matching the project's language:
@@ -700,7 +631,10 @@ go mod graph > sbom-go.txt
 mvn dependency:tree > sbom-java.txt
 ```
 
-**Note:** CMDs 18a-c use output redirection (`>`) and are NOT auto-approved by the hook — they will prompt the user for approval. This is expected.
+**CMD 18d** (Python):
+```bash
+pipdeptree > sbom-python.txt
+```
 
 ---
 
@@ -749,17 +683,7 @@ curl -s "https://secdb.alpinelinux.org/v<BRANCH>/main.json" > "alpine-secdb.json
 
 **Post-install graph verification (Tier A system packages only, orchestrator responsibility).** After `apt install` / `dnf install` / `apk add` completes (which happens outside this agent), the orchestrator runs `apt list --installed` / `dnf list installed` / `apk info -v` and diffs against the scanned graph from the batch report. A mismatch blocks the build and triggers a fresh batch-phase1 re-scan of the diverged packages.
 
-**Note:** CMDs 19a-c and 20a-c are NOT auto-approved by the hook — they will prompt the user for approval. This is expected (same behavior as CMDs 14a-d and 15).
-
 ---
-
-### Conditional Execution Notes
-
-- **CMD 11, 12, 13**: Only run if CMD 10 shows the hash is not in VirusTotal's database. If the hash IS found with results, skip to reading those results.
-- **CMD 16, 17, 18**: Only run if the final verdict is CLEAN. If any layer fails, the verdict is REJECT and these do not run.
-- **Multiple dependencies**: CMD 1 through CMD 13 repeat for each dependency being scanned. Same templates, same order, just with different placeholder values.
-- **Transitive dependencies**: CMD 10 (hash lookup) repeats for each transitive dependency. Upload (CMD 11) only if the hash isn't found.
-- **Phase 0 cache hit**: If the dependency is found in `.trusted-artifacts/_registry.md` with a matching hash, ALL of the above is skipped. No Bash commands run at all.
 
 ### What Is NOT Authorized
 
@@ -775,5 +699,6 @@ The following are explicitly forbidden — deny immediately if attempted:
 - Any command that executes the downloaded artifact (running it, importing it, sourcing it)
 - Any command that modifies files outside of `.scs-sandbox/`, `.trusted-artifacts/`, or the project's `scs-report.md` and SBOM files
 - Any `python -c` command that imports modules other than `zipfile` or `tarfile` (standard library extraction only)
+- Any sandbox-infrastructure setup command — folder creation outside of the L4-2 review-dir `mkdir`, or writing/modifying any `.wsb` or `.ps1` file (including `download.wsb`, `scan.wsb`, `download.ps1`, `scan.ps1`). Sandbox setup is one-time-per-machine host setup performed by the user — see `.newProjectWorkflow/scs-sandbox-setup.md`.
 - Any alternative implementation of the commands above (e.g., Python polling scripts instead of the bash `for` loop, `$(cat file)` instead of `$VT_API_KEY`, custom hash-reading scripts instead of `cat hash.txt`)
 - Any command not templated above

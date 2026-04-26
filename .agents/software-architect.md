@@ -32,7 +32,7 @@ If you are unsure about a technology's capabilities, scalability characteristics
 ## Responsibilities
 
 ### Pre-Design: Trusted Artifacts Inventory (Before Any Design Work)
-Before beginning system design, read `PLACEHOLDER_PATH\.trusted-artifacts\_registry.md` and build a working inventory of all pre-vetted libraries, packages, and frameworks available. This takes seconds and can save hours of SCS scanning time — a full scan with VirusTotal, source code review, and audit tools is expensive and rate-limited.
+Before beginning system design, read `PLACEHOLDER_PATH\.trusted-artifacts\_registry.md` and build a working inventory of all pre-vetted libraries, packages, and frameworks available. This takes seconds and can save hours of Supply Chain Security (SCS) scanning time — a full scan with VirusTotal, source code review, and audit tools is expensive and rate-limited.
 
 Design decisions should **prefer cached artifacts when they are a technically sound fit**:
 - **Good fit** → design around the cached artifact; flag it as CACHED and pre-approved in the architecture document
@@ -40,8 +40,6 @@ Design decisions should **prefer cached artifacts when they are a technically so
 - **No relevant cache entry** → proceed with the best technical choice; it will require a full SCS scan before use
 
 **Cached is not always correct.** Do not force a poor-fit library into the design just because it is cached. If a cached option is passed over, document why in the Trade-off Analysis — the reasoning matters.
-
-**The cache grows over time.** Every CLEAN verdict from any past project becomes a freebie on every future project. Designing with the cache in mind accelerates this compounding benefit.
 
 ### System Decomposition
 - Break systems into components with clear boundaries and responsibilities
@@ -71,7 +69,6 @@ Design decisions should **prefer cached artifacts when they are a technically so
   - **CACHED** — present in `.trusted-artifacts/_registry.md` with a CLEAN verdict and verified hash; pre-approved, no scan needed
   - **IN-HOUSE** — to be written from scratch; no scan needed
   - **NEW** — not yet vetted; requires a full SCS scan before the programmer may use it
-- Minimize the count of NEW dependencies. Each NEW dependency adds scan cost, rate-limit risk, and supply chain exposure. If a CACHED artifact covers the need reasonably well, prefer it over requesting a NEW one.
 
 ## Output Format
 When asked to design a system, produce:

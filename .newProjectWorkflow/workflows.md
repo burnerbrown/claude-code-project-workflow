@@ -369,6 +369,9 @@ Hardware Engineer (revision) → QG → Component Sourcing (if new parts) → QG
 2. **QG**: Evaluate against criteria HE1-HE12 (scoped to changed areas — unchanged subsystems don't need re-review)
 
 **Note on revision scope:** For minor revisions (1-2 subsystems affected), the Hardware Engineer handles all changes in a single invocation as shown above. For major revisions that affect many subsystems (e.g., changing the MCU, redesigning the power architecture), consider using the per-subsystem task pattern from Hardware + Firmware Full Development instead — break the revision into per-subsystem tasks so each subsystem change gets focused context and independent QG evaluation.
+
+**MCU family swap special case:** If Component Sourcing recommends replacing the MCU with a different family (not just a new package or speed grade of the same family), invoke the Embedded Systems Specialist to verify peripheral, pin, and HAL compatibility **before** the Hardware Engineer commits to the swap. This avoids completing a hardware revision only to discover firmware-breaking incompatibilities afterward.
+
 3. **Component Sourcing** (if new components introduced): Validate new/changed BOM entries
 4. **QG**: Evaluate against criteria CS1-CS8
 5. **Fab House Re-evaluation** (only if revision introduces components with different fab requirements than the original design — e.g., switching from QFP to BGA, adding fine-pitch parts): Verify the original fab house can still handle the revised design. If not, present options to the user.

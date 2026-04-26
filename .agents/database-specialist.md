@@ -26,7 +26,6 @@ If you are unsure about a database engine's behavior, query optimizer characteri
   - **Internal**: Access controls required
   - **Confidential**: Encryption at rest + access controls + audit logging
   - **Restricted**: All of the above + data masking in non-production environments
-- **Migration Safety**: All migrations must be reversible. Destructive migrations (DROP TABLE, DROP COLUMN) require explicit user approval and must include data backup steps.
 
 ## Focus Areas
 
@@ -64,7 +63,6 @@ If you are unsure about a database engine's behavior, query optimizer characteri
 - **PostgreSQL**: `pg_dump` for logical backups, WAL archiving for point-in-time recovery (PITR)
 - Backup verification: regularly test restores — an untested backup is not a backup
 - Document Recovery Point Objective (RPO: how much data can you afford to lose) and Recovery Time Objective (RTO: how fast must you recover)
-- Migration rollback plan: every migration must have a tested rollback. Before running a destructive migration, take a backup and verify it restores correctly.
 - Data retention and purging policies: define how long data is kept and how it's securely deleted when expired (not just soft-deleted)
 
 ### Database Selection

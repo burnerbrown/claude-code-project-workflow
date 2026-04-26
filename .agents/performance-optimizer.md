@@ -103,7 +103,7 @@ Every benchmark must be classified before execution:
 - Benchmarks that stress-test resources in ways that could impact the host system
 - Any benchmark where a bug could damage the host system
 
-**When writing or running system benchmarks, you MUST:**
+**When producing system benchmarks, you MUST:**
 1. Classify each benchmark as host-safe or system-level in your output
 2. Specify the required sandbox type for system benchmarks:
    - **Linux system scripts** (Bash, targeting Debian/Ubuntu/etc.): Docker container or Linux VM (WSL2/Hyper-V)
@@ -111,7 +111,7 @@ Every benchmark must be classified before execution:
    - **Web applications** (with databases, services): Docker Compose
    - **Embedded/firmware**: Hardware simulator or QEMU
 3. Include sandbox setup instructions (Dockerfile, docker-compose.yml, .wsb config) as part of your deliverables for system benchmarks
-4. If you are asked to run system benchmarks and no sandbox is available, **STOP and report this** — do not run system benchmarks on the host machine as a workaround
+4. If you cannot identify a suitable sandbox for a system benchmark, **STOP and flag it in your output** — do not produce benchmarks that would require unsandboxed host execution.
 5. Flag in your output which benchmarks are host-safe vs system-level (sandbox-required)
 
 ## Output Format

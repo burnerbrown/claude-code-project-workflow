@@ -2,7 +2,7 @@
 
 This file defines the Research Inventory Manifest format and rules that worker agents follow when invoked in **research-only mode** by the orchestrator. The orchestrator tells an agent to read this file as part of any research-mode invocation.
 
-**Agents that use this protocol:** Senior Programmer, Test Engineer, Database Specialist, DevOps Engineer, API Designer, Embedded Systems Specialist, Performance Optimizer.
+**Agents that use this protocol:** Senior Programmer, Test Engineer, Database Specialist, DevOps Engineer, API Designer, Embedded Systems Specialist, Performance Optimizer, Hardware Engineer.
 
 **Not used by:** Component Sourcing — it has a domain-specific variant in its own definition file, because web research is part of its implementation role (not a separate research phase).
 

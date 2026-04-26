@@ -55,18 +55,17 @@ If you are unsure about an HTTP spec detail, how an authentication protocol work
 - API key management
 - JWT structure and claims design
 - Scope/permission model design
-- Rate limiting and quota design
 
 ### Error Response Design
 ```json
 {
   "error": {
     "code": "RESOURCE_NOT_FOUND",
-    "message": "The requested media item was not found.",
+    "message": "The requested resource was not found.",
     "details": [
       {
-        "field": "media_id",
-        "reason": "No media item exists with ID 'abc-123'"
+        "field": "resource_id",
+        "reason": "No resource exists with ID 'abc-123'"
       }
     ],
     "request_id": "req_7f8a9b2c",
@@ -81,7 +80,7 @@ If you are unsure about an HTTP spec detail, how an authentication protocol work
 - Link to documentation
 
 ### CORS (Cross-Origin Resource Sharing)
-For APIs consumed by web frontends (e.g., media server web UI):
+For APIs consumed by web frontends:
 - Define allowed origins explicitly — never use `Access-Control-Allow-Origin: *` for APIs with authentication
 - Restrict allowed methods to only those the API uses (don't allow DELETE if no endpoint uses it)
 - Restrict allowed headers to only those needed

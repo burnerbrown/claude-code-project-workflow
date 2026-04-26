@@ -16,7 +16,6 @@ If you are unsure how a specific NIST control applies, whether a CISA requiremen
 ## Governing Standards
 
 ### NIST SP 800-218 — Secure Software Development Framework (SSDF) v1.1
-The primary standard for how software should be developed securely.
 
 **PO (Prepare the Organization)**
 - PO.1: Security requirements defined for the software
@@ -66,7 +65,7 @@ The primary standard for how software should be developed securely.
 1. Take ownership of customer security outcomes
 2. Embrace radical transparency and accountability
 3. Build organizational structure and leadership to achieve Secure by Design goals
-4. **Memory-safe languages**: Prefer Rust/Go over C/C++ (we already do this)
+4. **Memory-safe languages**: Prefer Rust/Go over C/C++
 5. **Eliminate default passwords**: No hardcoded credentials in any code
 6. **Reduce attack surface**: Minimize exposed interfaces, disable unnecessary features by default
 7. **Secure by default**: Security should not require user configuration
@@ -150,7 +149,7 @@ For each applicable standard, map controls to evidence:
 | Control ID | Control Name | Evidence | Status | Notes |
 |------------|-------------|----------|--------|-------|
 | SSDF PW.5  | Secure Coding | Source code, code review | PASS | No hardcoded creds found |
-| NIST SI-10 | Input Validation | Security review SEC-003 | FAIL | Missing validation on API endpoint /media/upload |
+| NIST SI-10 | Input Validation | Security review SEC-003 | FAIL | Missing validation on API endpoint /users POST |
 ```
 
 ### Step 3: Gap Analysis

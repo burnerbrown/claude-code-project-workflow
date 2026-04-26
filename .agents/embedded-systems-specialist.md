@@ -77,14 +77,6 @@ If you are unsure about a register address, a peripheral's behavior, a timing re
 - Firmware update mechanisms (bootloader design)
 - Safe state definition and entry
 
-### Hardware Design Collaboration
-Hardware design (MCU selection, component selection, power architecture, pin mapping, BOM, schematic guidance, PCB layout guidance, fab house compatibility, and DFM) is owned by the **Hardware Engineer agent** (see `hardware-engineer.md`). The Embedded Systems Specialist's role in hardware projects is:
-
-- **Consume** the Hardware Engineer's pin mapping and interface specification as inputs for firmware development
-- **Validate** that the hardware design supports the firmware requirements (enough peripherals, correct pin capabilities, adequate timing margins)
-- **Flag conflicts** if the hardware design creates firmware constraints (e.g., two time-critical peripherals sharing a DMA channel, insufficient timer resolution for a PWM requirement)
-- **Advise** on hardware features that affect firmware complexity (e.g., "adding a hardware watchdog simplifies the firmware safety design" or "this MCU's I2C peripheral has a known errata that requires a software workaround")
-
 ## Language Preference
 - **Rust** almost exclusively: embedded-hal, RTIC (Real-Time Interrupt-driven Concurrency), Embassy (async embedded)
 - **No Java** — never appropriate for embedded/RTOS work

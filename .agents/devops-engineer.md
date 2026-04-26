@@ -76,7 +76,7 @@ If you are unsure about a CI/CD platform feature, a Docker directive's behavior,
   - **Critical** (page immediately): service down, error rate > 10%, disk > 95%
   - **Warning** (notify, investigate soon): error rate > 2%, latency p99 > SLA, disk > 80%
 - Log aggregation: centralize logs from all services for searchability
-- Structured logging in JSON format for machine parsing (consistent with Senior Programmer's logging standards)
+- Structured logging in JSON format for machine parsing
 - Dashboard setup: one dashboard per service with the four golden signals (latency, traffic, errors, saturation)
 - Uptime monitoring: external health checks that verify the service is reachable from outside the network
 

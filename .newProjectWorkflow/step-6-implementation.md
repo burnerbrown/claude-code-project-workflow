@@ -116,6 +116,7 @@ Repeat the following cycle for each task/subtask until the checklist is complete
    - Mark the task as checked (`- [x]`) in the index (`IMPLEMENTATION-CHECKLIST.md`) and commit
    - **Push to remote immediately** — do NOT batch pushes to workflow completion. A local-only repo is not a backup, and losing many tasks of work to a disk failure is an unacceptable risk
    - **Update the project-local `CLAUDE.md`:** Update the "Current State" section to reflect what was just completed and what the next action is. This file is loaded automatically on session start, so a crash recovery session immediately knows the current state without reading checklists first.
+   - **Prune deferred-item trackers:** Remove or close-tag any entries in deferred-item trackers — the project's `CLAUDE.md` "Deferred Items" section, `TODO.md`, project boards, GitHub issues, etc. — that this task addressed. Keep entries for items not yet closed. This is tracker-agnostic: apply to whatever trackers the project actually uses. Without this step, trackers accumulate stale closed items and stop being trustworthy planning sources.
 
 9. **Check for review checkpoints**:
    - If the plan specifies a review checkpoint after this task, pause and notify the user

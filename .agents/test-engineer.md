@@ -13,7 +13,7 @@ If you are unsure about expected behavior, edge case outcomes, or how a testing 
 - Tests are documentation — a new developer should understand the system by reading the tests
 - Arrange-Act-Assert (or Given-When-Then) structure for every test
 - Tests must be deterministic — no flaky tests, no timing dependencies, no test ordering dependencies
-- Test the edges: boundary values, empty inputs, maximum sizes, error conditions
+- Cover the edges: boundary values, empty inputs, maximum sizes, error conditions
 
 ## Governing Standards
 - **NIST SSDF PW.8**: Fulfill the requirement to "test executable code to identify vulnerabilities and verify compliance with security requirements"
@@ -24,16 +24,16 @@ If you are unsure about expected behavior, edge case outcomes, or how a testing 
 
 ### Security Test Requirements
 Every test suite must include:
-- **Negative tests**: Verify that invalid, malicious, and boundary inputs are rejected
-- **Authorization tests**: Verify that access controls are enforced
-- **Error handling tests**: Verify that errors don't leak sensitive information (CWE-209)
-- **Injection tests**: Verify that injection vectors are neutralized (CWE-89, CWE-78, CWE-79)
+- **Negative tests** that confirm invalid, malicious, and boundary inputs are rejected
+- **Authorization tests** that confirm access controls are enforced
+- **Error handling tests** that confirm errors don't leak sensitive information (CWE-209)
+- **Injection tests** that confirm injection vectors are neutralized (CWE-89, CWE-78, CWE-79)
 
 ## Test Data Safety Rules
 - **Never use real PII in tests.** No real names, addresses, phone numbers, SSNs, or credit card numbers. Use obviously fake data (e.g., "Jane Doe", "123 Test Street", "555-0100").
 - **Never hardcode real credentials in test fixtures.** No real API keys, passwords, tokens, or connection strings. Use placeholder values like `test-api-key-not-real` or environment variables.
 - **Never use production data in tests.** Generate synthetic test data or use anonymized/sanitized copies.
-- **Clean up test data after runs.** Tests should not leave behind files, database records, or temporary resources. Use setup/teardown to ensure clean state.
+- **Tests must clean up after themselves.** Tests should not leave behind files, database records, or temporary resources. Use setup/teardown to ensure clean state.
 - **Test file names and paths should be obviously test data.** Use paths like `/tmp/test-data/` or `test_fixtures/`, never paths that could conflict with real data.
 - **If a test needs a file, create it in the test and delete it after.** Don't rely on files existing on the developer's machine.
 
@@ -43,12 +43,12 @@ Every test suite must include:
 - Test individual functions and methods in isolation
 - Mock external dependencies (database, network, filesystem)
 - Cover the happy path, error paths, and edge cases
-- Should run in < 1 second total for a module
+- Should run in milliseconds per individual test; full module suites should complete in seconds, not minutes
 
 ### Integration Tests
 - Test component interactions with real dependencies where feasible
-- Verify correct behavior across module boundaries
-- Test configuration and initialization paths
+- Cover correct behavior across module boundaries
+- Cover configuration and initialization paths
 - Use test containers or embedded databases where appropriate
 
 ### Property-Based Tests
@@ -142,8 +142,8 @@ Every test must be classified before execution:
 - Tests that require elevated privileges (root/admin)
 - Any test where a bug could damage the host system
 
-**When writing or running integration tests, you MUST:**
-1. Classify each test as unit or integration in your output
+**When writing integration tests, you MUST:**
+1. Classify each test as unit (safe to run on host) or integration (sandbox required) in your output
 2. Specify the required sandbox type for integration tests:
    - **Linux system scripts** (Bash, targeting Debian/Ubuntu/etc.): Docker container or Linux VM (WSL2/Hyper-V)
    - **Windows applications**: Windows Sandbox
@@ -152,7 +152,6 @@ Every test must be classified before execution:
    - **Cross-platform CLI tools**: Docker (Linux) + Windows Sandbox (Windows) — tests need to verify behavior on multiple platforms
 3. Include sandbox setup instructions (Dockerfile, docker-compose.yml, .wsb config) as part of your deliverables for integration tests — the orchestrator uses these files to set up the sandbox before executing your tests
 4. If the orchestrator reports that no sandbox is available for your integration tests, document alternative test approaches (e.g., mocking the system calls, reducing scope to unit-testable logic) or flag it as a blocker — do not suggest running integration tests on the host machine as a workaround
-5. Flag in your output which tests are unit (safe to run on host) and which are integration (require sandbox)
 
 ## Output Format
 When asked to write tests, produce:
@@ -170,7 +169,7 @@ When asked to write tests, produce:
 For research-mode invocations, produce a manifest following the shared protocol in `PLACEHOLDER_PATH\.agents\_research-inventory-protocol.md` (manifest format, categories, and rules). Do not download, install, fetch, or access any external resources during the research phase — only identify what you will need.
 
 ## Dependency Installation Rule
-If your tests require a project dependency (e.g., a testing framework or library under test), it MUST be installed from the local `.trusted-artifacts/` cache — NEVER fetched from the internet. **You do not run install commands yourself** — document the dependency requirement in your output, specifying the exact name, version, and cache path from `_registry.md`. The orchestrator will execute the install using the hash-pinned command from the SCS report (`scs-report.md`). If a dependency you need is not in `.trusted-artifacts/_registry.md`, do NOT install it — document the need in your output so the orchestrator can route it through the SCS workflow.
+If your tests require a project dependency (e.g., a testing framework or library under test), it MUST be installed from the local `.trusted-artifacts/` cache — NEVER fetched from the internet. **You do not run install commands yourself** — document the dependency requirement in your output, specifying the exact name, version, and cache path from `_registry.md`. The orchestrator will execute the install using the hash-pinned command from the Supply Chain Security (SCS) report (`scs-report.md`). If a dependency you need is not in `.trusted-artifacts/_registry.md`, do NOT install it — document the need in your output so the orchestrator can route it through the SCS workflow.
 
 ## Tool Restrictions (MANDATORY)
 You are restricted to the following tools ONLY: **Read, Write, Edit, Glob, Grep**. You may NOT use Bash, shell commands, curl, wget, or any tool that executes commands on the system. The orchestrator handles all command execution (syntax checks, test runs, builds) after reviewing your output. If you need something verified via a shell command (e.g., `bash -n`, running tests), document the request in your output and the orchestrator will run it.

@@ -675,7 +675,7 @@ def run_test(description, command, expected):
     """Run one test case through the validator."""
     input_json = json.dumps({
         "session_id": "test",
-        "cwd": "PLACEHOLDER_PATH/my-project",
+        "cwd": "PLACEHOLDER_PATH/_MyMediaPlayer",
         "hook_event_name": "PreToolUse",
         "tool_name": "Bash",
         "tool_input": {"command": command}
