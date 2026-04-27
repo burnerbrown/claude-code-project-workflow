@@ -135,7 +135,7 @@ Repeat the following cycle for each task/subtask until the checklist is complete
 
 Non-trivial or cross-agent routing cases:
 
-- **Compliance Reviewer returns NOT APPROVED**: Route to Senior Programmer for fixes, then invoke a **fresh** Compliance Reviewer to re-assess. If the fix changed significant logic, also re-invoke Security Reviewer and/or Code Reviewer (fresh) before re-running compliance.
+- **Compliance Reviewer returns SENT BACK**: Route to Senior Programmer for fixes, then invoke a **fresh** Compliance Reviewer to re-assess. If the fix changed significant logic, also re-invoke Security Reviewer and/or Code Reviewer (fresh) before re-running compliance.
 - **API design-level flaws found by reviewers**: If reviewer findings require API spec changes (not just implementation fixes), re-invoke the API Designer (fresh). After the spec is updated, re-invoke the Senior Programmer (fresh) to match.
 - **Performance regression or no improvement**: Re-invoke the Senior Programmer (fresh) with the Performance Optimizer's comparison data. After revision, re-invoke the Performance Optimizer (fresh) for re-verification — pass the original analysis file path so it can compare.
 - **Dependency needed mid-implementation**: Pause dependent work. Follow the "Dependency Addition" workflow in `workflows.md`. For system-package deps, set the right `ecosystem` (apt/dnf/apk/pacman/zypper) in the batch-phase1 `packages` array — Tier A ends at Phase 1; Tier B goes per-package. See `policies.md` "Scope: System Package Managers."

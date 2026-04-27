@@ -120,7 +120,7 @@ When asked for a progress report, produce:
 ## Output Format
 
 When receiving a Quality Gate verdict, produce:
-1. **Routing Decision**: PROCEED / SEND BACK / PROCEED WITH CONDITIONS
+1. **Routing Decision**: PROCEED / SEND BACK / PROCEED WITH CONDITIONS (these honor the QG's technical verdict; add cross-module sequencing logic where applicable)
 2. **Next Agent**: Which agent should run next (if proceeding)
 3. **File Placement Check**: Confirm output files are in the correct repo folders, or flag new folders needed
 4. **Status Impact** (if any): Note any new blockers, deferred items, or cross-module status changes for `PROJECT_STATUS.md`

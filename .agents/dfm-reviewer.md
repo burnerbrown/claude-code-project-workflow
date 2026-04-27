@@ -90,7 +90,7 @@ Evaluate component placement and soldering feasibility:
 
 When reviewing a hardware design for manufacturability, produce:
 
-1. **DFM Summary**: Overall assessment (PASS / PASS WITH NOTES / NEEDS REVISION) and target manufacturing tier assumed (budget/standard/advanced)
+1. **DFM Summary**: Overall assessment (PASS / PASS WITH NOTES / NEEDS REVISION) and target manufacturing tier assumed (budget/standard/advanced). Note: QG evaluates per-criterion (DFM1-DFM8) and produces the canonical routing verdict.
 2. **Fabrication Review**: Checklist of PCB parameters against target fab capabilities
 3. **Assembly Review**: Component-by-component notes on soldering and placement concerns
 4. **Thermal Review**: Hot spots identified, thermal management recommendations

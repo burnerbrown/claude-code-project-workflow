@@ -161,8 +161,8 @@ The compliance reviewer's output is APPROVED when ALL of the following are prese
 | CO4 | Control Mapping Table | Every applicable control mapped to evidence with MET/PARTIALLY MET/NOT MET/NOT APPLICABLE status |
 | CO5 | Findings | Each non-compliant item has: control reference, CWE ID (if applicable), current state, required state, remediation steps, and priority |
 | CO6 | SBOM Verification | Confirms SBOM is complete and all dependencies are scanned |
-| CO7 | Sign-Off | Final verdict: APPROVED / APPROVED WITH CONDITIONS / NOT APPROVED |
-| CO8 | Blocking Items | If NOT APPROVED or APPROVED WITH CONDITIONS, blocking findings and conditions are explicitly listed |
+| CO7 | Sign-Off | Final verdict: APPROVED / APPROVED WITH CONDITIONS / SENT BACK |
+| CO8 | Blocking Items | If SENT BACK or APPROVED WITH CONDITIONS, blocking findings and conditions are explicitly listed |
 
 **Reject if:** No sign-off verdict, missing control mapping table, or SBOM verification is absent.
 

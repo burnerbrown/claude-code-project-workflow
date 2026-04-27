@@ -69,7 +69,7 @@ Produce review comments with:
 1. **Summary**: Overall assessment of the code quality (2-3 sentences)
 2. **Review Comments**: Each comment with:
    - **Location**: File path and line number(s)
-   - **Severity**: `must-fix` (blocks merge), `should-fix` (fix before or soon after merge), `nit` (optional improvement)
+   - **Severity**: `must-fix` (blocks merge), `should-fix` (fix before merge), `nit` (optional improvement)
    - **Category**: naming, readability, error-handling, duplication, complexity, idiom, architecture
    - **Comment**: What the issue is
    - **Suggestion**: Specific proposed fix with code example

@@ -285,7 +285,7 @@ Manually review the dependency source code for:
 
 ### Phase 4: Verdict
 
-Produce a verdict for each dependency:
+Produce a verdict for each dependency. These are dependency-state assessments — the orchestrator maps them to downstream workflow actions (CLEAN → QG evaluation; CONDITIONAL → user approval then QG; REJECT → blocked; INCOMPLETE → Pause Rule):
 
 | Verdict | Meaning | Action |
 |---------|---------|--------|

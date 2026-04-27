@@ -249,6 +249,19 @@ Continue the scan from {next phase/step}. Artifacts on disk in .scs-sandbox/stag
 
 All agent files are located in: `PLACEHOLDER_PATH\.agents\`
 
+### Vocabulary Distinction: Agent-Internal Categories vs. QG Canonical Verdicts
+
+The system uses two vocabulary levels:
+
+1. **Agent-Internal Review Terms** — domain-specific assessment categories used by individual agents (e.g., Code Reviewer's `must-fix`/`should-fix`/`nit`, DFM's PASS/PASS WITH NOTES/NEEDS REVISION, SCS's CLEAN/CONDITIONAL/REJECT/INCOMPLETE). These are intermediate assessments that feed into QG evaluation.
+
+2. **QG Canonical Routing Verdicts** — the three system-wide verdicts the Quality Gate produces:
+   - **APPROVED** — work meets all criteria; commit and proceed
+   - **SENT BACK** — criteria not met; rework required
+   - **APPROVED WITH CONDITIONS** — minor issues that must be resolved before commit (not deferrable)
+
+Agent-internal terms map to QG verdicts via acceptance criteria (e.g., CR `must-fix` → SENT BACK; DFM NEEDS REVISION → SENT BACK; SCS REJECT → SENT BACK). Only the QG's canonical verdicts drive orchestrator routing.
+
 ### The Two-Stage SCS Flow (Batch Phase 1 → Per-Package Phase 2–5)
 
 All SCS scanning follows a two-stage flow. This applies to the Step 4 dependency scan, the Dependency Addition workflow, and any other situation where one or more new dependencies need to be vetted:
