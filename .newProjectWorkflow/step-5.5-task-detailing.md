@@ -22,15 +22,22 @@ Take the individual task files from Step 5 and produce detailed agent workflows 
 
 2. **Load one task file**: Read only the next unprocessed task file (e.g., `project-handoffs/handoff-step-5-task-1.md`), plus whatever architecture/spec context that task needs.
 
-3. **Create the detailed agent workflow** for that task (see Per-Task Detail Template below).
+3. **Performance Add-On scan**: Before selecting the workflow pattern, scan the task for performance markers:
+   - Step 3 handoff lists non-"no requirement" performance targets that apply to this task's scope
+   - Step 4 handoff identifies this task's code as a performance-critical path
+   - Task description or acceptance criteria contain perf keywords: `p50`, `p95`, `p99`, `latency`, `throughput`, `benchmark`, `optimize`, `hot path`, `WCET`, `performance budget`
+   
+   If any trigger fires → suggest the Performance Verification Add-On (see `workflows.md` "Performance Verification Add-On") to the user, citing which trigger(s) matched. The user decides: **apply** (add-on is active for this task) or **skip**. Record the decision in the per-task checklist file.
 
-4. **Create the per-task checklist file**: Write the task's full detail (agent sequences, instructions, acceptance criteria, subtask checkboxes) to `checklists/task-{id}.md` (e.g., `checklists/task-pre1.md`, `checklists/task-1.md`). Then update the lightweight `IMPLEMENTATION-CHECKLIST.md` index (in the project root) to include this task's summary entry. If this is the first task, create both the `checklists/` folder in the project root and the index file with the header. Commit and push to GitHub.
+4. **Create the detailed agent workflow** for that task (see Per-Task Detail Template below).
 
-5. **Write a completion marker**: Create `project-handoffs/handoff-step-5.5-task-{id}-done.md` with a brief summary confirming the task was detailed. Commit and push to GitHub.
+5. **Create the per-task checklist file**: Write the task's full detail (agent sequences, instructions, acceptance criteria, subtask checkboxes) to `checklists/task-{id}.md` (e.g., `checklists/task-pre1.md`, `checklists/task-1.md`). Then update the lightweight `IMPLEMENTATION-CHECKLIST.md` index (in the project root) to include this task's summary entry. If this is the first task, create both the `checklists/` folder in the project root and the index file with the header. Commit and push to GitHub.
 
-6. **Clear context**: The user clears context between iterations.
+6. **Write a completion marker**: Create `project-handoffs/handoff-step-5.5-task-{id}-done.md` with a brief summary confirming the task was detailed. Commit and push to GitHub.
 
-7. **Repeat** from step 1 until all tasks are detailed.
+7. **Clear context**: The user clears context between iterations.
+
+8. **Repeat** from step 1 until all tasks are detailed.
 
 ### Per-Task Detail Template
 
@@ -59,7 +66,7 @@ For EACH agent assigned to the task, define:
   - If a task has both, list which tests are host-safe and which require a sandbox
   - This classification is MANDATORY for any agent that executes tests or benchmarks — do not leave it for Step 6 to figure out at runtime
 - **Acceptance Criteria**: Specific, verifiable conditions the output must satisfy (e.g., "WAL mode is enabled on connection", "all 4 tables created with correct column types")
-- **Likely External Resources** (for worker agents only — Senior Programmer, Embedded Specialist, Test Engineer, DevOps, Database Specialist, API Designer, Performance Optimizer): If you can anticipate that this agent will need external resources (web lookups, package downloads, tool installs) for this specific task, list them here. This helps the Research Inventory phase in Step 6 go faster — the orchestrator can pre-populate the manifest with expected items. If uncertain, write "TBD — Research Inventory will determine at runtime." Do NOT list resources for review-only agents.
+- **Likely External Resources** (for worker agents only — Senior Programmer, Embedded Specialist, Test Engineer, DevOps, Database Specialist, API Designer, Performance Optimizer, Hardware Engineer, UX/UI Designer): If you can anticipate that this agent will need external resources (web lookups, package downloads, tool installs) for this specific task, list them here. This helps the Research Inventory phase in Step 6 go faster — the orchestrator can pre-populate the manifest with expected items. If uncertain, write "TBD — Research Inventory will determine at runtime." Do NOT list resources for review-only agents.
 
 #### d) Agent Handoff Points
 - What output from Agent A becomes input to Agent B within this task
@@ -134,6 +141,7 @@ Each file contains the full detail for one task: agent sequences, instructions, 
 **Agents**: [Agent list]
 **Agent Sequence**: [Execution order]
 **Workflow Pattern**: [From workflows.md]
+**Performance Add-On**: [Yes — targets: (list specific targets) | No]
 
 ## Agent Sequence Detail
 
@@ -155,6 +163,7 @@ Each file contains the full detail for one task: agent sequences, instructions, 
 ## Subtask Checklist
 - [ ] [Subtask 1 — agent: specific deliverable and acceptance criteria]
 - [ ] [Subtask 2 — agent: specific deliverable and acceptance criteria]
+- [ ] [Performance Optimizer: all targets verified MET with benchmark evidence] ← only when Performance Add-On = Yes
 - [ ] [QG Verification: all outputs produced, all criteria met]
 
 Checklist states: `- [ ]` = not started, `- [x]` = QG-approved and committed, `- [ ] **REWORK:** [description]` = was completed but invalidated by send-back (needs rework — the original description is replaced with the rework reason). During Step 6, boxes are checked progressively as each agent's work is QG-approved and committed — this enables mid-task session recovery. The **REWORK:** prefix uses standard unchecked checkbox syntax so it renders correctly on GitHub and is unambiguous even if context is lost between sessions.

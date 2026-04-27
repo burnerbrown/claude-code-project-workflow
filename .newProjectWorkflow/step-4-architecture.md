@@ -132,6 +132,7 @@ After the user approves the architecture, **scaffold the project repository** ba
    - If the project already has a `.claude/settings.json` with other settings (e.g., permissions), merge the `hooks` key into the existing file — do not overwrite other settings.
 7. **Create QG evaluation subfolders** in each major directory that will produce agent output. QG evaluation reports go in these subfolders instead of cluttering the parent directory. At minimum, create:
    - `hardware/qg-evaluations/` (if the project has hardware design)
+   - `design/qg-evaluations/` (if the project has UI design work)
    - `firmware/qg-evaluations/` or `{code-directory}/qg-evaluations/` (for firmware/software agent evaluations, where `{code-directory}` is the primary source folder — e.g., `firmware/`, `src/`, `lib/`)
 8. **Create KiCad project folders** (if the project includes custom PCB design). Create only the `libs/` subfolder structure below — the user will create the KiCad project themselves, and KiCad will automatically create a `{ProjectName}/` subfolder containing all project files (`.kicad_pro`, `.kicad_sch`, `.kicad_pcb`, etc.). The `.gitignore` patterns use `**` to match files at any depth, so this nesting is handled automatically.
    ```

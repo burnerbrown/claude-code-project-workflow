@@ -58,11 +58,44 @@ Security Reviewer + Code Reviewer (parallel) → QG → Documentation Writer →
 
 Workflows below cite "Standard Review Tail" or "Short Review Tail" instead of re-listing these steps.
 
+### Performance Verification Add-On
+
+Optional add-on for tasks with measurable performance targets (latency, throughput, memory budgets, WCET, etc.). Activated only when Step 5.5 flags a task for performance verification. Not used when the task has no perf targets.
+
+The add-on inserts a Performance Optimizer verification step **after** the orchestrator executes QG-approved tests (code is proven to work) and **before** the review tail. This avoids benchmarking untested code and avoids wasting the review tail if perf targets fail.
+
+**When active, the modified flow is:**
+```
+[workflow agents through Test Engineer] → QG → [orchestrator runs tests] → Performance Optimizer (verify) → QG → [Review Tail]
+```
+
+**Example — Full Feature Development with add-on:**
+```
+Programmer → QG → Test Engineer → QG → [orchestrator runs tests] → Performance Optimizer (verify) → QG → [Standard Review Tail]
+```
+
+**Activation:** Step 5.5 flags tasks that need this add-on (see `step-5.5-task-detailing.md` "Performance Add-On Scan"). The per-task checklist file records the decision. The orchestrator applies the add-on during Step 6 only when the flag is set.
+
+**PO verification step:**
+1. **Performance Optimizer**: Benchmark the QG-approved, tested code against the targets from Step 3 / Step 5.5 task detail. Produce a pass/fail verdict per target with measured values.
+2. **QG**: Evaluate against criteria PO1-PO6. Additionally verify: does every declared target have a MET/NOT MET verdict backed by measurement data?
+
+**If all targets are MET:** Proceed to the review tail.
+
+**If any target is NOT MET:** Orchestrator presents PO's gap analysis and recommendations to the user. Three options:
+1. **Follow-up task** (default): Commit the code as-is (functionally correct, tests pass). Create a separate optimization task using the Performance Investigation workflow. The current task proceeds to the review tail. The follow-up task receives PO's analysis and the specific missed targets.
+2. **Adjust targets**: User relaxes the target based on PO's measurements. Task proceeds to the review tail.
+3. **Block**: Hard requirement — Senior Programmer reworks using PO's recommendations, then re-enters at Test Engineer. Full sequence repeats: Test Engineer → QG → orchestrator runs tests → PO verify → QG.
+
+**Scope:** Applies to any workflow that has a Test Engineer step followed by a review tail. Does NOT apply to: Performance Investigation (PO is already woven in), Documentation Sprint, or Dependency Addition.
+
+**Embedded/RTOS tasks:** For firmware tasks with WCET or interrupt latency targets, the Performance Optimizer uses its Real-Time focus area (WCET analysis, interrupt latency measurement, priority inversion detection). The same add-on pattern applies — PO verifies against the declared timing budgets.
+
 ### Research Inventory Phase (Mandatory for All Worker Agents)
 
 **Before any worker agent begins implementation**, the orchestrator runs a Research Inventory phase to identify what external resources the agent will need, giving the user full visibility before anything is accessed.
 
-**Which agents this applies to:** All worker agents that produce code, tests, configuration, or design artifacts — Senior Programmer, Embedded Systems Specialist, Test Engineer, DevOps Engineer, Database Specialist, API Designer, Performance Optimizer, Hardware Engineer (Step 6 subsystem tasks). Also applies to the **Component Sourcing agent** for live distributor/manufacturer lookups (see its agent definition for the trusted domain allowlist). Does NOT apply to: review-only agents (QG, Security Reviewer, Code Reviewer, Compliance Reviewer, Documentation Writer, DFM Reviewer) — they only read existing files; Software Architect (context summaries only); Supply Chain Security (own scanning workflow); or Project Manager (status tracking only).
+**Which agents this applies to:** All worker agents that produce code, tests, configuration, or design artifacts — Senior Programmer, Embedded Systems Specialist, Test Engineer, DevOps Engineer, Database Specialist, API Designer, Performance Optimizer, Hardware Engineer (Step 6 subsystem tasks), UX/UI Designer. Also applies to the **Component Sourcing agent** for live distributor/manufacturer lookups (see its agent definition for the trusted domain allowlist). Does NOT apply to: review-only agents (QG, Security Reviewer, Code Reviewer, Compliance Reviewer, Documentation Writer, DFM Reviewer) — they only read existing files; Software Architect (context summaries only); Supply Chain Security (own scanning workflow); or Project Manager (status tracking only).
 
 **How it works:**
 
@@ -216,6 +249,37 @@ Programmer → QG → Test Engineer → QG → [Standard Review Tail]
 3. **Test Engineer**: Write comprehensive tests including security test cases
 4. **QG**: Evaluate test engineer output against criteria T1-T10
 5. **Standard Review Tail** — see "Standard Review Tail" section above
+
+**Note:** If the task involves significant UI design work (new screens, visual redesign, complex interactions), use the **UI Feature Development** workflow instead — it prepends a UX/UI Designer phase with a user-in-the-loop Claude Design step before the Programmer begins.
+
+## UI Feature Development
+
+**Use when:** A task requires UI design work — new screens, significant layout changes, visual redesigns, or any feature where the user experience needs deliberate design before implementation. The UX/UI Designer produces a text-based design specification with Claude Design prompts; the user then iterates visually in Claude Design and exports the result back into the project for implementation.
+
+```
+UX/UI Designer → QG → [User: Claude Design] → Programmer → QG → Test Engineer → QG → [Standard Review Tail]
+```
+
+1. **UX/UI Designer**: Produce the design specification — design overview, screen inventory, design tokens, per-screen component hierarchy and layout specs, interaction states, responsive behavior, accessibility notes, user flow diagram, transitions (if applicable), and Claude Design prompts (one per screen)
+2. **QG**: Evaluate against criteria UI1-UI12
+3. **Orchestrator: Claude Design Handoff**: After QG approves the design spec, the orchestrator:
+   - Tells the user the file path of the QG-approved design spec (e.g., *"Design spec ready: `design/screen-login.md` — open this in Claude Design or point Claude Design at your codebase"*)
+   - Asks the user: *"Would you like to pause while you review in Claude Design, or should I continue with other tasks?"*
+   - If **pause**: The orchestrator waits for the user to return with feedback or approval
+   - If **continue**: The orchestrator proceeds with independent work (other tasks, other screens) and the user signals when the design review is complete
+4. **User: Claude Design** (user-in-the-loop — NOT orchestrator-controlled): The user takes the design spec to Claude Design on the web (paste the Claude Design prompt, upload the file, or point Claude Design at the codebase). The user iterates visually until satisfied, then exports the final design back into the project. This step is analogous to the KiCad step in the Hardware workflow — the orchestrator cannot drive it.
+5. **Senior Programmer**: Implement the UI using both the design specification (for structure, tokens, states, accessibility) and any Claude Design exports (for visual fidelity). The spec is the source of truth for behavior and accessibility; the visual export is the source of truth for look and feel.
+6. **QG**: Evaluate against criteria P1-P10
+7. **Test Engineer**: Write tests — component rendering, interaction behavior, responsive breakpoints, accessibility (ARIA, keyboard nav, contrast)
+8. **QG**: Evaluate against criteria T1-T10
+9. **Standard Review Tail** — Security Reviewer focuses on XSS, CSRF, and client-side vulnerabilities; Code Reviewer focuses on component structure, reusability, and design token compliance; Documentation Writer recommends component library docs and style guide updates
+
+**During the user's Claude Design work**, the user may request:
+- **Design revision**: Re-invoke the UX/UI Designer to update the spec based on visual iteration discoveries
+- **Token update**: Re-invoke the UX/UI Designer if the design tokens need adjustment after visual review
+- **Partial implementation**: If the user wants to implement one screen while still iterating on others, the orchestrator can start the Programmer on QG-approved, visually-finalized screens
+
+These are ad-hoc invocations, not a fixed workflow sequence — they happen as needed during the user's Claude Design work.
 
 ## New API Endpoint
 ```
@@ -532,6 +596,7 @@ The following agents can run **in parallel** when they don't depend on each othe
 The following must run **sequentially**:
 - Programmer → QG → Test Engineer (tests need QG-approved code)
 - Any agent → QG → Performance Optimizer (needs QG-approved runnable code to analyze)
+- Test Engineer QG + orchestrator test execution → Performance Optimizer verification (PO add-on needs tested, runnable code to benchmark)
 - All agents → QG → Compliance Reviewer (compliance review needs all prior QG-approved outputs)
 - Compliance Reviewer → QG → Documentation Writer (documentation needs the completed, verified code)
 - Documentation Writer → QG (final QG evaluation before commit)
@@ -539,6 +604,7 @@ The following must run **sequentially**:
 - Component Sourcing → QG → Hardware Engineer re-invoke (hardware engineer needs sourcing feedback to adjust)
 - Hardware Engineer → QG → DFM Reviewer (DFM needs the finalized design to review)
 - DFM Reviewer → QG → Hardware Engineer re-invoke (hardware engineer needs DFM feedback to adjust)
+- UX/UI Designer → QG → Senior Programmer (programmer needs QG-approved design spec and Claude Design exports)
 
 Note: The Architect → Programmer and SCS → Programmer sequential dependencies are handled in Step 4, not in Step 6 task workflows.
 

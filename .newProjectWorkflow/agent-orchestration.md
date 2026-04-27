@@ -65,7 +65,7 @@ That file contains your persona, principles, output format, and tool restriction
 
 | Profile | Frontmatter | Agents |
 |---------|-------------|--------|
-| **Worker (file-only)** | `tools: Read, Write, Edit, Glob, Grep`<br>`disallowedTools: Bash, PowerShell, WebFetch, WebSearch` | Senior Programmer, Test Engineer, Embedded Systems Specialist, Hardware Engineer, Database Specialist, API Designer, DevOps Engineer, Performance Optimizer |
+| **Worker (file-only)** | `tools: Read, Write, Edit, Glob, Grep`<br>`disallowedTools: Bash, PowerShell, WebFetch, WebSearch` | Senior Programmer, Test Engineer, Embedded Systems Specialist, Hardware Engineer, Database Specialist, API Designer, DevOps Engineer, Performance Optimizer, UX/UI Designer |
 | **Reviewer (file-only)** | `tools: Read, Write, Edit, Glob, Grep`<br>`disallowedTools: Bash, PowerShell, WebFetch, WebSearch` | Quality Gate, Security Reviewer, Code Reviewer, Compliance Reviewer, DFM Reviewer, Documentation Writer, Software Architect, Project Manager |
 | **Web research allowed** | `tools: Read, Write, Edit, Glob, Grep, WebSearch, WebFetch`<br>`disallowedTools: Bash, PowerShell` | Component Sourcing |
 | **Bash allowed (scanning)** | `tools: Read, Write, Edit, Glob, Grep, Bash`<br>`disallowedTools: PowerShell, WebFetch, WebSearch` | Supply Chain Security |
@@ -152,7 +152,7 @@ When the Quality Gate sends work back to a previously-invoked agent, **always la
 - Eliminates the resume-vs-fresh branching and fallback logic entirely
 
 **Foreground vs. background:**
-- **Foreground (mandatory for agents that write/edit files):** Senior Programmer, Test Engineer, DevOps Engineer, Database Specialist, API Designer, Hardware Engineer, Embedded Systems Specialist, Documentation Writer, Supply Chain Security, Software Architect, Project Manager. These agents create or modify files and need the user's permission prompts to surface.
+- **Foreground (mandatory for agents that write/edit files):** Senior Programmer, Test Engineer, DevOps Engineer, Database Specialist, API Designer, Hardware Engineer, Embedded Systems Specialist, Documentation Writer, Supply Chain Security, Software Architect, Project Manager, UX/UI Designer. These agents create or modify files and need the user's permission prompts to surface.
 - **Background (allowed for read-only agents):** Quality Gate, Security Reviewer, Code Reviewer, Compliance Reviewer, Performance Optimizer, Component Sourcing, DFM Reviewer. These agents only read files and produce reports/evaluations — they never call Write or Edit, so background mode is safe.
 
 **When to re-invoke agents (always a fresh invocation):**
@@ -167,6 +167,7 @@ When the Quality Gate sends work back to a previously-invoked agent, **always la
 - **Hardware Engineer**: Re-invoke when QG sends hardware design back. Also re-invoke when Component Sourcing or DFM Reviewer flags issues requiring design changes
 - **Performance Optimizer**: Re-invoke for the verification phase — pass the original analysis file path so it can compare. Also re-invoke if QG sends recommendations back for revision
 - **Project Manager**: Re-invoke within a task session when the PM is active (multi-module projects). For single-module projects where the PM is not invoked, this is N/A
+- **UX/UI Designer**: Re-invoke when QG sends the design spec back, when the user returns from Claude Design with changes that require spec updates, or when the Senior Programmer flags implementation issues requiring design revision
 
 **SCS invocation patterns** (governed by the `mode` field):
 - **Batch Phase 1 (`mode: "batch-phase1"`) — single agent across all packages.** This is a deliberate carve-out from the fresh-per-package rule that applies everywhere else in this workflow. The batch agent receives the ENTIRE package list (direct + transitives) and runs Phase 0 (cache check) plus Phase 1 (project-level tree/audit and per-package assessment) across all of them in one invocation. It returns an aggregate batch report and then stops. The carve-out is safe because Phase 1 reads only **registry metadata, CVE databases, license data, and dependency-tree output** — no untrusted artifact source code enters the agent's context, so there is no cross-package prompt-injection vector. After the report comes back, discard the agent — the batch agent is never reused for Phase 2+ work.
@@ -240,6 +241,7 @@ Continue the scan from {next phase/step}. Artifacts on disk in .scs-sandbox/stag
 | Component Sourcing | `component-sourcing.md` | **Step 4**: BOM validation — component lifecycle, availability, second-sourcing, cost analysis, supply chain risk. Runs after Hardware Engineer produces preliminary BOM. |
 | DFM Reviewer | `dfm-reviewer.md` | **Step 4** (primary): Design-for-manufacturability review — PCB fabrication feasibility, assembly concerns, thermal review, testability, mechanical fit. Runs in Step 4 after components are finalized. **Step 6 only** during Hardware Revision workflows (see `workflows.md`) or ad-hoc when the user requests a DFM review of their KiCad layout. |
 | API Designer | `api-designer.md` | Designing REST or gRPC APIs, writing OpenAPI specs, protobuf definitions |
+| UX/UI Designer | `ux-ui-designer.md` | Designing user interfaces — layout specs, component hierarchies, design tokens, interaction states, accessibility, and Claude Design prompts. Used in the UI Feature Development workflow (Step 6). |
 | Supply Chain Security | `supply-chain-security.md` | **Step 4**: Full 5-phase scan of all external dependencies. In Step 6, only used if a new dependency is discovered mid-implementation (emergency workflow). **Always check `.trusted-artifacts/_registry.md` before invoking — if the dependency is cached and hash-verified, skip the scan entirely.** Must run synchronously — do NOT use `run_in_background: true`. **First-time use:** the sandbox infrastructure must be installed once per machine — see `.newProjectWorkflow/scs-sandbox-setup.md`. If a sandbox launch fails, direct the user to that doc. |
 | Compliance Reviewer | `compliance-reviewer.md` | Final-gate NIST/CISA/OWASP compliance assessment |
 | Quality Gate | `quality-gate.md` | **Evaluates every agent's output against acceptance criteria** — produces APPROVED/SENT BACK/APPROVED WITH CONDITIONS verdicts with specific feedback and code snippets. |

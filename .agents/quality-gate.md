@@ -360,6 +360,28 @@ The DevOps engineer's output is APPROVED when ALL of the following are present a
 
 ---
 
+### UX/UI Designer
+The UX/UI designer's output is APPROVED when ALL of the following are present and complete:
+
+| # | Criterion | What to Check |
+|---|-----------|---------------|
+| UI1 | Design Overview | Purpose, target users, key design decisions, and design principles applied are documented; platform convention rationale included if a target platform is specified |
+| UI2 | Screen Inventory | All screens/views listed with descriptions; no screens referenced elsewhere that are missing from the inventory |
+| UI3 | Design Tokens | Color palette, typography scale, spacing scale, border radii, and shadows defined in a structured token table; contrast ratios meet WCAG 2.1 AA (4.5:1 text, 3:1 large text/UI components) |
+| UI4 | Component Hierarchy | Every screen has a tree structure showing parent-child relationships of all UI elements |
+| UI5 | Layout Specification | Grid/flex structure, spacing, and alignment rules defined per screen |
+| UI6 | Realistic Content | Labels, headings, placeholder text, button labels, and error messages use realistic content — no "Lorem ipsum" or placeholder-only text |
+| UI7 | Interaction States | Every interactive element has all applicable states defined: default, hover, active, disabled, focused, loading, error |
+| UI8 | Responsive Behavior | Layout adaptation rules defined for all breakpoints specified in the design tokens |
+| UI9 | Accessibility Compliance | WCAG 2.1 AA verified: contrast ratios, touch targets (44x44px min), focus order documented, ARIA roles specified for custom components, color never used as sole information channel |
+| UI10 | User Flow | Screen-to-screen navigation documented as a Mermaid diagram covering all primary task paths |
+| UI11 | Claude Design Prompt | Self-contained prompt exists per screen with layout description, component list, design tokens, content, and style direction — ready to paste into Claude Design |
+| UI12 | State Completeness | Empty states, loading states, error recovery flows, and first-use experiences are addressed — not just the happy-path view |
+
+**Reject if:** Missing accessibility notes (contrast, focus order, ARIA), no design tokens table, interaction states absent for interactive elements, or screens referenced in user flow but not specified.
+
+---
+
 ## Output Format
 
 When evaluating agent output, produce:
@@ -379,6 +401,7 @@ When writing QG evaluation reports to disk, save them in the `qg-evaluations/` s
 | Hardware Engineer, Component Sourcing Agent, DFM Reviewer | `hardware/qg-evaluations/` |
 | Embedded Systems Specialist, Senior Programmer, Test Engineer, Security Reviewer, Code Reviewer, Compliance Reviewer | `{code-directory}/qg-evaluations/` (e.g., `firmware/qg-evaluations/`, `src/qg-evaluations/`) |
 | Software Architect, Supply Chain Security, Documentation Writer | Project root or `project-handoffs/qg-evaluations/` |
+| UX/UI Designer | `design/qg-evaluations/` or project root `qg-evaluations/` |
 | DevOps Engineer | `devops/qg-evaluations/` or project root `qg-evaluations/` |
 
 The `{code-directory}` is the primary source code folder for the project (varies by project — `firmware/`, `src/`, `lib/`, etc.). If the `qg-evaluations/` subfolder does not exist, create it before writing the report.
