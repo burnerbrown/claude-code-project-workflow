@@ -1262,10 +1262,16 @@ def main():
     if tool_name != "Bash":
         sys.exit(0)
 
+    agent_id = data.get("agent_id")
+    is_subagent = agent_id is not None and agent_id != ""
+
     command_clean = command.strip()
     decision, reason = validate_command(command_clean)
 
     if decision == "deny":
+        if not is_subagent:
+            log_decision(command_clean, "pass-through (orchestrator-override)", reason)
+            sys.exit(0)
         log_decision(command_clean, "deny", reason)
         result = {
             "hookSpecificOutput": {
