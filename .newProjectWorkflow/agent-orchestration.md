@@ -124,8 +124,8 @@ When launching agents, **pass file paths and instructions — not file contents.
 5. Receive the QG's verdict
 6. **Orchestrator routes based on the verdict:**
    - If APPROVED: commit the approved work, check the subtask box, proceed to the next agent in the checklist
-   - If SENT BACK: **resume** the original worker agent (using its saved agent ID) with the QG's specific feedback — see "Agent Lifecycle: Resume on Rework" below
-   - If APPROVED WITH CONDITIONS: **resume the original worker agent** with the QG's conditions. Agent fixes all items and resubmits. QG re-evaluates only the conditions. Re-run tests if any condition changed code logic. Do not commit until conditions are resolved.
+   - If SENT BACK: **launch a fresh instance** of the original worker agent with the QG's specific feedback — see "Agent Lifecycle: Fresh Agent on Rework" below
+   - If APPROVED WITH CONDITIONS: **launch a fresh instance** of the original worker agent with the QG's conditions. QG re-evaluates only the conditions on resubmission. Re-run tests if any condition changed code logic. Do not commit until conditions are resolved.
 
 **The Project Manager agent is optional.** See `workflows.md` "When to Invoke the Project Manager Agent" for the specific situations that warrant a PM invocation. For most tasks, the orchestrator handles routing directly using the checklist's agent sequence.
 
@@ -142,71 +142,83 @@ Produce your evaluation with PASS/FAIL/PARTIAL for each criterion and your overa
 
 **When all workflow steps are complete** (all subtask boxes checked, final QG approval received), the orchestrator commits all work and asks the user for push approval.
 
-### Agent Lifecycle: Resume on Rework
+### Agent Lifecycle: Fresh Agent on Rework
 
-When a worker agent is first launched for a task, the Agent tool returns an **agent ID**. The orchestrator should track these IDs for the duration of the current task session. If the Quality Gate sends work back to a previously-invoked agent, **resume that agent** using `SendMessage` with the agent's ID as the `to` field, instead of launching a fresh one.
+When the Quality Gate sends work back to a previously-invoked agent, **always launch a fresh agent** — do NOT use `SendMessage` to resume a prior agent. This applies to every agent, every workflow, no exceptions.
 
-**Why resume instead of launching fresh:**
-- The resumed agent retains full context: what files it read, what code it wrote, what decisions it made
-- Rework is faster and more accurate because the agent doesn't need to rebuild context from scratch
-- The agent can see the QG feedback alongside its own prior work, making targeted fixes easier
+**Why fresh instead of resuming:**
+- `SendMessage` resumes agents in background mode, which silently auto-denies permission prompts — causing write/edit failures the user never sees
+- Fresh agents rebuild context by reading files on disk — the same pattern used for all other agent invocations, no special logic needed
+- Eliminates the resume-vs-fresh branching and fallback logic entirely
 
-**Which agents to resume:**
-- **Senior Programmer**: Resume when QG sends code back for fixes, or when reviewers flag issues requiring code changes
-- **Test Engineer**: Resume when QG sends tests back, or when code fixes require test updates
-- **Security Reviewer**: Resume when re-verifying that flagged issues have been fixed — it remembers its original findings
-- **Code Reviewer**: Resume when re-reviewing after significant code changes — it remembers its original review context
-- **DevOps Engineer**: Resume when QG sends CI/CD configs or Dockerfiles back — it retains knowledge of pipeline structure, environment variables, and deployment constraints
-- **Embedded Systems Specialist**: Resume when QG sends firmware code back — it retains knowledge of hardware constraints, pin mappings, timing requirements, and register configurations
-- **Database Specialist**: Resume when QG sends schema/migration work back — it retains context of the full data model, indexing strategy, and design trade-offs
-- **API Designer**: Resume when QG sends API spec back — it retains context of resource models, endpoint relationships, error catalogs, and versioning decisions
-- **Hardware Engineer**: Resume when QG sends hardware design back — it retains knowledge of power architecture, pin assignments, component selections, and interface specifications. Also resume when Component Sourcing or DFM Reviewer flags issues requiring design changes
-- **Performance Optimizer**: Resume for the verification phase — it retains context of its original analysis findings for before/after comparison. Also resume if QG sends recommendations back for revision
-- **Project Manager**: Resume within a task session when the PM is active (multi-module projects) — it retains cross-module dependency and status context. For single-module projects where the PM is not invoked, this is N/A
-- **Supply Chain Security**: Two invocation patterns, governed by the `mode` field.
-  - **Batch Phase 1 (`mode: "batch-phase1"`) — single agent across all packages.** This is a deliberate carve-out from the fresh-per-package rule that applies everywhere else in this workflow. The batch agent receives the ENTIRE package list (direct + transitives) and runs Phase 0 (cache check) plus Phase 1 (project-level tree/audit and per-package assessment) across all of them in one invocation. It returns an aggregate batch report and then stops. The carve-out is safe because Phase 1 reads only **registry metadata, CVE databases, license data, and dependency-tree output** — no untrusted artifact source code enters the agent's context, so there is no cross-package prompt-injection vector. After the report comes back, discard the agent ID — the batch agent is never reused for Phase 2+ work.
-  - **Per-package Phases 2–5 (`mode: "per-package"`) — fresh per dependency.** For each package that batch Phase 1 approved for scanning, invoke a **fresh** SCS agent. This provides prompt-injection isolation (a compromised agent from scanning dependency A cannot carry over to dependency B), because Phase 2–5 reads downloaded source code (Layer 4) and that source could contain injection payloads. Transitive dependencies get their own fresh per-package invocations — they are maintained by different authors with independent risk profiles.
-  - **Resume within a single per-package scan** when the orchestrator hands control back after verification checkpoints (Verification 1: config readback, Verification 2: hash check). The per-package agent retains its in-flight context (dependency details, cache check result, download config) so it can continue directly into sandbox launch and scanning without rebuilding context.
-  - **On verification failure:** If Verification 1 or 2 fails, discard the per-package agent's ID immediately. Do not resume it — if the user decides to retry, invoke a fresh SCS agent.
+**Foreground vs. background:**
+- **Foreground (mandatory for agents that write/edit files):** Senior Programmer, Test Engineer, DevOps Engineer, Database Specialist, API Designer, Hardware Engineer, Embedded Systems Specialist, Documentation Writer, Supply Chain Security, Software Architect, Project Manager. These agents create or modify files and need the user's permission prompts to surface.
+- **Background (allowed for read-only agents):** Quality Gate, Security Reviewer, Code Reviewer, Compliance Reviewer, Performance Optimizer, Component Sourcing, DFM Reviewer. These agents only read files and produce reports/evaluations — they never call Write or Edit, so background mode is safe.
 
-**Which agents to invoke fresh each time:**
-- **Quality Gate**: Each QG invocation evaluates a different agent's output with different criteria — fresh invocations are appropriate
-- **Compliance Reviewer**: One-shot final-gate evaluation — fresh each time
-- **Documentation Writer**: One-shot deliverable — fresh each time
-- **Software Architect**: Invoke fresh — only used in Step 6 for Documentation Sprint workflows, providing context summaries that don't benefit from prior session state
-- **Component Sourcing**: Invoke fresh — one-shot BOM validation; if re-run after Hardware Engineer changes, it needs to re-evaluate the updated BOM from scratch
-- **DFM Reviewer**: Invoke fresh — one-shot manufacturability review of the current design state
+**When to re-invoke agents (always a fresh invocation):**
+- **Senior Programmer**: Re-invoke when QG sends code back for fixes, or when reviewers flag issues requiring code changes
+- **Test Engineer**: Re-invoke when QG sends tests back, or when code fixes require test updates
+- **Security Reviewer**: Re-invoke when re-verifying that flagged issues have been fixed
+- **Code Reviewer**: Re-invoke when re-reviewing after significant code changes
+- **DevOps Engineer**: Re-invoke when QG sends CI/CD configs or Dockerfiles back
+- **Embedded Systems Specialist**: Re-invoke when QG sends firmware code back
+- **Database Specialist**: Re-invoke when QG sends schema/migration work back
+- **API Designer**: Re-invoke when QG sends API spec back
+- **Hardware Engineer**: Re-invoke when QG sends hardware design back. Also re-invoke when Component Sourcing or DFM Reviewer flags issues requiring design changes
+- **Performance Optimizer**: Re-invoke for the verification phase — pass the original analysis file path so it can compare. Also re-invoke if QG sends recommendations back for revision
+- **Project Manager**: Re-invoke within a task session when the PM is active (multi-module projects). For single-module projects where the PM is not invoked, this is N/A
 
-**Agent ID tracking rules:**
-- Note each worker agent's ID when it's first launched during a task
-- Use `SendMessage` with the agent's ID as the `to` field to continue a previously-launched agent
-- Agent IDs are held in the orchestrator's working memory and naturally expire when the user does `/clear` between tasks — this is the correct lifecycle since each task gets fresh agents
-- No explicit cleanup is needed — the `/clear` between tasks handles it
-- **Fallback if resuming an agent fails** (for any reason): Launch a fresh agent. Tell it which phase/step to start from — do NOT summarize prior work in the prompt. The fresh agent must re-read all applicable files (agent definition and task-relevant files) to rebuild its own working knowledge. Pass file paths, not content — the same rule as any other agent invocation. For SCS specifically: specify the exact phase and step (e.g., "start from Phase 2 step 3 — clear sentinels and launch download sandbox"), and reference any checkpoint artifacts still on disk (e.g., "download-config.json and hash.txt are in staging").
+**SCS invocation patterns** (governed by the `mode` field):
+- **Batch Phase 1 (`mode: "batch-phase1"`) — single agent across all packages.** This is a deliberate carve-out from the fresh-per-package rule that applies everywhere else in this workflow. The batch agent receives the ENTIRE package list (direct + transitives) and runs Phase 0 (cache check) plus Phase 1 (project-level tree/audit and per-package assessment) across all of them in one invocation. It returns an aggregate batch report and then stops. The carve-out is safe because Phase 1 reads only **registry metadata, CVE databases, license data, and dependency-tree output** — no untrusted artifact source code enters the agent's context, so there is no cross-package prompt-injection vector. After the report comes back, discard the agent — the batch agent is never reused for Phase 2+ work.
+- **Per-package Phases 2–5 (`mode: "per-package"`) — fresh per dependency.** For each package that batch Phase 1 approved for scanning, invoke a **fresh** SCS agent. This provides prompt-injection isolation (a compromised agent from scanning dependency A cannot carry over to dependency B), because Phase 2–5 reads downloaded source code (Layer 4) and that source could contain injection payloads. Transitive dependencies get their own fresh per-package invocations — they are maintained by different authors with independent risk profiles.
+- **Fresh agent at each verification checkpoint** within a per-package scan: after the orchestrator completes Verification 1 (config readback) or Verification 2 (hash check), launch a **fresh** SCS agent to continue from the next phase. The fresh agent reads checkpoint artifacts from disk (.scs-sandbox/staging/).
+- **On verification failure:** Do not continue the scan. The user decides whether to retry with a fresh agent or investigate.
 
-**Resume prompt structure (rework scenario):**
+**One-shot agents (not re-invoked for rework):**
+- **Quality Gate**: Each invocation evaluates a different agent's output with different criteria
+- **Compliance Reviewer**: One-shot final-gate evaluation
+- **Documentation Writer**: One-shot deliverable
+- **Software Architect**: Only used in Step 6 for Documentation Sprint workflows
+- **Component Sourcing**: One-shot BOM validation; if re-run after Hardware Engineer changes, it re-evaluates the updated BOM from scratch
+- **DFM Reviewer**: One-shot manufacturability review of the current design state
 
-Use `SendMessage` with the agent's ID to send this message:
+**Fresh agent prompt structure (rework scenario):**
+
+Launch a new agent with this prompt:
 ```
-The Quality Gate has sent your work back. Here is the QG's feedback:
+You are the {Agent Role}. Read your agent definition: {agent definition path}
+
+Task context:
+- Task: {task name and ID}
+- Files to review/modify: {list of relevant file paths}
+- Checklist: {checklist path}
+
+The Quality Gate evaluated your predecessor's work and sent it back. Here is the QG's feedback:
 
 {QG verdict with specific findings}
 
-Please address these issues and produce updated output.
+The predecessor's output is on disk at the file paths above. Read it, understand the QG's feedback, address the issues, and produce updated output.
 ```
 
-The resumed agent already has full context of its prior work, so there is no need to re-specify file paths, instructions, or acceptance criteria — just provide the QG feedback.
+The fresh agent has no prior context, so the prompt must include file paths to all relevant artifacts. The agent reads the files itself — pass paths, not content.
 
-**Resume prompt structure (SCS verification checkpoint):**
+**Fresh agent prompt structure (SCS verification checkpoint):**
 
-Use `SendMessage` with the SCS agent's ID to send this message:
+After a verification checkpoint passes, launch a fresh SCS agent to continue:
 ```
-Verification [1 or 2] passed. [Brief result: "Download config matches expected URL and filename" or "Downloaded artifact hash verified: [hash]"]
+You are the Supply Chain Security agent. Read your agent definition: {scs agent definition path}
 
-Proceed with the next phase of the scan.
+Mode: per-package
+Package: {name}@{version}
+Ecosystem: {ecosystem}
+
+Verification {1 or 2} passed. {Brief result: "Download config matches expected URL and filename" or "Downloaded artifact hash verified: [hash]"}
+
+Continue the scan from {next phase/step}. Artifacts on disk in .scs-sandbox/staging/:
+- {list checkpoint artifacts: download-config.json, hash.txt, downloaded artifact, etc.}
+
+{Any additional context: expected hash, download URL, batch Phase 1 entry path, etc.}
 ```
-
-The resumed SCS agent already has its Phase 0/1 context, so there is no need to re-specify dependency details, URLs, or prior findings — just confirm the checkpoint result and instruct it to continue.
 
 ---
 
@@ -309,12 +321,12 @@ The SCS command validator hook catches unauthorized *commands*, but it cannot ve
 2. Compare the `url` and `fileName` values against what the orchestrator provided in the SCS agent's prompt
 3. Both must match **exactly** — same package name, same version, same URL, same filename
 
-**If they match:** Resume the SCS agent (see "Agent Lifecycle: Resume on Rework" above) and proceed with launching the download sandbox.
+**If they match:** Launch a fresh SCS agent (see "Agent Lifecycle: Fresh Agent on Rework" above) and proceed with launching the download sandbox.
 
 **If they do NOT match:**
 - **STOP immediately.** Do NOT launch the sandbox.
 - Report to the user: *"SCS agent wrote a download config that does not match the provided URL. Expected: [expected URL]. Actual: [actual URL from config]. This may indicate prompt injection or agent deviation."*
-- Do NOT trust any output from this SCS agent invocation — discard the agent ID
+- Do NOT trust any output from this SCS agent invocation
 - The user decides whether to re-run the scan with a fresh agent or investigate
 
 **Why this matters:** This catches the attack at the earliest possible point — before anything is downloaded. A typosquatted package name (`req-uests` instead of `requests`) or substituted version (`1.2.4` instead of `1.2.3`) would be caught here.
@@ -333,13 +345,13 @@ The SCS command validator hook catches unauthorized *commands*, but it cannot ve
 3. Compare the downloaded file's hash against the expected hash the orchestrator recorded earlier
 4. They must match exactly
 
-**If they match:** Resume the SCS agent (see "Agent Lifecycle: Resume on Rework" above) and proceed with Defender scan, VirusTotal lookup, etc.
+**If they match:** Launch a fresh SCS agent (see "Agent Lifecycle: Fresh Agent on Rework" above) telling it to proceed with Defender scan, VirusTotal lookup, etc.
 
 **If they do NOT match:**
 - **STOP immediately.** Do NOT proceed with scanning (the artifact may be malicious).
 - Report to the user: *"Downloaded artifact hash does not match expected hash. Expected: [expected]. Actual: [actual]. The download may have been tampered with, or the wrong package/version was downloaded."*
 - Delete the artifact from staging: `rm -f .scs-sandbox/staging/<artifact>`
-- Discard the SCS agent ID — do not resume it
+- Do not continue with this SCS agent's output
 - The user decides next steps
 
 **If the orchestrator does not have the expected hash** (e.g., first-time scan of a package where the URL was discovered during the scan rather than pre-provided):

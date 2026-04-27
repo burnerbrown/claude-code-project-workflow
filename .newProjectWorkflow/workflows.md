@@ -26,7 +26,7 @@ Worker Agent → QG evaluates against acceptance criteria → Orchestrator route
                                                          SENT BACK → same Worker Agent re-does work with QG feedback
 ```
 
-For the full QG routing procedure — how to invoke the QG, prompt structure, verdict handling, and agent resume rules — see `agent-orchestration.md` "Quality Gate Routing" and "Agent Lifecycle: Resume on Rework." This file defines WHICH agents run in WHAT order for each workflow type; `agent-orchestration.md` defines HOW to execute each handoff.
+For the full QG routing procedure — how to invoke the QG, prompt structure, verdict handling, and agent rework rules — see `agent-orchestration.md` "Quality Gate Routing" and "Agent Lifecycle: Fresh Agent on Rework." This file defines WHICH agents run in WHAT order for each workflow type; `agent-orchestration.md` defines HOW to execute each handoff.
 
 **Diagram shorthand:** In the workflow diagrams below, `→ QG →` means: orchestrator sends output to Quality Gate for evaluation, then the orchestrator routes based on the verdict. The checklist defines the agent sequence, so routing is usually obvious.
 
@@ -310,7 +310,7 @@ Hardware Engineer (consolidate) → QG → DFM Reviewer (full design) → QG →
 2. **QG**: Evaluate the consolidated design against full criteria HE1-HE12
 3. **DFM Reviewer**: Full manufacturability review of the complete design **against the selected fab house's specific capabilities**
 4. **QG**: Evaluate against criteria DFM1-DFM8
-5. **Hardware Engineer** (resume if DFM issues): Address any must-fix items
+5. **Hardware Engineer** (re-invoke if DFM issues): Address any must-fix items
 6. **QG**: Re-evaluate affected criteria
 
 ### Step 6 Firmware Implementation Track
@@ -399,12 +399,12 @@ Hardware Engineer (production design) → QG → Component Sourcing → QG → H
 2. **QG**: Evaluate against architecture-level criteria HE1-HE6, HE11, HE12
 3. **Component Sourcing**: Validate BOM for production quantities — focus on availability at volume, cost optimization, and lifecycle
 4. **QG**: Evaluate against criteria CS1-CS8
-5. **Hardware Engineer** (resume): Address sourcing issues
+5. **Hardware Engineer** (re-invoke): Address sourcing issues
 6. **QG**: Re-evaluate
 7. **Fab House Selection** (orchestrator-driven): Evaluate fab house against production board requirements. For Prototype to Production, pay special attention to volume pricing, assembly service capabilities, and turnaround time at production quantities.
 8. **DFM Reviewer**: Full production DFM review **against the selected fab house** — assembly process, testability, panelization
 9. **QG**: Evaluate against criteria DFM1-DFM8
-10. **Hardware Engineer** (resume): Address DFM issues
+10. **Hardware Engineer** (re-invoke): Address DFM issues
 11. **QG**: Re-evaluate
 
 ### Step 6 Firmware Porting
@@ -465,7 +465,7 @@ Note: This workflow interleaves Performance Optimizer's verification step betwee
 6. **QG**: Evaluate against criteria T1-T10
 7. **Security Reviewer + Code Reviewer**: Run in parallel — Security Reviewer focuses on security regressions from optimizations (weakened crypto, disabled bounds checks, reduced logging); Code Reviewer checks code quality
 8. **QG**: Evaluate both reviews — security against SR1-SR8, code review against CR1-CR7
-9. **Performance Optimizer**: Verify improvements with benchmarks (resume the Performance Optimizer agent from step 1 (Performance Optimizer analysis) so it can compare against its original analysis findings)
+9. **Performance Optimizer**: Verify improvements with benchmarks (launch a fresh Performance Optimizer agent — pass the original analysis file path from step 1 so it can compare against its original findings)
 10. **QG**: Evaluate against criteria PO1-PO6
 11. **Documentation Writer**: Recommend performance documentation updates (benchmarks, configuration tuning guides, etc.)
 12. **QG**: Evaluate against criteria D1-D8
@@ -536,9 +536,9 @@ The following must run **sequentially**:
 - Compliance Reviewer → QG → Documentation Writer (documentation needs the completed, verified code)
 - Documentation Writer → QG (final QG evaluation before commit)
 - Hardware Engineer → QG → Component Sourcing (sourcing needs the preliminary BOM from hardware design)
-- Component Sourcing → QG → Hardware Engineer resume (hardware engineer needs sourcing feedback to adjust)
+- Component Sourcing → QG → Hardware Engineer re-invoke (hardware engineer needs sourcing feedback to adjust)
 - Hardware Engineer → QG → DFM Reviewer (DFM needs the finalized design to review)
-- DFM Reviewer → QG → Hardware Engineer resume (hardware engineer needs DFM feedback to adjust)
+- DFM Reviewer → QG → Hardware Engineer re-invoke (hardware engineer needs DFM feedback to adjust)
 
 Note: The Architect → Programmer and SCS → Programmer sequential dependencies are handled in Step 4, not in Step 6 task workflows.
 

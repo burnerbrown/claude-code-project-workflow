@@ -77,7 +77,7 @@ Repeat the following cycle for each task/subtask until the checklist is complete
    - **In the agent's prompt, tell the agent which files to read and what to do.** Include file paths and the specific instructions from the checklist. Do NOT read source files, architecture docs, or spec docs into orchestrator context just to paste them into the agent prompt — the agent can read files itself.
    - **Exception:** Small, focused context is OK to include directly (e.g., a 5-line function body from a QG verdict, specific review findings). Use judgment — if it's more than ~20 lines, pass the file path instead.
    - For handoffs between agents (e.g., Test Engineer needs to know what the Programmer produced), tell the next agent which files were created/modified and let it read them.
-   - **Track agent IDs for resume:** When each worker agent completes, note its agent ID. If the QG sends work back to that agent later, use `SendMessage` with the agent's ID as the `to` field to continue the agent with its full prior context intact — do NOT launch a fresh agent for rework. See `agent-orchestration.md` "Agent Lifecycle: Resume on Rework" for which agents to resume vs. invoke fresh.
+   - **Always launch fresh agents for rework:** When the QG sends work back to a previously-invoked agent, always launch a fresh instance of that agent — do NOT use `SendMessage` to resume prior agents. See `agent-orchestration.md` "Agent Lifecycle: Fresh Agent on Rework" for prompt structure, foreground/background rules, and routing guidance.
 
 5. **Agents do the work**:
    - Worker agents produce their deliverables (code, tests, reviews, etc.)
@@ -92,7 +92,7 @@ Repeat the following cycle for each task/subtask until the checklist is complete
    - All acceptance criteria must be met
    - All review findings (Security, Code) must be addressed — no unresolved must-fix items
    - Tests must pass
-   - If the QG sends work back, the orchestrator **resumes** the original agent (using its saved agent ID) with the QG's specific feedback — this preserves the agent's full context from its initial work, making rework faster and more accurate
+   - If the QG sends work back, the orchestrator **launches a fresh instance** of the original agent with the QG's specific feedback and the file paths to its predecessor's output — see `agent-orchestration.md` "Agent Lifecycle: Fresh Agent on Rework" for the prompt structure
    - **When to invoke the PM agent:** Only for multi-module projects with cross-module dependencies, complex send-back scenarios with ambiguous routing, agent conflicts, or when the user requests a progress report. See `workflows.md` "When to Invoke the Project Manager Agent" for the full criteria.
 
 7. **Verify file placement and create folders if needed**:
@@ -131,13 +131,13 @@ Repeat the following cycle for each task/subtask until the checklist is complete
 
 ### Handling Failures
 
-**Default pattern for most failures:** Route the QG findings to the agent responsible for the failing artifact. Resume that agent (using its saved agent ID) with just the QG feedback — the agent retains context of its prior work. After the fix, resume any reviewers whose prior findings are now affected. All re-runs go through the QG gate. See `agent-orchestration.md` section "Agent Lifecycle: Resume on Rework" for which agents resume vs. invoke fresh.
+**Default pattern for most failures:** Route the QG findings to the agent responsible for the failing artifact. Launch a fresh instance of that agent with the QG feedback and file paths to the predecessor's output. After the fix, launch fresh instances of any reviewers whose prior findings are now affected. All re-runs go through the QG gate. See `agent-orchestration.md` section "Agent Lifecycle: Fresh Agent on Rework" for prompt structure and routing guidance.
 
 Non-trivial or cross-agent routing cases:
 
-- **Compliance Reviewer returns NOT APPROVED**: Route to Senior Programmer for fixes, then invoke a **fresh** Compliance Reviewer to re-assess (Compliance does not resume). If the fix changed significant logic, also resume Security Reviewer and/or Code Reviewer before re-running compliance.
-- **API design-level flaws found by reviewers**: If reviewer findings require API spec changes (not just implementation fixes), resume the API Designer. After the spec is updated, resume the Senior Programmer to match.
-- **Performance regression or no improvement**: Resume the Senior Programmer with the Performance Optimizer's comparison data. After revision, resume the Performance Optimizer for re-verification (so it compares against its original analysis).
+- **Compliance Reviewer returns NOT APPROVED**: Route to Senior Programmer for fixes, then invoke a **fresh** Compliance Reviewer to re-assess. If the fix changed significant logic, also re-invoke Security Reviewer and/or Code Reviewer (fresh) before re-running compliance.
+- **API design-level flaws found by reviewers**: If reviewer findings require API spec changes (not just implementation fixes), re-invoke the API Designer (fresh). After the spec is updated, re-invoke the Senior Programmer (fresh) to match.
+- **Performance regression or no improvement**: Re-invoke the Senior Programmer (fresh) with the Performance Optimizer's comparison data. After revision, re-invoke the Performance Optimizer (fresh) for re-verification — pass the original analysis file path so it can compare.
 - **Dependency needed mid-implementation**: Pause dependent work. Follow the "Dependency Addition" workflow in `workflows.md`. For system-package deps, set the right `ecosystem` (apt/dnf/apk/pacman/zypper) in the batch-phase1 `packages` array — Tier A ends at Phase 1; Tier B goes per-package. See `policies.md` "Scope: System Package Managers."
 - **SCS scanning infrastructure fails** (sandbox won't launch, tool crash, bad API key): Report diagnostic info to the user. Do not proceed with the dependency. Do not retry the same scan more than twice.
 - **Quality Gate produces questionable evaluation** (orchestrator suspects the QG missed issues): See `policies.md` section "Orchestrator vs Quality Gate vs Project Manager" for the escalation procedure.
@@ -151,7 +151,7 @@ Non-trivial or cross-agent routing cases:
 2. Send the findings to the **Senior Programmer agent** with the specific feedback, file paths, and line numbers
 3. The Senior Programmer produces the fix
 4. Send the fixed code to the **Quality Gate** for re-evaluation against the original acceptance criteria
-5. If the fix changed significant logic, **resume** the **Security Reviewer** and/or **Code Reviewer** (if previously invoked for this task) to verify the fix didn't introduce new issues
+5. If the fix changed significant logic, **re-invoke** the **Security Reviewer** and/or **Code Reviewer** (fresh) to verify the fix didn't introduce new issues
 6. Only after QG approval: commit the fixed code
 
 **This applies to ALL code changes** — no matter how small or obvious the fix seems. The orchestrator manages routing, not implementation. If you catch yourself about to edit a `.sh`, `.py`, `.rs`, `.go`, `.java`, or any other source file to fix a review finding, STOP — that is the Senior Programmer's job.
@@ -199,7 +199,7 @@ Tests fall into two categories with different safety requirements:
 5. **Run the tests inside the sandbox** — the orchestrator executes the Test Engineer's test commands within the sandboxed environment, using the sandbox setup files (Dockerfile, docker-compose.yml, .wsb config) that the Test Engineer delivers as part of its output
 6. **Never run integration tests directly on the host machine** — even if "it would probably be fine"
 
-**Current environment note:** The development machine runs PLACEHOLDER_PLATFORM. For Linux-targeting projects (like Bash scripts targeting Debian), use Docker or WSL2 for integration tests.
+**Current environment note:** The development machine runs Windows 11 Pro with Windows Sandbox enabled. For Linux-targeting projects (like Bash scripts targeting Debian), use Docker or WSL2 for integration tests.
 
 ## What to Avoid
 - Don't skip the Quality Gate evaluation — every task must be evaluated before marking complete

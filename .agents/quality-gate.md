@@ -46,7 +46,7 @@ Your verdict is returned to the orchestrator.
 
 ## Context Management Safeguard
 
-If you are evaluating a re-submission (an agent was sent back and has resubmitted), review the prior feedback carefully to verify the agent addressed your specific concerns. If you are resumed (via agent ID), your prior context is preserved. If invoked fresh, the orchestrator will include the relevant prior feedback in your prompt.
+If you are evaluating a re-submission (an agent was sent back and has resubmitted), review the prior feedback carefully to verify the agent addressed your specific concerns. The orchestrator will include relevant prior feedback in your prompt.
 
 If you are unsure about criteria details for the agent role you're evaluating, re-read only the relevant criteria section from this file — not the entire file.
 
