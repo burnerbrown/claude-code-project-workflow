@@ -25,7 +25,7 @@ Take the individual task files from Step 5 and produce detailed agent workflows 
 3. **Performance Add-On scan**: Before selecting the workflow pattern, scan the task for performance markers:
    - Step 3 handoff lists non-"no requirement" performance targets that apply to this task's scope
    - Step 4 handoff identifies this task's code as a performance-critical path
-   - Task description or acceptance criteria contain perf keywords: `p50`, `p95`, `p99`, `latency`, `throughput`, `benchmark`, `optimize`, `hot path`, `WCET`, `performance budget`
+   - Task description or acceptance criteria contain perf keywords: `p50`, `p95`, `p99`, `latency`, `throughput`, `benchmark`, `optimize`, `hot path`, `WCET`, `performance budget`, `response time`, `SLA`
    
    If any trigger fires → suggest the Performance Verification Add-On (see `workflows.md` "Performance Verification Add-On") to the user, citing which trigger(s) matched. The user decides: **apply** (add-on is active for this task) or **skip**. Record the decision in the per-task checklist file.
 
@@ -78,6 +78,7 @@ A concrete checklist the Quality Gate uses to verify the task is complete. These
 - [ ] Quality Gate approved all agent outputs against acceptance criteria
 - [ ] All review findings (Security, Code) are addressed — no unresolved must-fix items
 - [ ] Tests pass
+- [ ] Performance targets verified MET with benchmark evidence (when Performance Add-On = Yes)
 - [ ] Code committed to GitHub
 
 ## What to Avoid
@@ -87,6 +88,7 @@ A concrete checklist the Quality Gate uses to verify the task is complete. These
 - Don't skip any agent listed in the Step 5 plan — every assigned agent gets explicit instructions
 - Don't create vague acceptance criteria like "code works correctly" — be specific and verifiable
 - Don't make checklists so granular they become a burden — focus on outcomes, not line counts
+- Don't skip the **Performance Add-On scan** (step 3) — even if a task seems non-performance-critical, run the scan; the Step 3/4 handoffs may flag targets the task description doesn't mention
 - Don't skip the **Test Environment** classification for Test Engineer or Performance Optimizer agents — every task that involves tests or benchmarks must specify whether they are host-safe or require a sandbox, and which sandbox type. This prevents unsafe test execution during Step 6
 
 ## File Structure
@@ -191,6 +193,8 @@ After the last task iteration, perform this active verification — do NOT skip 
 3. **Verify all completion markers exist**: For EVERY task ID, confirm that `project-handoffs/handoff-step-5.5-task-{id}-done.md` exists. Use `Glob` for `project-handoffs/handoff-step-5.5-task-*-done.md` and compare.
 
 4. **Report any gaps**: If ANY checklist file or completion marker is missing, list the missing items explicitly and process those tasks before proceeding. Do NOT declare Step 5.5 complete with gaps.
+
+4a. **Performance Add-On cross-check**: Verify that every task whose scope covers a non-"no requirement" performance target from the Step 3 handoff has `Performance Add-On: Yes` in its checklist file. Flag any mismatches for review before proceeding.
 
 5. **Create the Step 5.5 handoff file** (serves as the gate signal for Step 6 — its existence confirms all tasks were detailed and verified): Only after all verifications pass, create `project-handoffs/handoff-step-5.5.md` with:
    - Total number of tasks detailed

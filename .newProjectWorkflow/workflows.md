@@ -74,7 +74,7 @@ The add-on inserts a Performance Optimizer verification step **after** the orche
 Programmer → QG → Test Engineer → QG → [orchestrator runs tests] → Performance Optimizer (verify) → QG → [Standard Review Tail]
 ```
 
-**Activation:** Step 5.5 flags tasks that need this add-on (see `step-5.5-task-detailing.md` "Performance Add-On Scan"). The per-task checklist file records the decision. The orchestrator applies the add-on during Step 6 only when the flag is set.
+**Activation:** Step 5.5 flags tasks that need this add-on (see `step-5.5-task-detailing.md` "Performance Add-On scan"). The per-task checklist file records the decision. The orchestrator applies the add-on during Step 6 only when the flag is set.
 
 **PO verification step:**
 1. **Performance Optimizer**: Benchmark the QG-approved, tested code against the targets from Step 3 / Step 5.5 task detail. Produce a pass/fail verdict per target with measured values.
@@ -85,7 +85,7 @@ Programmer → QG → Test Engineer → QG → [orchestrator runs tests] → Per
 **If any target is NOT MET:** Orchestrator presents PO's gap analysis and recommendations to the user. Three options:
 1. **Follow-up task** (default): Commit the code as-is (functionally correct, tests pass). Create a separate optimization task using the Performance Investigation workflow. The current task proceeds to the review tail. The follow-up task receives PO's analysis and the specific missed targets.
 2. **Adjust targets**: User relaxes the target based on PO's measurements. Task proceeds to the review tail.
-3. **Block**: Hard requirement — Senior Programmer reworks using PO's recommendations, then re-enters at Test Engineer. Full sequence repeats: Test Engineer → QG → orchestrator runs tests → PO verify → QG.
+3. **Block**: Hard requirement — the implementing agent (whoever produced the code under test) reworks using PO's recommendations. Full sequence repeats from the rework: implementing agent (rework) → QG → Test Engineer → QG → orchestrator runs tests → PO verify → QG.
 
 **Scope:** Applies to any workflow that has a Test Engineer step followed by a review tail. Does NOT apply to: Performance Investigation (PO is already woven in), Documentation Sprint, or Dependency Addition.
 

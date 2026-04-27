@@ -19,7 +19,14 @@ Turn the discovery results into a concrete, documented specification. Define wha
    - What are the inputs and outputs?
    - What are the acceptance criteria? (How do we know it's done?)
 4. **Write non-functional requirements**:
-   - Performance targets (if any)
+   - Performance targets — work through this checklist with the user (record "no requirement" explicitly for each category that doesn't apply; do not leave blank):
+     - Latency: p50, p95, p99 targets for key operations (e.g., "search API p95 < 200ms")
+     - Throughput: requests/sec, messages/sec, data rate the system must sustain
+     - Memory / resource budgets: peak RAM, VRAM, disk, CPU limits
+     - Startup time: cold start, warm start budgets
+     - Hot paths: which operations are expected to dominate runtime
+     - Scaling targets: at what user/data/device count the above targets must hold
+     - WCET / real-time constraints (embedded/RTOS only): interrupt latency, cycle budgets, hard vs soft deadlines
    - Security requirements
    - Reliability / availability needs
    - Platform / compatibility requirements
@@ -72,7 +79,7 @@ When the user approves the specification, create a handoff file in the `project-
 [Explicit list of what we are NOT building]
 
 ## Non-Functional Requirements
-- Performance: [targets]
+- Performance: [targets per category — latency, throughput, memory, startup, hot paths, scaling, WCET; "no requirement" for categories that don't apply]
 - Security: [requirements]
 - Platform: [requirements]
 - Other: [as applicable]
