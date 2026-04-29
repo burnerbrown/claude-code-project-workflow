@@ -200,7 +200,7 @@ Tests fall into two categories with different safety requirements:
 5. **Run the tests inside the sandbox** — the orchestrator executes the Test Engineer's test commands within the sandboxed environment, using the sandbox setup files (Dockerfile, docker-compose.yml, .wsb config) that the Test Engineer delivers as part of its output
 6. **Never run integration tests directly on the host machine** — even if "it would probably be fine"
 
-**Current environment note:** The development machine runs Windows 11 Pro with Windows Sandbox enabled. For Linux-targeting projects (like Bash scripts targeting Debian), use Docker or WSL2 for integration tests.
+**Current environment note:** The development machine runs PLACEHOLDER_PLATFORM with Windows Sandbox enabled. For Linux-targeting projects (like Bash scripts targeting Debian), use Docker or WSL2 for integration tests.
 
 ## What to Avoid
 - Don't skip the Quality Gate evaluation — every task must be evaluated before marking complete

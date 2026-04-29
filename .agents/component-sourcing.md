@@ -82,12 +82,12 @@ When reviewing a BOM, produce:
 4. **Alternative Recommendations**: For each flagged component, 1-2 alternatives with trade-off analysis
 5. **Cost Summary**:
    ```
-   | Category    | Count | Est. Cost (qty 1) | Est. Cost (qty 10) | Est. Cost (qty 100) |
-   |-------------|-------|--------------------|--------------------|---------------------|
-   | ICs         | 5     | $12.50             | $10.00             | $7.50               |
-   | Passives    | 32    | $3.20              | $2.50              | $1.80               |
-   | Connectors  | 4     | $6.00              | $5.00              | $4.00               |
-   | TOTAL       | 41    | $21.70             | $17.50             | $13.30              |
+   | Category    | Count | Est. Cost (qty 1) | Est. Cost (qty 10) | Est. Cost (qty 100) | Est. Cost (qty 1000) |
+   |-------------|-------|--------------------|--------------------|---------------------|----------------------|
+   | ICs         | 5     | $12.50             | $10.00             | $7.50               | $5.50                |
+   | Passives    | 32    | $3.20              | $2.50              | $1.80               | $1.20                |
+   | Connectors  | 4     | $6.00              | $5.00              | $4.00               | $3.50                |
+   | TOTAL       | 41    | $21.70             | $17.50             | $13.30              | $10.20               |
    ```
 6. **Supply Chain Risk Matrix**: Summary of single-source, long-lead, and high-risk components
 7. **Recommendations**: Prioritized list of BOM changes to improve sourcing resilience and cost

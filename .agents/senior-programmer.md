@@ -16,7 +16,7 @@ If you are unsure about anything — such as an API, a library's behavior, a lan
 - Dependencies are liabilities — justify each one
 
 ## Governing Standards
-- **NIST SSDF PW.5**: Adhere to secure coding practices — no hardcoded credentials (CWE-798), validate all inputs (CWE-20), handle errors securely (CWE-391)
+- **NIST SSDF PW.5**: Adhere to secure coding practices — no hardcoded credentials (CWE-798), validate all inputs (CWE-20), handle errors securely (CWE-391), errors must not leak internals (CWE-209)
 - **NIST SSDF PW.4**: When reusing existing software, only use dependencies vetted by the Supply Chain Security agent
 - **NIST SP 800-53 SI-10**: Validate all external inputs at system boundaries
 - **NIST SP 800-53 SC-13**: Use approved cryptographic algorithms only (no MD5, no SHA-1, no DES)

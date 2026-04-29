@@ -64,11 +64,11 @@ The architect's output is APPROVED when ALL of the following are present and com
 | A3 | Component Descriptions | Every component has: purpose, technology choice with justification, inbound/outbound interfaces, data ownership, scaling characteristics |
 | A4 | Data Flow | Key scenarios have data flow descriptions showing how data moves through the system |
 | A5 | Interface Definitions | API contracts between components are defined (protobuf, OpenAPI, or type signatures) |
-| A6 | Trade-off Analysis | Rejected alternatives are documented with reasoning |
+| A6 | Trade-off Analysis | Rejected alternatives documented with reasoning. Dependency-specific justification included: why CACHED alternatives were passed over (if applicable), why NEW dependencies were chosen over IN-HOUSE or CACHED options. |
 | A7 | ADRs | One Architecture Decision Record exists per major decision |
 | A8 | Risk Register | Known risks are listed with mitigation strategies |
 | A9 | STRIDE Threat Model | All six STRIDE categories are addressed for the design |
-| A10 | Dependency List | External dependencies are identified and justified against in-house alternatives |
+| A10 | Dependency Summary Table | External dependencies listed in a summary table with CACHED/IN-HOUSE/NEW tags, version, and justification. CACHED tags reference the trusted-artifacts registry. IN-HOUSE alternatives are identified. NEW dependencies are justified. |
 | A11 | Open Questions | Any unresolved decisions are explicitly listed (not silently skipped) |
 
 **Reject if:** Missing STRIDE analysis, no component diagram, no interface definitions, or technology choices lack justification.
@@ -129,6 +129,7 @@ The security reviewer's output is APPROVED when ALL of the following are present
 | SR6 | Remediation Specificity | Every finding has a specific, actionable fix (not just "fix this") with code examples |
 | SR7 | Positive Observations | Good security practices are acknowledged |
 | SR8 | No Critical/High Unresolved | If Critical or High findings exist, they must be flagged as blocking — code cannot proceed until resolved |
+| SR9 | ASVS Assessment | ASVS assessment level stated (Level 2 minimum; Level 3 for security-critical components); specific ASVS requirement IDs referenced in findings where applicable |
 
 **Reject if:** Missing CWE references, no OWASP coverage, or remediation steps are vague/generic.
 
@@ -160,7 +161,7 @@ The compliance reviewer's output is APPROVED when ALL of the following are prese
 | CO2 | Standards Assessed | Which standards were evaluated and at what level |
 | CO3 | Compliance Scorecard | Percentage scores for NIST SSDF, NIST 800-53, OWASP ASVS, CISA Secure by Design, and Supply Chain |
 | CO4 | Control Mapping Table | Every applicable control mapped to evidence with MET/PARTIALLY MET/NOT MET/NOT APPLICABLE status |
-| CO5 | Findings | Each non-compliant item has: control reference, CWE ID (if applicable), current state, required state, remediation steps, and priority |
+| CO5 | Findings | Each non-compliant item has: control reference, CWE ID (if applicable), current state, required state, remediation steps, likelihood, impact, risk rating, and priority justified by the risk assessment |
 | CO6 | SBOM Verification | Confirms SBOM is complete and all dependencies are scanned |
 | CO7 | Sign-Off | Final verdict: APPROVED / APPROVED WITH CONDITIONS / SENT BACK |
 | CO8 | Blocking Items | If SENT BACK or APPROVED WITH CONDITIONS, blocking findings and conditions are explicitly listed |
@@ -217,6 +218,7 @@ The documentation writer's output is APPROVED when ALL of the following are pres
 | D6 | Formatting | GitHub-Flavored Markdown, proper heading hierarchy, code blocks with language tags, Mermaid diagrams where helpful |
 | D7 | Working Examples | Code examples in documentation are realistic and functional |
 | D8 | Related Documents | Suggestions for additional documentation that should exist |
+| D9 | API Documentation | If API documentation is included: covers endpoints, request/response formats, error codes, authentication, rate limiting, versioning, and usage examples |
 
 **Reject if:** Documentation contains secrets/credentials, doesn't match implemented code, or README is missing essential sections.
 
@@ -234,6 +236,7 @@ The API designer's output is APPROVED when ALL of the following are present and 
 | AD5 | Error Catalog | All error codes documented with descriptions and resolution steps |
 | AD6 | Security | Authentication scheme defined, input validation rules in spec, OWASP API Security Top 10 addressed |
 | AD7 | Versioning Plan | Versioning strategy and deprecation policy defined |
+| AD8 | SDK Guidance | Client library design recommendations present — language-specific patterns, authentication helpers, error handling conventions, and pagination abstractions |
 
 **Reject if:** Missing OpenAPI/proto spec, no error catalog, or authentication scheme undefined.
 
@@ -251,6 +254,7 @@ The database specialist's output is APPROVED when ALL of the following are prese
 | DB5 | Indexing Strategy | Indexes justified with expected query patterns |
 | DB6 | Security | Parameterized queries only (CWE-89), encryption for sensitive columns (CWE-311), data classification noted |
 | DB7 | Backup Strategy | RPO/RTO defined, backup procedure documented |
+| DB8 | Capacity Estimates | Storage requirements and growth projections documented — initial size, growth rate, retention policy impact, and capacity planning recommendations |
 
 **Reject if:** Non-reversible migrations, raw SQL with string interpolation, or missing data classification.
 
@@ -265,7 +269,7 @@ The embedded specialist's output is APPROVED when ALL of the following are prese
 | ES2 | Hardware Abstraction | Peripheral access patterns documented |
 | ES3 | Memory Map | Peripheral addresses, register layouts documented |
 | ES4 | Timing Analysis | WCET estimates and scheduling feasibility for real-time tasks |
-| ES5 | Pin Configuration | Pin assignments, clock speeds, DMA channels documented |
+| ES5 | Peripheral Configuration | Pin assignments, clock speeds, DMA channels documented |
 | ES6 | Security | No default credentials, debug interfaces addressed, firmware update signing documented |
 | ES7 | Test Strategy | What can be tested in simulation vs requires hardware |
 
@@ -274,10 +278,11 @@ For hardware design review (firmware perspective), also check:
 | ES9 | Pin Mapping Validation | Conflicts, missing capabilities, or suboptimal assignments flagged |
 | ES10 | Resource Conflicts | DMA channel, timer, and interrupt priority conflicts identified |
 | ES11 | Errata Awareness | Known MCU errata relevant to the firmware design documented |
+| ES12 | Power Budget Analysis | Power budget present — active, sleep, and deep-sleep current estimates per subsystem with total system budget. Applies even for wall-powered designs (informs regulator sizing and thermal analysis). |
 
 **Note:** Full hardware design criteria (component selection, power architecture, BOM, schematic guidance, PCB layout) are evaluated under the **Hardware Engineer** criteria (HE1-HE16), not here.
 
-**Reject if:** Missing timing analysis for real-time code, no test strategy, or firmware feasibility assessment absent for hardware projects.
+**Reject if:** Missing timing analysis for real-time code, no test strategy, no power budget analysis, or firmware feasibility assessment absent for hardware projects.
 
 ---
 
@@ -299,8 +304,8 @@ The hardware engineer operates in three modes. Apply the criteria that match the
 | HE5 | Power Architecture | Mode 1: power domain identification. Mode 2: per-subsystem regulator sizing and budget. Mode 3: complete power tree with full budget table. | 1, 2, 3 |
 | HE6 | Pin Mapping | Mode 1: pin reservation per subsystem. Mode 2: detailed pin-to-component wiring for this subsystem. Mode 3: complete MCU pin assignment table. | 1, 2, 3 |
 | HE7 | Interface Specifications | Detailed specs for each communication link and external connector | 2, 3 |
-| HE8 | Schematic Design Notes | Per-subsystem circuit guidance with component values and reference designs | 2, 3 |
-| HE9 | Preliminary BOM | Mode 2: subsystem component list with MPNs. Mode 3: complete BOM. | 2, 3 |
+| HE8 | Circuit Design & Schematic Notes | Detailed circuit topology with component values, justification, and reference designs; implementation guidance for schematic entry | 2, 3 |
+| HE9 | Component Selection / BOM | Mode 2: subsystem component list with MPNs. Mode 3: complete BOM. | 2, 3 |
 | HE10 | PCB Layout Guidance | Component placement, routing, and stackup recommendations | 3 |
 | HE11 | Risk Register | Hardware-specific risks identified with mitigations (thermal, EMC, single-source, tolerances) | 1, 2, 3 |
 | HE12 | Datasheet Evidence | Component selections backed by datasheet parameters, not assumptions | 1, 2, 3 |
@@ -323,9 +328,9 @@ The component sourcing agent's output is APPROVED when ALL of the following are 
 | CS1 | BOM Validation Summary | Overall health assessment (GREEN/YELLOW/RED) with key findings |
 | CS2 | Component Review Table | Every BOM component reviewed for lifecycle, availability, lead time, and risk |
 | CS3 | Lifecycle Flags | All NRND/EOL/Obsolete components explicitly flagged |
-| CS4 | Second Source | Second-source availability documented for critical components |
+| CS4 | Second Source | Second-source availability documented for all components |
 | CS5 | Alternatives | For each flagged component, 1-2 alternatives with trade-off analysis and required design changes |
-| CS6 | Cost Summary | Estimated costs at multiple quantities (1, 10, 100) |
+| CS6 | Cost Summary | Estimated costs at multiple quantities (1, 10, 100, 1000) |
 | CS7 | Supply Chain Risk | Single-source, long-lead, and high-risk components identified |
 | CS8 | Data Freshness | Clear statement about data currency limitations and recommendation to verify |
 
@@ -338,7 +343,7 @@ The DFM reviewer's output is APPROVED when ALL of the following are present and 
 
 | # | Criterion | What to Check |
 |---|-----------|---------------|
-| DFM1 | DFM Summary | Overall assessment (PASS/PASS WITH NOTES/NEEDS REVISION) with selected fab house identified and its specific capabilities referenced |
+| DFM1 | DFM Summary | Overall assessment (PASS/PASS WITH NOTES/NEEDS REVISION) with selected fab house identified and its specific capabilities referenced; or if no fab house was selected, target manufacturing tier (budget/standard/advanced) clearly stated as the basis for review |
 | DFM2 | Fabrication Review | PCB parameters checked against target fab capabilities (trace width, spacing, via size, layers) |
 | DFM3 | Assembly Review | Component placement and soldering feasibility assessed (fine-pitch, hand-solderability, thermal relief) |
 | DFM4 | Thermal Review | Hot spots identified, thermal management recommendations provided |

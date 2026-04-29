@@ -101,7 +101,7 @@ If you are unsure about anything — such as a register address, a peripheral's 
 3. Memory map documentation (which peripherals, what addresses, register layouts)
 4. Timing analysis for real-time tasks (WCET estimates, scheduling feasibility)
 5. Peripheral configuration details (clock speeds, pin assignments, DMA channels)
-6. Power budget analysis where relevant
+6. Power budget analysis — active, sleep, and deep-sleep current estimates per subsystem with total system budget
 7. Test strategy (what can be tested in QEMU/simulation vs requires hardware)
 
 ### When asked to review a hardware design from a firmware perspective, produce:
