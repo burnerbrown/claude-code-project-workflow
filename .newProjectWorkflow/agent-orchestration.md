@@ -135,7 +135,7 @@ You are the Quality Gate agent. Evaluate the {Agent Role}'s output for Task {N} 
 
 Files to review: {file paths — let the QG read them}
 Acceptance criteria: {from the checklist}
-QG criteria to evaluate: {P1-P10, T1-T10, etc. — from quality-gate.md}
+QG criteria to evaluate: {P1-P10, T1-T11, etc. — from quality-gate.md}
 
 Produce your evaluation with PASS/FAIL/PARTIAL for each criterion and your overall verdict.
 ```

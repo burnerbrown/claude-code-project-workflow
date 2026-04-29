@@ -101,17 +101,18 @@ The test engineer's output is APPROVED when ALL of the following are present and
 | # | Criterion | What to Check |
 |---|-----------|---------------|
 | T1 | Complete Test Files | Test files compile and are ready to run (not pseudocode or outlines) |
-| T2 | All Tests Pass | Every test passes when executed |
-| T3 | Happy Path Coverage | Core functionality has tests for expected behavior |
-| T4 | Error Path Coverage | Error conditions, invalid inputs, and boundary values are tested |
-| T5 | Security Test Cases | Negative tests for input validation, authorization enforcement, injection resistance, and error information leakage |
-| T6 | Test Names | Each test has a descriptive name indicating the scenario and expected outcome |
-| T7 | No Real Data | No real PII, credentials, or production data in test fixtures |
-| T8 | Cleanup | Tests clean up after themselves (no leftover files, database records, or temp resources) |
-| T9 | Run Instructions | Commands to execute the tests are documented |
-| T10 | Coverage Gaps | Any intentionally untested areas are documented with reasoning |
+| T2 | Happy Path Coverage | Core functionality has tests for expected behavior |
+| T3 | Error Path Coverage | Error conditions, invalid inputs, and boundary values are tested |
+| T4 | Security Test Cases | Negative tests for input validation, authorization enforcement, injection resistance, and error information leakage |
+| T5 | Test Names | Each test has a descriptive name indicating the scenario and expected outcome |
+| T6 | No Real Data | No real PII, credentials, or production data in test fixtures |
+| T7 | Cleanup | Tests clean up after themselves (no leftover files, database records, or temp resources) |
+| T8 | Run Instructions | Commands to execute the tests are documented |
+| T9 | Coverage Gaps | Any intentionally untested areas are documented with reasoning |
+| T10 | Test Classification | Every test is classified as unit (host-safe) or integration (sandbox-required). Classification criteria match the Test Sandboxing Policy (pure functions = unit; file I/O, network, system calls, service starts, privilege escalation = integration). No test is left unclassified. |
+| T11 | Sandbox Setup | If any integration tests exist, sandbox setup files are included (Dockerfile, docker-compose.yml, or .wsb config as appropriate for the target platform). Setup files match the integration test requirements. |
 
-**Reject if:** Tests don't pass, no security test cases exist, or real credentials appear in test data.
+**Reject if:** No security test cases exist, real credentials appear in test data, tests lack host-safe vs sandbox-required classification, or integration tests exist without sandbox setup files.
 
 ---
 
@@ -169,19 +170,37 @@ The compliance reviewer's output is APPROVED when ALL of the following are prese
 ---
 
 ### Supply Chain Security
-The supply chain security agent's output is APPROVED when ALL of the following are present and complete:
+
+Evaluate SC1–SC8 for per-package output; SC9–SC13 for batch-phase1 output.
+
+#### Per-Package Mode (SC1–SC8)
+The supply chain security agent's per-package output is APPROVED when ALL of the following are present and complete:
 
 | # | Criterion | What to Check |
 |---|-----------|---------------|
 | SC1 | Dependency Info | Name, version, source, and SHA-256 hash for each dependency |
-| SC2 | Pre-Download Assessment | Reputation, license compatibility, necessity justification, and transitive dependency count |
-| SC3 | Scan Results | Results from all scanning layers (Windows Defender, VirusTotal, language-specific audit, source code review) |
+| SC2 | Pre-Download Assessment | Reputation, license compatibility, necessity justification, publication age (30-day rule), CVE status, and transitive role (direct or transitive-of). In per-package mode, referencing the batch report entry is sufficient — the agent does not re-derive these fields. |
+| SC3 | Scan Results | Results from all scanning layers (Windows Defender, VirusTotal, source code review). Layer 3 (language-specific audit) runs in Phase 1a; per-package output references Phase 1a findings rather than re-running. |
 | SC4 | Source Code Review | Red flag / yellow flag / green signal analysis documented |
 | SC5 | Verdict | Clear verdict per dependency: CLEAN / CONDITIONAL / REJECT / INCOMPLETE |
 | SC6 | SBOM Entry | Formatted SBOM entry for approved dependencies |
-| SC7 | Pause Compliance | If any verdict is INCOMPLETE, confirmation that all agents are paused |
+| SC7 | INCOMPLETE Resume Info | If any verdict is INCOMPLETE: (1) what remains to be scanned, (2) estimated time to completion, (3) resume instructions. Pause enforcement is the orchestrator's responsibility, not verified from agent output. |
+| SC8 | Persistent Report Entry | Scan results appended to `scs-report.md` in prescribed format (scan summary table row + per-dependency section with assessment, scan results, and source code review findings). For CLEAN verdicts, hash-pinned install command included in the dependency's section per `policies.md` rule 5. |
 
-**Reject if:** Missing scan layers, no source code review, or INCOMPLETE verdict without pause enforcement.
+**Reject if:** Missing scan layers, no source code review, INCOMPLETE verdict without resume information, or CLEAN verdict without hash-pinned install command.
+
+#### Batch Phase 1 Mode (SC9–SC13)
+The supply chain security agent's batch-phase1 output is APPROVED when ALL of the following are present and complete:
+
+| # | Criterion | What to Check |
+|---|-----------|---------------|
+| SC9 | Cache Status | Cache status table present with HIT/MISS/CORRUPT per package. Summary counts correct. HIT packages reference registry row; CORRUPT packages note the mismatch reason. |
+| SC10 | Dependency Tree & Audit | Phase 1a dependency tree output included (trimmed to packages under review). Vulnerability audit findings table present (or explicit "no vulnerabilities found"). Input-vs-tree reconciliation documented — any input mismatches called out. Tree-size signal present if 50+ new transitives. |
+| SC11 | Per-Package Assessment | Every MISS and CORRUPT package has a per-package assessment covering: necessity, reputation, license, publication age (30-day rule), CVE status, transitive role, and recommendation (PROCEED/INVESTIGATE/REJECT with one-line reason). System-package ecosystems include tier designation with origin verification. |
+| SC12 | Rejection Cascade | If any REJECT recommendations exist, cascade analysis present showing exclusive transitives (removed with the rejected package) and shared transitives (remain). Net impact stated. |
+| SC13 | Recommended Next Actions | Clear lists of: packages approved for Phase 2–5, cache hits (no scan needed), packages blocked pending user decision (with reasons), and suggested removals if rejections are accepted. |
+
+**Reject if:** Missing cache status table, missing per-package assessment for any MISS/CORRUPT, REJECT recommendation without cascade analysis, or Phase 2+ commands executed in batch-phase1 mode.
 
 ---
 
@@ -193,7 +212,7 @@ The documentation writer's output is APPROVED when ALL of the following are pres
 | D1 | Complete Files | All markdown files are complete and ready to commit (not outlines or drafts) |
 | D2 | Audience Identified | Each document states its target audience |
 | D3 | README Quality | If a README is included: has project purpose, quick start, prerequisites, installation, usage examples, contributing guidelines, and license |
-| D4 | Security Documentation | Security considerations section exists; no secrets, API keys, or internal details in documentation |
+| D4 | Security Documentation | All five NIST SSDF/CISA items present: (1) security considerations section in README, (2) threat model summary in architecture docs, (3) secure configuration guide, (4) incident response contact info, (5) dependency/SBOM documentation. No secrets, API keys, or internal details anywhere in documentation. |
 | D5 | Accurate Content | Documentation matches the actual implemented code (not aspirational or outdated) |
 | D6 | Formatting | GitHub-Flavored Markdown, proper heading hierarchy, code blocks with language tags, Mermaid diagrams where helpful |
 | D7 | Working Examples | Code examples in documentation are realistic and functional |
@@ -256,7 +275,7 @@ For hardware design review (firmware perspective), also check:
 | ES10 | Resource Conflicts | DMA channel, timer, and interrupt priority conflicts identified |
 | ES11 | Errata Awareness | Known MCU errata relevant to the firmware design documented |
 
-**Note:** Full hardware design criteria (component selection, power architecture, BOM, schematic guidance, PCB layout) are evaluated under the **Hardware Engineer** criteria (HE1-HE12), not here.
+**Note:** Full hardware design criteria (component selection, power architecture, BOM, schematic guidance, PCB layout) are evaluated under the **Hardware Engineer** criteria (HE1-HE16), not here.
 
 **Reject if:** Missing timing analysis for real-time code, no test strategy, or firmware feasibility assessment absent for hardware projects.
 
@@ -265,11 +284,11 @@ For hardware design review (firmware perspective), also check:
 ### Hardware Engineer
 The hardware engineer operates in three modes. Apply the criteria that match the mode specified by the orchestrator.
 
-**Mode 1 — High-Level Architecture (Step 4):** Evaluate against HE1-HE6, HE11, HE12. HE5 and HE6 are evaluated as partial (power domain identification and pin reservation, not detailed regulator selection or pin-to-component wiring). HE7-HE10 are deferred to per-subsystem and consolidation tasks.
+**Mode 1 — High-Level Architecture (Step 4):** Evaluate against HE1-HE6, HE11-HE14. HE5 and HE6 are evaluated as partial (power domain identification and pin reservation, not detailed regulator selection or pin-to-component wiring). HE7-HE10 are deferred to per-subsystem and consolidation tasks.
 
 **Mode 2 — Per-Subsystem Detail (Step 6):** Evaluate against HE5-HE9, HE11, HE12 scoped to the specific subsystem being designed. The subsystem must include: detailed circuit design, component selections with MPNs, pin mapping updates, power budget contribution, schematic design notes, and subsystem-specific risks.
 
-**Mode 3 — Consolidation (Step 6):** Evaluate against the full criteria HE1-HE12. The consolidated output must include the complete BOM, complete pin mapping, full power budget, PCB layout guidance, all KiCad reference files, and inter-subsystem conflict verification.
+**Mode 3 — Consolidation (Step 6):** Evaluate against the full criteria HE1-HE16. The consolidated output must include the complete BOM, complete pin mapping, full power budget, PCB layout guidance, all KiCad reference files, and inter-subsystem conflict verification.
 
 | # | Criterion | What to Check | Mode |
 |---|-----------|---------------|------|
@@ -285,6 +304,10 @@ The hardware engineer operates in three modes. Apply the criteria that match the
 | HE10 | PCB Layout Guidance | Component placement, routing, and stackup recommendations | 3 |
 | HE11 | Risk Register | Hardware-specific risks identified with mitigations (thermal, EMC, single-source, tolerances) | 1, 2, 3 |
 | HE12 | Datasheet Evidence | Component selections backed by datasheet parameters, not assumptions | 1, 2, 3 |
+| HE13 | Subsystem Inventory | Numbered list of all subsystems with name, one-line description, power domain, reserved MCU pins, and key constraints; cross-referenced against block diagram | 1 |
+| HE14 | Fab House Compatibility | Design requirements (finest pitch, smallest passive, via type, layer count, impedance control, surface finish) compared against preferred fab capabilities; two-path alternatives provided for any mismatch | 1 |
+| HE15 | KiCad Reference Files | All five files present (bom-kicad-reference.csv, netlist-connection-reference.md, schematic-wiring-checklist.md, layout-net-classes.csv, layout-component-guide.md), structurally complete, and consistent with BOM and pin mapping | 3 |
+| HE16 | Inter-Subsystem Conflict Check | Explicit verification of no shared-pin conflicts, address collisions, power budget overruns, or protocol conflicts between subsystems; resolutions documented for any found | 3 |
 
 **Reject if (Mode 1):** No MCU comparison table, missing block diagram, no subsystem inventory, or pin reservations missing.
 **Reject if (Mode 2):** Missing component MPNs, no circuit design detail, no power budget contribution, or no pin mapping update for this subsystem.
@@ -339,8 +362,10 @@ The performance optimizer's output is APPROVED when ALL of the following are pre
 | PO4 | Recommendations | Ordered by expected impact with: what to change, expected improvement, risk/complexity, and code examples |
 | PO5 | Security Preserved | No recommendations that weaken security (no disabling bounds checks, auth, encryption, or logging) |
 | PO6 | Benchmark Code | Ready-to-run benchmarks to validate improvements |
+| PO7 | Benchmark Classification | Every benchmark is classified as host-safe or system-level (sandbox-required). Classification criteria match the Benchmark Sandboxing Policy (pure computation, read-only, in-process measurement = host-safe; disk I/O, network, system calls, package modification, port opening, elevated privileges, resource stress = system-level). No benchmark is left unclassified. |
+| PO8 | Sandbox Setup | If any system-level benchmarks exist, sandbox setup files are included (Dockerfile, docker-compose.yml, or .wsb config as appropriate for the target platform). Setup files match the system benchmark requirements. |
 
-**Reject if:** Recommendations sacrifice security for performance, or findings lack measurement data.
+**Reject if:** Recommendations sacrifice security for performance, findings lack measurement data, benchmarks lack host-safe vs sandbox-required classification, or system-level benchmarks exist without sandbox setup files.
 
 ---
 
@@ -355,6 +380,7 @@ The DevOps engineer's output is APPROVED when ALL of the following are present a
 | DO4 | Security | No hardcoded secrets, non-root execution, minimal base images, supply chain scanning steps included |
 | DO5 | Troubleshooting | Common failure modes and their solutions documented |
 | DO6 | Health Checks | Health check endpoints/probes defined for deployable services |
+| DO7 | Monitoring & Alerting | Key metrics defined per service (request rate, error rate, latency, saturation), alerting thresholds set for critical and warning levels, and structured logging format specified |
 
 **Reject if:** Secrets hardcoded in configs, no supply chain scanning step in CI/CD, or missing health checks.
 
@@ -391,6 +417,7 @@ When evaluating agent output, produce:
 4. **Decision**: APPROVED / SENT BACK / APPROVED WITH CONDITIONS
 5. **Feedback** (if sent back): Specific, actionable items that must be addressed, referencing criteria IDs
 6. **Conditions** (if approved with conditions): Each should-fix or nit item to be resolved, with severity and specific fix guidance
+7. **Advisory Content** (if present): If the agent's output contains advisory sections not covered by acceptance criteria (Recommendations, Positive Findings, or similar), note their presence with the file path and section name where the content can be found so the orchestrator can review the original text before proceeding.
 
 ## QG Evaluation Report File Placement (MANDATORY)
 

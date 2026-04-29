@@ -89,9 +89,10 @@ Repeat the following cycle for each task/subtask until the checklist is complete
    - The Quality Gate agent evaluates the worker agent's output against acceptance criteria
    - Pass the QG agent the file paths to review and the acceptance criteria from the checklist — let the QG read the files itself
    - **Routing:** After the QG returns its verdict, the orchestrator routes to the next agent in the checklist sequence. The checklist defines the order — no separate PM agent is needed for routing.
+   - **Advisory content:** If the QG report includes an Advisory Content note, read the referenced sections in the agent's output. For each advisory item, decide: (1) act now — incorporate into the next agent's prompt if relevant to upcoming work, (2) defer — note it in a future task's checklist where it will be needed, (3) escalate — ask the user if uncertain whether the recommendation should be acted on, or (4) not applicable — no action needed.
    - All acceptance criteria must be met
    - All review findings (Security, Code) must be addressed — no unresolved must-fix items
-   - Tests must pass
+   - After QG approves Test Engineer output, execute all tests using the run instructions. If any tests fail, diagnose the failure cause and route to the appropriate agent for rework (e.g., Test Engineer for test bugs, Senior Programmer for code bugs). Follow the send-back workflow for the target agent.
    - If the QG sends work back, the orchestrator **launches a fresh instance** of the original agent with the QG's specific feedback and the file paths to its predecessor's output — see `agent-orchestration.md` "Agent Lifecycle: Fresh Agent on Rework" for the prompt structure
    - **When to invoke the PM agent:** Only for multi-module projects with cross-module dependencies, complex send-back scenarios with ambiguous routing, agent conflicts, or when the user requests a progress report. See `workflows.md` "When to Invoke the Project Manager Agent" for the full criteria.
 
@@ -211,7 +212,7 @@ Tests fall into two categories with different safety requirements:
 - Don't try to hold too many tasks in context at once — the whole point of the checklist is one-at-a-time processing
 - Don't continue to the next task after completing one — ALWAYS stop and tell the user to clear context first
 - **Don't write or edit project code yourself** — ALL code changes go through worker agents (Senior Programmer, Test Engineer, etc.), never the orchestrator directly
-- **Don't write tests yourself** — test writing is the Test Engineer agent's job. The orchestrator executes test commands using the Test Engineer's run instructions and passes results to the QG
+- **Don't write tests yourself** — test writing is the Test Engineer agent's job. The orchestrator executes test commands using the Test Engineer's run instructions
 - **Don't run integration tests on the host machine** — integration tests MUST run in the correct sandbox (Docker, Windows Sandbox, WSL2, etc.); if the sandbox isn't available, stop and help the user set it up first
 
 ## Context Management

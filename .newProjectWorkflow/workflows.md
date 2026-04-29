@@ -78,7 +78,7 @@ Programmer → QG → Test Engineer → QG → [orchestrator runs tests] → Per
 
 **PO verification step:**
 1. **Performance Optimizer**: Benchmark the QG-approved, tested code against the targets from Step 3 / Step 5.5 task detail. Produce a pass/fail verdict per target with measured values.
-2. **QG**: Evaluate against criteria PO1-PO6. Additionally verify: does every declared target have a MET/NOT MET verdict backed by measurement data?
+2. **QG**: Evaluate against criteria PO1-PO8. Additionally verify: does every declared target have a MET/NOT MET verdict backed by measurement data?
 
 **If all targets are MET:** Proceed to the review tail.
 
@@ -247,7 +247,7 @@ Programmer → QG → Test Engineer → QG → [Standard Review Tail]
 1. **Senior Programmer**: Implement the code based on the Step 4 architecture (using only approved dependencies)
 2. **QG**: Evaluate programmer output against criteria P1-P10
 3. **Test Engineer**: Write comprehensive tests including security test cases
-4. **QG**: Evaluate test engineer output against criteria T1-T10
+4. **QG**: Evaluate test engineer output against criteria T1-T11
 5. **Standard Review Tail** — see "Standard Review Tail" section above
 
 **Note:** If the task involves significant UI design work (new screens, visual redesign, complex interactions), use the **UI Feature Development** workflow instead — it prepends a UX/UI Designer phase with a user-in-the-loop Claude Design step before the Programmer begins.
@@ -271,7 +271,7 @@ UX/UI Designer → QG → [User: Claude Design] → Programmer → QG → Test E
 5. **Senior Programmer**: Implement the UI using both the design specification (for structure, tokens, states, accessibility) and any Claude Design exports (for visual fidelity). The spec is the source of truth for behavior and accessibility; the visual export is the source of truth for look and feel.
 6. **QG**: Evaluate against criteria P1-P10
 7. **Test Engineer**: Write tests — component rendering, interaction behavior, responsive breakpoints, accessibility (ARIA, keyboard nav, contrast)
-8. **QG**: Evaluate against criteria T1-T10
+8. **QG**: Evaluate against criteria T1-T11
 9. **Standard Review Tail** — Security Reviewer focuses on XSS, CSRF, and client-side vulnerabilities; Code Reviewer focuses on component structure, reusability, and design token compliance; Documentation Writer recommends component library docs and style guide updates
 
 **During the user's Claude Design work**, the user may request:
@@ -291,7 +291,7 @@ API Designer → QG → Programmer → QG → Test Engineer → QG → [Standard
 3. **Senior Programmer**: Implement the API
 4. **QG**: Evaluate against criteria P1-P10
 5. **Test Engineer**: Write tests
-6. **QG**: Evaluate against criteria T1-T10
+6. **QG**: Evaluate against criteria T1-T11
 7. **Standard Review Tail** — Security Reviewer focuses on API-specific vulnerabilities; Documentation Writer recommends API docs and README updates
 
 ## Database Work
@@ -304,7 +304,7 @@ Database Specialist → QG → Programmer (for ORM/query code) → QG → Test E
 3. **Senior Programmer**: Implement ORM/query code
 4. **QG**: Evaluate against criteria P1-P10
 5. **Test Engineer**: Write tests for database operations
-6. **QG**: Evaluate against criteria T1-T10
+6. **QG**: Evaluate against criteria T1-T11
 7. **Standard Review Tail** — Security Reviewer focuses on injection, encryption, access control; Compliance Reviewer focuses on data protection controls (encryption at rest, access control, data classification); Documentation Writer recommends schema docs and migration guides
 
 ## Embedded/RTOS Feature
@@ -319,7 +319,7 @@ Note: The Embedded Specialist handles both design and implementation for firmwar
 1. **Embedded Systems Specialist**: Implement the firmware based on Step 4 architecture
 2. **QG**: Evaluate implementation against criteria ES1-ES7
 3. **Test Engineer**: Write tests (simulation + hardware test plan)
-4. **QG**: Evaluate against criteria T1-T10
+4. **QG**: Evaluate against criteria T1-T11
 5. **Standard Review Tail** — Security Reviewer focuses on firmware security; Code Reviewer focuses on memory safety patterns and HAL consistency; Documentation Writer recommends hardware docs, firmware guides, pin mappings
 
 ## Hardware + Firmware Full Development (New Board Design)
@@ -371,7 +371,7 @@ Hardware Engineer (consolidate) → QG → DFM Reviewer (full design) → QG →
 ```
 
 1. **Hardware Engineer**: Consolidate all subsystem outputs into the complete design — full BOM, complete pin mapping table, PCB layout guidance, and the full set of KiCad reference files (bom-kicad-reference.csv, netlist-connection-reference.md, schematic-wiring-checklist.md, layout-net-classes.csv, layout-component-guide.md). Verify no inter-subsystem conflicts (shared pins, power budget overrun, address collisions).
-2. **QG**: Evaluate the consolidated design against full criteria HE1-HE12
+2. **QG**: Evaluate the consolidated design against full criteria HE1-HE16
 3. **DFM Reviewer**: Full manufacturability review of the complete design **against the selected fab house's specific capabilities**
 4. **QG**: Evaluate against criteria DFM1-DFM8
 5. **Hardware Engineer** (re-invoke if DFM issues): Address any must-fix items
@@ -415,7 +415,7 @@ Identical to the **Embedded/RTOS Feature** workflow, except the Embedded Special
 1. **Embedded Systems Specialist**: Implement firmware for the target board — drivers, application logic, communication stacks
 2. **QG**: Evaluate against criteria ES1-ES7
 3. **Test Engineer**: Write tests (simulation + hardware test plan)
-4. **QG**: Evaluate against criteria T1-T10
+4. **QG**: Evaluate against criteria T1-T11
 5. **Standard Review Tail** — Documentation Writer recommends pinout reference, firmware guide, flashing instructions
 
 ---
@@ -430,7 +430,7 @@ Hardware Engineer (revision) → QG → Component Sourcing (if new parts) → QG
 ```
 
 1. **Hardware Engineer**: Review the existing design, document proposed changes with justification (new components, circuit modifications, layout changes). Reference the original design and explain what changed and why. **Update the KiCad reference files** (netlist-connection-reference, schematic-wiring-checklist, layout-net-classes, layout-component-guide, bom-kicad-reference) to reflect the revised design — only the changed sections need updating, not a full rewrite.
-2. **QG**: Evaluate against criteria HE1-HE12 (scoped to changed areas — unchanged subsystems don't need re-review)
+2. **QG**: Evaluate against criteria HE1-HE16 (scoped to changed areas — unchanged subsystems don't need re-review)
 
 **Note on revision scope:** For minor revisions (1-2 subsystems affected), the Hardware Engineer handles all changes in a single invocation as shown above. For major revisions that affect many subsystems (e.g., changing the MCU, redesigning the power architecture), consider using the per-subsystem task pattern from Hardware + Firmware Full Development instead — break the revision into per-subsystem tasks so each subsystem change gets focused context and independent QG evaluation.
 
@@ -487,7 +487,7 @@ Programmer (diagnose + fix) → QG → Test Engineer (regression test) → QG �
 1. **Senior Programmer**: Diagnose root cause, implement the fix, explain what went wrong and why
 2. **QG**: Evaluate against criteria P1-P10
 3. **Test Engineer**: Write a regression test that fails without the fix and passes with it
-4. **QG**: Evaluate against criteria T1-T10
+4. **QG**: Evaluate against criteria T1-T11
 5. **Short Review Tail** — skip Security+Code unless this is a significant fix (security-relevant changes, large refactors, or changes touching multiple modules); Documentation Writer recommends changelog/known-issues updates
 
 ## Refactoring
@@ -498,7 +498,7 @@ Programmer (refactor) → QG → Test Engineer (verify + add tests) → QG → [
 1. **Senior Programmer**: Refactor the code, ensuring all existing tests still pass
 2. **QG**: Evaluate against criteria P1-P10
 3. **Test Engineer**: Verify test coverage, add tests for any untested behavior discovered during refactoring
-4. **QG**: Evaluate against criteria T1-T10
+4. **QG**: Evaluate against criteria T1-T11
 5. **Short Review Tail** — Security Reviewer is especially important if the refactor touches auth, input validation, crypto, or error handling; Code Reviewer verifies behavior is preserved
 
 Note: Architecture review is NOT typically needed for refactoring unless the refactoring changes component boundaries or interfaces.
@@ -509,9 +509,9 @@ DevOps Engineer → QG → Test Engineer (validation) → QG → [Short Review T
 ```
 
 1. **DevOps Engineer**: Create Dockerfiles, CI/CD pipelines, build scripts, or deployment configs
-2. **QG**: Evaluate against criteria DO1-DO6
+2. **QG**: Evaluate against criteria DO1-DO7
 3. **Test Engineer**: Write validation tests for DevOps configs — e.g., Docker image builds successfully, container starts and passes health check, CI pipeline dry-run succeeds, docker-compose services connect correctly. Classify each validation as host-safe or sandbox-required. The orchestrator executes the validation commands.
-4. **QG**: Evaluate against criteria T1-T10 (scoped to DevOps validation — focus on T1-T4, T6, T8-T9)
+4. **QG**: Evaluate against criteria T1-T11 (scoped to DevOps validation — focus on T1-T3, T5, T7-T8, T10-T11)
 5. **Short Review Tail** — Security Reviewer focuses on hardcoded secrets, supply-chain scanning gaps, privilege escalation, non-root enforcement; Code Reviewer focuses on maintainability, inline documentation, config best practices; Documentation Writer recommends usage docs, troubleshooting guides, deployment runbooks
 
 ## Performance Investigation
@@ -522,15 +522,15 @@ Performance Optimizer (analyze) → QG → Programmer (implement) → QG → Tes
 Note: This workflow interleaves Performance Optimizer's verification step between the Security+Code reviews and Documentation — so it uses Short-Review-Tail components piecewise rather than the named tail.
 
 1. **Performance Optimizer**: Analyze and identify bottlenecks
-2. **QG**: Evaluate against criteria PO1-PO6
+2. **QG**: Evaluate against criteria PO1-PO8
 3. **Senior Programmer**: Implement the recommended optimizations
 4. **QG**: Evaluate against criteria P1-P10
 5. **Test Engineer**: Verify existing tests still pass (regression check) and add tests for optimized code paths
-6. **QG**: Evaluate against criteria T1-T10
+6. **QG**: Evaluate against criteria T1-T11
 7. **Security Reviewer + Code Reviewer**: Run in parallel — Security Reviewer focuses on security regressions from optimizations (weakened crypto, disabled bounds checks, reduced logging); Code Reviewer checks code quality
 8. **QG**: Evaluate both reviews — security against SR1-SR8, code review against CR1-CR7
 9. **Performance Optimizer**: Verify improvements with benchmarks (launch a fresh Performance Optimizer agent — pass the original analysis file path from step 1 so it can compare against its original findings)
-10. **QG**: Evaluate against criteria PO1-PO6
+10. **QG**: Evaluate against criteria PO1-PO8
 11. **Documentation Writer**: Recommend performance documentation updates (benchmarks, configuration tuning guides, etc.)
 12. **QG**: Evaluate against criteria D1-D8
 
