@@ -223,6 +223,28 @@ Continue the scan from {next phase/step}. Artifacts on disk in .scs-sandbox/stag
 
 ---
 
+## Authoring Agent Files
+
+Agent files in `.agents/*.md` should contain only operational instructions: persona, principles, inputs, steps, outputs, constraints, authorized commands, and output format. Design rationale ("this was chosen because…"), why-it-is-safe explanations, when-vs-why-to-invoke logic, and cross-agent coordination strategy belong in this document (`agent-orchestration.md`) or the relevant workflow/policy file — NOT in the agent definition.
+
+**Why:** Every token in an agent's definition costs context budget on every invocation. Rationale is valuable but it belongs upstream of the agent. The orchestrator reads orchestrator-facing files to decide *when and how* to invoke an agent; the agent itself only needs to know *what to execute*.
+
+**How to apply:** When drafting agent-file edits, ask "does the agent need this to execute, or does the orchestrator need this to decide?" If the latter, move it to `agent-orchestration.md` or the appropriate workflow file.
+
+**Exception — governing-standards/compliance traceability stays in agent files.** Entries declaring which NIST/OWASP/CISA controls an agent implements (e.g., "**NIST SSDF PW.7**: This agent fulfills the code review requirement…") serve audit traceability and document the agent's compliance purpose. Do NOT trim these as meta-content.
+
+---
+
+## Agent Edit Workflow — Propose, Review, Approve, Apply
+
+When an agent's task involves modifying files (source code, tests, configs, documentation, agent definitions, workflow docs, etc.), the agent MUST output its proposed changes as text only — it does not edit files directly. The orchestrator audits the proposal, presents it to the user, and applies the edits (using its own Edit/Write tools) only after the user approves.
+
+**Why:** The user wants to review every proposed change before it lands in files. Direct agent edits bypass that review step.
+
+**How to apply:** When invoking an agent for a task that would modify files, instruct the agent to read files and output proposed changes as text only. After the agent returns, the orchestrator audits the proposal, shows it to the user, and only applies edits after explicit user approval. This applies even when the agent is configured with Edit/Write tool access — the *behavioral* rule is propose-then-apply regardless of tool availability.
+
+---
+
 ## Available Agents
 
 | Agent | File | Use When |
