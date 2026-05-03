@@ -42,7 +42,7 @@ Make the key technical decisions: language, components, data flow, interfaces, a
    - Look up each package version's publish date on its registry (PyPI, crates.io, npm, Maven Central) and apply the 30-Day Rule (`policies.md` section "Minimum Package Age (30-Day Rule)") — pre-filter any sub-30-day versions out of the batch (or surface the narrow security-patch exception to the user before including)
    - Build the `packages` array per the Batch Phase 1 Input schema in `agent-orchestration.md`: `name`, `version`, `publish_date`, `direct` flag, `parents`. URLs and hashes are NOT passed in batch mode — they are only needed in Stage 3.
    - Invoke ONE SCS agent with `mode: "batch-phase1"` and the `packages` array. It runs Phase 0 (cache status per package) and Phase 1 (Phase 1a project-level tree/audit; Phase 1b per-package assessment on cache misses; Phase 1c rejection cascade) and returns a single batch report. No artifacts are downloaded in Stage 1.
-   - **Log review (batch mode):** After the batch agent completes, review `.claude/hooks/scs-validator.log` scoped to the batch-phase1 command set (audit commands — CMDs 14a-d, 15 — only). Per `agent-orchestration.md` "Post-SCS Scan — Command Log Review", sandbox launches, VT calls, artifact copies, or L4 extractions appearing here indicate a mode deviation — STOP.
+   - **Log review (batch mode):** After the batch agent completes, review `.claude/scs-validator.log` (in the project root) scoped to the batch-phase1 command set (audit commands — CMDs 14a-d, 15 — only). Per `agent-orchestration.md` "Post-SCS Scan — Command Log Review", sandbox launches, VT calls, artifact copies, or L4 extractions appearing here indicate a mode deviation — STOP.
 
    **Stage 2 — User review of the batch report:**
    - Present the batch report to the user: cache hits/misses, Phase 1a audit findings, per-package PROCEED / INVESTIGATE / REJECT recommendations, and the rejection cascade for each REJECT (exclusive vs. shared transitives).
@@ -54,7 +54,7 @@ Make the key technical decisions: language, components, data flow, interfaces, a
    - Enforce both verification checkpoints per invocation per `agent-orchestration.md` section "MANDATORY: SCS Download Verification (Anti-Substitution)".
    - **If any per-package verdict is REJECT**: select an alternative dependency. Rebuild the packages array with the replacement and re-run Stage 1 on it — do NOT skip the batch stage for a replacement. This catches regressions in the replacement's transitive graph.
    - **If any per-package verdict is INCOMPLETE** (e.g., VirusTotal rate-limited): PAUSE per the Pause Rule in `policies.md` (Phase 4 INCOMPLETE triggers it; Phase 1 INVESTIGATE does not). Do not proceed to substep 10 (Review with the user) until every package's Phase 4 verdict is CLEAN or CONDITIONAL (with user approval).
-   - **Log review (per-package mode):** After each per-package agent completes, review `.claude/hooks/scs-validator.log` scoped to the per-package command set (sandbox launches, sentinel polling, VT calls, L4 extraction, artifact copies, hash verifications). If any DENY entries or unexpected audit commands appear, STOP.
+   - **Log review (per-package mode):** After each per-package agent completes, review `.claude/scs-validator.log` (in the project root) scoped to the per-package command set (sandbox launches, sentinel polling, VT calls, L4 extraction, artifact copies, hash verifications). If any DENY entries or unexpected audit commands appear, STOP.
 
    **After all packages are CLEAN:**
    - The SBOM (`sbom-{language}.txt`) is generated as part of Phase 5 on the final package
@@ -93,9 +93,10 @@ After the user approves the architecture, **scaffold the project repository** ba
    # IDE config
    .vscode/
 
-   # Claude Code - commit hooks and settings, ignore runtime artifacts and user overrides
-   .claude/hooks/*.log
-   .claude/settings.local.json
+   # Claude Code - whole .claude/ directory is machine-specific (settings.json contains
+   # an absolute path to the shared hook, plus per-machine permission approvals
+   # and runtime log) — never commit
+   .claude/
 
    # Office temp files
    ~$*
@@ -103,15 +104,14 @@ After the user approves the architecture, **scaffold the project repository** ba
    # Research inventories (Step 6 working files, never committed)
    research-inventories/
    ```
-   This commits `.claude/settings.json` (hook registration) and `.claude/hooks/` (SCS validator hook and its test suite) as project infrastructure, while ignoring VS Code workspace settings, runtime log files, and Office temp files. The SCS validator hook must travel with the project so it fires when Claude is launched from the project directory.
+   The whole `.claude/` directory is gitignored because every file in it is machine-specific: `settings.json` registers the hook via an absolute path (`PLACEHOLDER_PATH/.claude/hooks/scs-validator.py`) that only resolves on this machine, `settings.local.json` accumulates per-session permission approvals, and `scs-validator.log` is the hook's runtime decision log. None of these belong in version control. The SCS validator hook script itself lives at the shared master location and is NOT copied into the project — it's referenced via the absolute path so security improvements propagate to all projects automatically. The hook writes its decision log into each project's own `.claude/scs-validator.log` (using the `CLAUDE_PROJECT_DIR` env var Claude Code sets), so log entries from different projects never mix — and the gitignore above ensures none of those logs ever get committed.
 3. **Create any boilerplate config files** the project needs (e.g., `Cargo.toml`, `go.mod`, `package.json`, `pom.xml`, `Makefile`, etc.)
 4. **Do NOT create source code files** — that's Step 6. Only create the skeleton structure, configuration, and ignore files.
 5. **Create the `research-inventories/` folder** in the project root. This folder holds Research Inventory Manifests during Step 6 implementation. It is already included in `.gitignore` via the standard entries above.
-6. **Copy the SCS validator hook into the project.** This ensures the PreToolUse hook fires when Claude is launched from the project directory (project-level settings take precedence, so the hook must be registered per-project).
-   - Create `.claude/hooks/` in the project root
-   - Copy `PLACEHOLDER_PATH\.claude\hooks\scs-validator.py` into the project's `.claude/hooks/`
-   - Copy `PLACEHOLDER_PATH\.claude\hooks\test-scs-validator.py` into the project's `.claude/hooks/` (the test suite for the validator)
-   - Register the hook in the project's `.claude/settings.json` by merging in:
+6. **Register the shared SCS validator hook.** The hook lives at the master location `PLACEHOLDER_PATH\.claude\hooks\scs-validator.py` and every project references it via absolute path. This means hook improvements (security hardening, allowlist additions, bug fixes) propagate to all projects on the next Bash call — no per-project copy to maintain or sync.
+   - **Do NOT** create a `.claude/hooks/` directory in the project — the shared master hook handles all projects.
+   - **Do NOT** copy any hook files into the project.
+   - Create `.claude/settings.json` in the project root with:
      ```json
      {
        "hooks": {
@@ -121,7 +121,7 @@ After the user approves the architecture, **scaffold the project repository** ba
              "hooks": [
                {
                  "type": "command",
-                 "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/scs-validator.py\""
+                 "command": "python \"PLACEHOLDER_PATH/.claude/hooks/scs-validator.py\""
                }
              ]
            }
@@ -130,6 +130,7 @@ After the user approves the architecture, **scaffold the project repository** ba
      }
      ```
    - If the project already has a `.claude/settings.json` with other settings (e.g., permissions), merge the `hooks` key into the existing file — do not overwrite other settings.
+   - Note: The shared hook hardcodes paths to `PLACEHOLDER_PATH/.scs-sandbox/` and `PLACEHOLDER_PATH/.trusted-artifacts/` (shared cache resources). It writes its decision log to **each project's own** `.claude/scs-validator.log` using the `CLAUDE_PROJECT_DIR` env var Claude Code sets — so log entries from different project sessions stay isolated.
 7. **Create QG evaluation subfolders** in each major directory that will produce agent output. QG evaluation reports go in these subfolders instead of cluttering the parent directory. At minimum, create:
    - `hardware/qg-evaluations/` (if the project has hardware design)
    - `design/qg-evaluations/` (if the project has UI design work)

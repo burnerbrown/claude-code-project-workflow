@@ -43,23 +43,34 @@ SANDBOX_RESULTS = SANDBOX_ROOT + "results/"
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
-_LOG_FILE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "scs-validator.log"
-)
+# Log path resolves at call time (not import time) so each hook invocation
+# writes to the calling project's .claude/ directory. Claude Code sets
+# CLAUDE_PROJECT_DIR to the session's working directory; if absent (e.g.,
+# manual hook invocation outside Claude Code), fall back to the script's
+# own directory so logging never silently disappears.
+def _resolve_log_file():
+    project_dir = os.environ.get('CLAUDE_PROJECT_DIR')
+    if project_dir:
+        return os.path.join(project_dir, ".claude", "scs-validator.log")
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "scs-validator.log")
+
 
 def log_decision(command, decision, reason):
-    """Append a decision record to the log file.
+    """Append a decision record to the calling project's log file.
 
-    Log file: .claude/hooks/scs-validator.log
+    Log path: $CLAUDE_PROJECT_DIR/.claude/scs-validator.log
     Can be deleted after review — it is not committed to git.
     """
     try:
+        log_file = _resolve_log_file()
+        # Ensure the .claude/ directory exists (defensive — it should already)
+        os.makedirs(os.path.dirname(log_file), exist_ok=True)
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         # Truncate very long commands for readability
         cmd_display = command[:200] + "..." if len(command) > 200 else command
         # Replace newlines in command for single-line log entries
         cmd_display = cmd_display.replace('\n', '\\n').replace('\r', '\\r')
-        with open(_LOG_FILE, "a", encoding="utf-8") as f:
+        with open(log_file, "a", encoding="utf-8") as f:
             f.write(f"[{timestamp}] {decision.upper():12s} | {cmd_display}\n")
             if reason:
                 f.write(f"{'':>22s} reason: {reason}\n")

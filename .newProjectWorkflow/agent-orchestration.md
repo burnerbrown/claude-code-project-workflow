@@ -382,11 +382,11 @@ The SCS command validator hook catches unauthorized *commands*, but it cannot ve
 
 After **every** SCS agent invocation — in **either** mode (`batch-phase1` or `per-package`), and in any step (4, 6, or the Dependency Addition workflow) — the orchestrator MUST review the validator hook's decision log before proceeding. The expected set of ALLOW entries differs by mode; scope the review accordingly.
 
-**What:** A PreToolUse hook (`scs-validator.py`) automatically validates every Bash command the SCS agent runs against the authorized command table. It logs every decision (ALLOW, DENY, PASS-THROUGH) with timestamp, command, and reason to `.claude/hooks/scs-validator.log`.
+**What:** A PreToolUse hook (`scs-validator.py`) automatically validates every Bash command the SCS agent runs against the authorized command table. The hook script lives at the shared master location (`PLACEHOLDER_PATH/.claude/hooks/scs-validator.py`) and is referenced by every project via absolute path. The hook writes its decision log (ALLOW, DENY, PASS-THROUGH entries with timestamp, command, and reason) to **each project's own** `.claude/scs-validator.log` — using the `CLAUDE_PROJECT_DIR` env var Claude Code sets — so log entries from different project sessions never mix.
 
 **Procedure:**
 
-1. After the SCS agent completes (regardless of verdict or mode), read `.claude/hooks/scs-validator.log`
+1. After the SCS agent completes (regardless of verdict or mode), read `.claude/scs-validator.log` (in the project root)
 2. Check for **DENY** entries — these mean the SCS agent attempted unauthorized commands. This is a security concern.
 3. Check for **PASS-THROUGH** entries — these mean the agent ran commands not in the authorized list that required manual user approval. These are not necessarily problems, but unexpected ones should be investigated.
 4. Check that **ALLOW** (and PASS-THROUGH) entries match the expected command set **for the mode that was just run**:
@@ -400,7 +400,7 @@ After **every** SCS agent invocation — in **either** mode (`batch-phase1` or `
 
 **If all commands were within bounds:**
 - Report to the user: *"SCS validator log reviewed — all agent commands were within authorized bounds."*
-- Delete the log file: `rm .claude/hooks/scs-validator.log`
+- Delete the log file: `rm .claude/scs-validator.log`
 - Continue with the workflow (QG evaluation, verdict handling, etc.)
 
 **If the agent attempted unauthorized commands (any DENY entries):**
