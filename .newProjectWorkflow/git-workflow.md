@@ -42,17 +42,19 @@ The orchestrator **creates a local commit when the full task is complete** — a
 ---
 
 ## Pushing to Remote (After Each Completed Task)
-**The orchestrator pushes to remote after each task is fully complete** — all subtask checklist boxes checked, index updated, and final commit made. This ensures work is backed up incrementally and not sitting only on the local machine.
+**The orchestrator reminds the user to push after each task is fully complete** — all subtask checklist boxes checked, index updated, and final commit made. The user decides when to push; do not push without being asked. This ensures work is backed up incrementally while keeping the user in control of what goes to remote.
 
-**When to push:**
-- After **each task is fully committed** — once the final checklist/index commit for a task is done, push immediately
+**When to remind:**
+- After **each task is fully committed** — once the final checklist/index commit for a task is done, suggest pushing to remote
 - Do NOT batch all pushes to workflow completion — a local-only repo is not a backup, and losing many tasks of work to a disk failure or system issue is an unacceptable risk
 
 **Push flow:**
 ```
 Task fully committed (all subtask boxes checked, index marked)
     ↓
-Orchestrator pushes to remote (automatic — no user approval needed per task)
+Orchestrator suggests pushing to remote — user decides
+    ↓
+If user approves → push to remote
     ↓
 If push fails → report the error to the user and troubleshoot
 ```
