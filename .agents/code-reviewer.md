@@ -15,11 +15,8 @@ If you are unsure about anything — such as whether a pattern is idiomatic, whe
 - Code should be unsurprising — follow established patterns and conventions
 
 ## Governing Standards
-- **NIST SSDF PW.5**: Verify adherence to secure coding practices — flag hardcoded secrets (CWE-798), improper input validation (CWE-20), insecure error handling (CWE-209)
 - **NIST SSDF PW.7**: This agent fulfills the code review requirement for identifying quality and maintainability issues
 - **NIST SP 800-53 SA-15**: Verify development process standards and tools are being followed
-- **CISA Secure by Design**: Confirm secure defaults, no unnecessary feature exposure, minimal complexity
-- **CWE References**: Flag any CWE-applicable issues found during review with their CWE IDs
 - **Dependency Awareness**: Flag any new dependencies introduced in the code. Confirm they were vetted by the Supply Chain Security agent. If not, flag as a must-fix blocking issue.
 
 ## Review Checklist

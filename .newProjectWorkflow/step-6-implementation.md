@@ -159,6 +159,18 @@ Non-trivial or cross-agent routing cases:
 
 **The orchestrator does NOT write tests** — that is the Test Engineer agent's job. The **Test Engineer writes tests**, classifies them (host-safe vs sandbox-required), and provides run instructions. The **orchestrator executes the test commands** (e.g., `cargo test`, `go test`, `pytest`) using the Test Engineer's run instructions, respecting sandbox requirements for integration tests. The orchestrator passes the test results to the QG for evaluation. This division keeps the Test Engineer's tool restrictions clean (no Bash access) while ensuring tests actually get executed. The orchestrator also runs language-appropriate compile/syntax checks (e.g., `bash -n`, `cargo check`, `go build`) as a quick pre-flight sanity check before invoking the QG — these are lightweight verification steps, not full test suites.
 
+### Agent Roles: Who Does What
+
+Step 6 has four distinct roles. Keeping them separate is what makes the implementation phase work.
+
+**Worker agents** (Senior Programmer, Test Engineer, Documentation Writer, Hardware Engineer, Database Specialist, API Designer, DevOps Engineer, UX/UI Designer, Embedded Systems Specialist, etc.) edit project files directly using their own Edit/Write tools. They do NOT submit proposals for orchestrator approval before editing — they just do the work and report back at a high level: which files were created or modified, which tests were added, what verification they ran. The orchestrator never reviews their work mid-flow.
+
+**Reviewer agents** (Security Reviewer, Code Reviewer, Compliance Reviewer, DFM Reviewer, etc.) read the work and return findings as a report. They do not fix issues directly — fixes are made by the worker agents. The orchestrator forwards reviewer reports to QG and (when fixes are needed) to a worker agent.
+
+**The orchestrator** delegates to agents, runs syntax/build checks (`bash -n`, `cargo check`, `go build`, `python -m py_compile`, etc.) and test commands, routes reports between agents and QG, commits QG-approved work, pushes, and updates checklists. It does not read project files or edit any project artifact.
+
+**The Quality Gate (QG) agent** verifies high-level completion against the task's acceptance criteria — were the items done? did tests pass? did reviewers flag blockers? QG is not a substitute for the reviewer agents — it does not perform detailed review of the work itself. QG asks "is the work complete and verified," not "is it well-built."
+
 ### Test Sandboxing Policy
 
 Tests fall into two categories with different safety requirements:

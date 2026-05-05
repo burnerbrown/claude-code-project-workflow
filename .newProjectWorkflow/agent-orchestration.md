@@ -14,7 +14,7 @@ Read these **only when needed** to keep context small:
 |------|------|-----------|
 | **Policies & Standards** | `policies.md` | A dependency is being added, two agents disagree, an agent fails, or choosing a language |
 | **Workflows** | `workflows.md` | Steps 5, 5.5, or 6 — when you need the specific agent sequence for a task |
-| **Git Workflow** | `git-workflow.md` | Time to commit (after QG approval) or push to remote (workflow complete) |
+| **Git Workflow** | `git-workflow.md` | Time to commit or push |
 
 **Do NOT read these files preemptively.** Only load them when the current task specifically requires their content. The no-guessing rule and governing standards are already baked into each agent's own definition file — you don't need `policies.md` for normal agent execution.
 
@@ -123,7 +123,7 @@ When launching agents, **pass file paths and instructions — not file contents.
    - The acceptance criteria from the checklist
 5. Receive the QG's verdict
 6. **Orchestrator routes based on the verdict:**
-   - If APPROVED: commit the approved work, check the subtask box, proceed to the next agent in the checklist
+   - If APPROVED: check the subtask box, proceed to the next agent in the checklist
    - If SENT BACK: **launch a fresh instance** of the original worker agent with the QG's specific feedback — see "Agent Lifecycle: Fresh Agent on Rework" below
    - If APPROVED WITH CONDITIONS: **launch a fresh instance** of the original worker agent with the QG's conditions. QG re-evaluates only the conditions on resubmission. Re-run tests if any condition changed code logic. Do not commit until conditions are resolved.
 
@@ -140,7 +140,7 @@ QG criteria to evaluate: {P1-P10, T1-T11, etc. — from quality-gate.md}
 Produce your evaluation with PASS/FAIL/PARTIAL for each criterion and your overall verdict.
 ```
 
-**When all workflow steps are complete** (all subtask boxes checked, final QG approval received), the orchestrator commits all work and asks the user for push approval.
+**When all workflow steps are complete** (all subtask boxes checked, final QG approval received), the orchestrator commits all work (per `git-workflow.md`).
 
 ### Agent Lifecycle: Fresh Agent on Rework
 
@@ -235,13 +235,40 @@ Agent files in `.agents/*.md` should contain only operational instructions: pers
 
 ---
 
-## Agent Edit Workflow — Propose, Review, Approve, Apply
+## Modifying Agent Definitions and Workflow Files (Self-Modification Boundary)
 
-When an agent's task involves modifying files (source code, tests, configs, documentation, agent definitions, workflow docs, etc.), the agent MUST output its proposed changes as text only — it does not edit files directly. The orchestrator audits the proposal, presents it to the user, and applies the edits (using its own Edit/Write tools) only after the user approves.
+**The governance files of this orchestration system are user-edited only.** No agent, subagent, or orchestrator role modifies them mid-task or during normal workflow execution. This is a guardrail against the system silently rewriting the rules that govern its own behavior.
 
-**Why:** The user wants to review every proposed change before it lands in files. Direct agent edits bypass that review step.
+### Governance files (user-only)
 
-**How to apply:** When invoking an agent for a task that would modify files, instruct the agent to read files and output proposed changes as text only. After the agent returns, the orchestrator audits the proposal, shows it to the user, and only applies edits after explicit user approval. This applies even when the agent is configured with Edit/Write tool access — the *behavioral* rule is propose-then-apply regardless of tool availability.
+- All files in `.agents/` (agent definitions)
+- All files in `.newProjectWorkflow/` (workflow rules and step instructions)
+- The global `PLACEHOLDER_HOME\CLAUDE.md`
+- The `_ClaudeProjects\CLAUDE.md` (workflow-system-local instructions)
+- All files in `_ClaudeProjects\.claude\hooks\` (shared hook scripts and their tests)
+- `_ClaudeProjects\.claude\settings.json` and `_ClaudeProjects\.claude\settings.local.json` (workflow-system Claude Code configuration)
+
+### NOT governance files (Claude may write these as the workflow instructs)
+
+- All files Claude produces during normal step execution: `project-handoffs/handoff-step-{N}.md` (Steps 1-6), per-step task files (Step 5), `IMPLEMENTATION-CHECKLIST.md` and `checklists/task-{id}.md` (Step 5.5), `handoff-step-5.5-task-{id}-done.md` completion markers, `handoff-step-6-final.md` (Step 6).
+- Project source code, tests, configuration, and documentation produced during Step 6 — handled by worker agents per "Agent Roles: Who Does What" in `step-6-implementation.md`.
+- Per-project scaffolding the workflow generates: project-local `CLAUDE.md`, project-level `.claude/settings.json`, `.gitignore`, repo folder structure, SBOM (`sbom-{language}.txt`), `scs-report.md`, `qg-evaluations/` reports.
+- Hardware artifacts (when applicable): `hardware/kicad-contributions.md` and the consolidated KiCad reference files (`bom-kicad-reference.csv`, `netlist-connection-reference.md`, `schematic-wiring-checklist.md`, `layout-net-classes.csv`, `layout-component-guide.md`).
+- `PROJECT_STATUS.md` — created by the Project Manager agent on its first invocation (multi-module projects only; absent if the PM is never invoked).
+- Runtime/diagnostic artifacts the workflow tells Claude to read and clean up: `research-inventories/task-*.md` (gitignored), `.claude/scs-validator.log` (read after each SCS scan and deleted), `.scs-sandbox/staging/*` (`download-config.json`, `hash.txt`, downloaded artifacts during SCS scans).
+- Memory files (`MEMORY.md` and the individual memory files it points to) — managed under Claude's memory rules in the global `CLAUDE.md`.
+
+### How agents and the orchestrator handle changes to governance files
+
+If an agent notices an issue with its own definition, with another agent's definition, or with a workflow rule, it states the observation as a **plaintext recommendation** in its report — not as a diff, a proposed file replacement, or a code block intended to be applied. The orchestrator passes the recommendation to the user. The user decides whether to act on it and is the one who applies the edit.
+
+### When the user explicitly asks Claude to edit a governance file
+
+If the user directly asks the top-level Claude assistant in conversation to update an agent file, a workflow file, `CLAUDE.md`, a hook, or a settings file (e.g., "update the Senior Programmer agent to add X"), Claude may propose the edit, get user confirmation, and apply it. This is normal user-driven maintenance. The restriction above prevents **unsolicited**, **mid-task**, and **subagent-driven** modifications — not work the user initiates.
+
+**Why:** Agents should not silently rewrite the rules that govern their own behavior. Subagents and orchestrator routing should not either. Keeping governance files user-driven ensures every change to how the system behaves is reviewed and applied deliberately.
+
+**Out of scope reminder:** Files produced during normal workflow execution (any of the items in the "NOT governance files" list above) are not subject to this rule — agents and the orchestrator write them as the relevant step's workflow file instructs.
 
 ---
 
@@ -404,7 +431,7 @@ The SCS command validator hook catches unauthorized *commands*, but it cannot ve
 
 After **every** SCS agent invocation — in **either** mode (`batch-phase1` or `per-package`), and in any step (4, 6, or the Dependency Addition workflow) — the orchestrator MUST review the validator hook's decision log before proceeding. The expected set of ALLOW entries differs by mode; scope the review accordingly.
 
-**What:** A PreToolUse hook (`scs-validator.py`) automatically validates every Bash command the SCS agent runs against the authorized command table. The hook script lives at the shared master location (`PLACEHOLDER_PATH/.claude/hooks/scs-validator.py`) and is referenced by every project via absolute path. The hook writes its decision log (ALLOW, DENY, PASS-THROUGH entries with timestamp, command, and reason) to **each project's own** `.claude/scs-validator.log` — using the `CLAUDE_PROJECT_DIR` env var Claude Code sets — so log entries from different project sessions never mix.
+**What:** A PreToolUse hook (`scs-validator.py`) automatically validates every Bash command the SCS agent runs against the authorized command table. The hook script lives at the shared master location (`_ClaudeProjects/.claude/hooks/scs-validator.py`) and is referenced by every project via absolute path. The hook writes its decision log (ALLOW, DENY, PASS-THROUGH entries with timestamp, command, and reason) to **each project's own** `.claude/scs-validator.log` — using the `CLAUDE_PROJECT_DIR` env var Claude Code sets — so log entries from different project sessions never mix.
 
 **Procedure:**
 
