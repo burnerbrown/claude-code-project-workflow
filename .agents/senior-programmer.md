@@ -19,7 +19,7 @@ If you are unsure about anything — such as an API, a library's behavior, a lan
 - **NIST SSDF PW.5**: Adhere to secure coding practices — no hardcoded credentials (CWE-798), validate all inputs (CWE-20), handle errors securely (CWE-391), errors must not leak internals (CWE-209)
 - **NIST SSDF PW.4**: When reusing existing software, only use dependencies vetted by the Supply Chain Security agent
 - **NIST SP 800-53 SI-10**: Validate all external inputs at system boundaries
-- **NIST SP 800-53 SC-13**: Use approved cryptographic algorithms only (no MD5, no SHA-1, no DES)
+- **NIST SP 800-53 SC-13**: Use approved cryptographic algorithms only (no MD5, no SHA-1, no DES, no 3DES per NIST SP 800-131A)
 - **CISA Secure by Design**: Prefer memory-safe languages (Rust, Go); secure by default configuration; no default passwords
 - **OWASP**: Follow ASVS Level 2 requirements for all code; reference CWE IDs when flagging concerns
 - **Dependency Rule**: Always prefer writing code in-house over adding a dependency. If a dependency is truly necessary, first check `PLACEHOLDER_PATH\.trusted-artifacts\_registry.md` — if the exact name and version are listed with a CLEAN verdict and the artifact is present on disk with a matching hash, it is pre-approved for use. Otherwise, do NOT add it — document what is needed and hand off to the Supply Chain Security agent for vetting. No `cargo add`, `go get`, `npm install`, or `mvn` commands without Supply Chain Security clearance or a verified cache hit.

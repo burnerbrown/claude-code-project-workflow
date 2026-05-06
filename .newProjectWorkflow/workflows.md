@@ -50,11 +50,11 @@ Security Reviewer + Code Reviewer (parallel) → QG → Documentation Writer →
 
 **Steps (both variants):**
 - **Security Reviewer + Code Reviewer**: Run in parallel. Security checks vulnerabilities; Code review checks quality/maintainability. Each workflow below may add domain-specific focus inline (e.g., injection for DB, API security for API, firmware memory safety for embedded).
-- **QG**: Evaluate both — security against SR1-SR8, code review against CR1-CR7
+- **QG**: Evaluate both — security against SR1–SR9, code review against CR1-CR7
 - **Compliance Reviewer** (Standard only): Assess against NIST/CISA/OWASP standards, produce compliance report
 - **QG** (Standard only): Evaluate against criteria CO1-CO8
 - **Documentation Writer**: Recommend documentation additions/changes based on the completed, verified output
-- **QG**: Evaluate against criteria D1-D8
+- **QG**: Evaluate against criteria D1–D11
 
 Workflows below cite "Standard Review Tail" or "Short Review Tail" instead of re-listing these steps.
 
@@ -78,7 +78,7 @@ Programmer → QG → Test Engineer → QG → [orchestrator runs tests] → Per
 
 **PO verification step:**
 1. **Performance Optimizer**: Benchmark the QG-approved, tested code against the targets from Step 3 / Step 5.5 task detail. Produce a pass/fail verdict per target with measured values.
-2. **QG**: Evaluate against criteria PO1-PO8. Additionally verify: does every declared target have a MET/NOT MET verdict backed by measurement data?
+2. **QG**: Evaluate against criteria PO1–PO9. Additionally verify: does every declared target have a MET/NOT MET verdict backed by measurement data?
 
 **If all targets are MET:** Proceed to the review tail.
 
@@ -287,7 +287,7 @@ API Designer → QG → Programmer → QG → Test Engineer → QG → [Standard
 ```
 
 1. **API Designer**: Design the API spec
-2. **QG**: Evaluate against criteria AD1-AD7
+2. **QG**: Evaluate against criteria AD1–AD9
 3. **Senior Programmer**: Implement the API
 4. **QG**: Evaluate against criteria P1-P10
 5. **Test Engineer**: Write tests
@@ -300,7 +300,7 @@ Database Specialist → QG → Programmer (for ORM/query code) → QG → Test E
 ```
 
 1. **Database Specialist**: Design schema, migrations, queries
-2. **QG**: Evaluate against criteria DB1-DB7
+2. **QG**: Evaluate against criteria DB1–DB11
 3. **Senior Programmer**: Implement ORM/query code
 4. **QG**: Evaluate against criteria P1-P10
 5. **Test Engineer**: Write tests for database operations
@@ -316,8 +316,8 @@ Embedded Specialist (implement) → QG → Test Engineer → QG → [Standard Re
 ```
 Note: The Embedded Specialist handles both design and implementation for firmware work, since the hardware constraints tightly couple architecture and code. The design phase happens in Step 4; the implementation phase happens here in Step 6.
 
-1. **Embedded Systems Specialist**: Implement the firmware based on Step 4 architecture
-2. **QG**: Evaluate implementation against criteria ES1-ES7
+1. **Embedded Systems Specialist** (Mode A — firmware implementation): Implement the firmware based on Step 4 architecture
+2. **QG**: Evaluate implementation against criteria ES1–ES8
 3. **Test Engineer**: Write tests (simulation + hardware test plan)
 4. **QG**: Evaluate against criteria T1-T11
 5. **Standard Review Tail** — Security Reviewer focuses on firmware security; Code Reviewer focuses on memory safety patterns and HAL consistency; Documentation Writer recommends hardware docs, firmware guides, pin mappings
@@ -330,17 +330,35 @@ Note: The Embedded Specialist handles both design and implementation for firmwar
 
 ### Step 4 Hardware Architecture Track (High-Level)
 ```
-Hardware Engineer (architecture) → QG → Component Sourcing (critical ICs only) → QG → Fab House Selection → DFM Reviewer (architecture-level) → QG
+Hardware Engineer (architecture) → QG → Embedded Specialist (Mode B firmware-perspective review) → QG → Component Sourcing (critical ICs only) → QG → Fab House Selection → DFM Reviewer (architecture-level) → QG
 ```
 This runs in **parallel** with the Software Architect track (which designs the firmware architecture). Both tracks produce a shared interface specification (pin mapping, communication protocols, timing requirements).
 
 1. **Hardware Engineer**: Design the high-level hardware architecture — MCU selection, block diagram, power domain identification, communication protocol selection, pin reservation per subsystem, subsystem inventory list
-2. **QG**: Evaluate against architecture-level criteria (HE1-HE6, HE11, HE12)
-3. **Component Sourcing**: Validate critical component selections (MCU, major ICs) — lifecycle, availability, second-sourcing
-4. **QG**: Evaluate against criteria CS1-CS8 (scoped to critical components)
-5. **Fab House Selection** (orchestrator-driven): Evaluate preferred fab house against the most demanding IC packages identified so far. Document the selected fab house and its design rules for use by subsystem tasks.
-6. **DFM Reviewer**: Architecture-level manufacturability review — MCU/IC package feasibility, layer count, board-level constraints
-7. **QG**: Evaluate against criteria DFM1-DFM8 (scoped to architecture-level concerns)
+2. **QG**: Evaluate against architecture-level criteria (HE1-HE6, HE11-HE14)
+3. **Embedded Systems Specialist** (Mode B — hardware design review from firmware perspective): Review the QG-approved HE Mode 1 architecture for firmware-level feasibility — firmware feasibility, pin mapping validation, peripheral resource conflicts, and MCU errata awareness
+4. **QG**: Evaluate against criteria ES9–ES12. If the Mode B review surfaces firmware-blocking issues, send back to the Hardware Engineer (Mode 1) — repeat steps 1–2 with the corrections before proceeding. This catches firmware-hardware mismatches before component sourcing locks in MCU/IC choices.
+5. **Orchestrator**: After QG approves both HE Mode 1 and ES Mode B, create `hardware/kicad-contributions.md` using the template below. This file accumulates per-subsystem KiCad reference data during Mode 2 tasks and feeds Mode 3 consolidation.
+6. **Component Sourcing**: Validate critical component selections (MCU, major ICs) — lifecycle, availability, second-sourcing
+7. **QG**: Evaluate against criteria CS1-CS8 (scoped to critical components)
+8. **Fab House Selection** (orchestrator-driven): Evaluate preferred fab house against the most demanding IC packages identified so far. Document the selected fab house and its design rules for use by subsystem tasks.
+9. **DFM Reviewer**: Architecture-level manufacturability review — MCU/IC package feasibility, layer count, board-level constraints
+10. **QG**: Evaluate against criteria DFM1–DFM10 (scoped to architecture-level concerns)
+
+**`hardware/kicad-contributions.md` template** (created by the orchestrator in step 5 above):
+```markdown
+# KiCad Reference Contributions
+
+Per-subsystem entries for the five KiCad reference files. Each Mode 2 task adds a
+subsystem section below. The Mode 3 consolidation task reads this file and assembles
+the final reference files.
+
+**Target files:** bom-kicad-reference.csv, netlist-connection-reference.md,
+schematic-wiring-checklist.md, layout-net-classes.csv, layout-component-guide.md
+
+---
+```
+The orchestrator creates the file with this header. Mode 2 agents append their subsystem sections (see `hardware-engineer.md` Mode 2 item 7).
 
 ### Step 6 Hardware Subsystem Design Track (Agent-Driven, Per-Subsystem)
 Each subsystem identified in the Step 4 subsystem inventory becomes its own task. Tasks are ordered with foundational subsystems first (power, MCU core) since other subsystems depend on them.
@@ -350,8 +368,8 @@ Each subsystem identified in the Step 4 subsystem inventory becomes its own task
 Hardware Engineer (subsystem) → QG → Component Sourcing (subsystem BOM) → QG
 ```
 
-1. **Hardware Engineer**: Design one subsystem in detail — circuit topology, component selection with MPNs, schematic design notes, BOM entries for this subsystem, contribution to pin mapping and KiCad reference files
-2. **QG**: Evaluate against criteria HE5-HE9 (scoped to this subsystem — power sizing, pin assignments, interface specs, schematic notes, BOM entries)
+1. **Hardware Engineer**: Design one subsystem in detail — circuit topology, component selection with MPNs, schematic design notes, BOM entries for this subsystem, pin mapping updates, and KiCad reference contributions written to `hardware/kicad-contributions.md`
+2. **QG**: Evaluate against criteria HE5-HE9, HE11, HE12, HE15 (scoped to this subsystem — power sizing, pin assignments, interface specs, schematic notes, BOM entries, KiCad contributions)
 3. **Component Sourcing**: Validate this subsystem's component selections — lifecycle, availability, second-sourcing, fab assembly library compatibility
 4. **QG**: Evaluate against criteria CS1-CS8 (scoped to this subsystem's components)
 
@@ -370,10 +388,10 @@ Hardware Engineer (subsystem) → QG → Component Sourcing (subsystem BOM) → 
 Hardware Engineer (consolidate) → QG → DFM Reviewer (full design) → QG → Hardware Engineer (DFM fixes, if any) → QG
 ```
 
-1. **Hardware Engineer**: Consolidate all subsystem outputs into the complete design — full BOM, complete pin mapping table, PCB layout guidance, and the full set of KiCad reference files (bom-kicad-reference.csv, netlist-connection-reference.md, schematic-wiring-checklist.md, layout-net-classes.csv, layout-component-guide.md). Verify no inter-subsystem conflicts (shared pins, power budget overrun, address collisions).
+1. **Hardware Engineer**: Consolidate all subsystem outputs into the complete design — full BOM, complete pin mapping table, PCB layout guidance, and the full set of KiCad reference files assembled from `hardware/kicad-contributions.md` (bom-kicad-reference.csv, netlist-connection-reference.md, schematic-wiring-checklist.md, layout-net-classes.csv, layout-component-guide.md). Verify no inter-subsystem conflicts (shared pins, power budget overrun, address collisions).
 2. **QG**: Evaluate the consolidated design against full criteria HE1-HE16
 3. **DFM Reviewer**: Full manufacturability review of the complete design **against the selected fab house's specific capabilities**
-4. **QG**: Evaluate against criteria DFM1-DFM8
+4. **QG**: Evaluate against criteria DFM1–DFM10
 5. **Hardware Engineer** (re-invoke if DFM issues): Address any must-fix items
 6. **QG**: Re-evaluate affected criteria
 
@@ -391,7 +409,7 @@ The user draws the schematic and PCB layout in KiCad using the Hardware Engineer
 - **`layout-net-classes.csv`** — Net class configuration for KiCad Design Rules dialog
 - **`layout-component-guide.md`** — Per-component placement and routing reference (searchable by Ctrl+F)
 
-These files are saved in the `hardware/` folder. They are built up incrementally during subsystem tasks and consolidated into their final form during the consolidation task.
+These files are saved in the `hardware/` folder. Per-subsystem data is accumulated in `hardware/kicad-contributions.md` during subsystem tasks and assembled into the final reference files during the consolidation task.
 
 During the user's KiCad work, the user may request:
 - **Schematic review**: Invoke the Hardware Engineer to review a screenshot or description of the schematic against the design spec
@@ -412,8 +430,8 @@ Embedded Specialist (implement) → QG → Test Engineer → QG → [Standard Re
 
 Identical to the **Embedded/RTOS Feature** workflow, except the Embedded Specialist references the board's existing datasheet and pinout rather than designing hardware from scratch.
 
-1. **Embedded Systems Specialist**: Implement firmware for the target board — drivers, application logic, communication stacks
-2. **QG**: Evaluate against criteria ES1-ES7
+1. **Embedded Systems Specialist** (Mode A — firmware implementation): Implement firmware for the target board — drivers, application logic, communication stacks
+2. **QG**: Evaluate against criteria ES1–ES8
 3. **Test Engineer**: Write tests (simulation + hardware test plan)
 4. **QG**: Evaluate against criteria T1-T11
 5. **Standard Review Tail** — Documentation Writer recommends pinout reference, firmware guide, flashing instructions
@@ -440,7 +458,7 @@ Hardware Engineer (revision) → QG → Component Sourcing (if new parts) → QG
 4. **QG**: Evaluate against criteria CS1-CS8
 5. **Fab House Re-evaluation** (only if revision introduces components with different fab requirements than the original design — e.g., switching from QFP to BGA, adding fine-pitch parts): Verify the original fab house can still handle the revised design. If not, present options to the user.
 6. **DFM Reviewer**: Review changes for manufacturability impact against the (confirmed or updated) fab house capabilities
-7. **QG**: Evaluate against criteria DFM1-DFM8
+7. **QG**: Evaluate against criteria DFM1–DFM10
 
 ### Step 6 Firmware Updates (if needed)
 If hardware changes require firmware modifications (new pin assignments, different peripherals, changed communication protocols):
@@ -456,20 +474,22 @@ Embedded Specialist (update) → QG → Test Engineer (regression) → QG → [S
 
 ### Step 4 Production Board Track
 ```
-Hardware Engineer (production design) → QG → Component Sourcing → QG → Hardware Engineer (sourcing fixes) → QG → Fab House Selection → DFM Reviewer → QG → Hardware Engineer (DFM fixes) → QG
+Hardware Engineer (production design) → QG → Embedded Specialist (Mode B firmware-perspective review) → QG → Component Sourcing → QG → Hardware Engineer (sourcing fixes) → QG → Fab House Selection → DFM Reviewer → QG → Hardware Engineer (DFM fixes) → QG
 ```
 
 1. **Hardware Engineer**: Design the production board architecture based on the prototype's proven circuit — MCU selection (may keep the same MCU or select a production-appropriate variant), block diagram, power domain identification, communication protocols, pin reservation, and subsystem inventory. Optimize for size, cost, power, and reliability. The detailed per-subsystem circuit design follows the same subsystem task pattern as Hardware + Firmware Full Development (see above) — each subsystem gets its own Step 6 task, with a consolidation task at the end that produces the full set of KiCad reference files.
 2. **QG**: Evaluate against architecture-level criteria HE1-HE6, HE11, HE12
-3. **Component Sourcing**: Validate BOM for production quantities — focus on availability at volume, cost optimization, and lifecycle
-4. **QG**: Evaluate against criteria CS1-CS8
-5. **Hardware Engineer** (re-invoke): Address sourcing issues
-6. **QG**: Re-evaluate
-7. **Fab House Selection** (orchestrator-driven): Evaluate fab house against production board requirements. For Prototype to Production, pay special attention to volume pricing, assembly service capabilities, and turnaround time at production quantities.
-8. **DFM Reviewer**: Full production DFM review **against the selected fab house** — assembly process, testability, panelization
-9. **QG**: Evaluate against criteria DFM1-DFM8
-10. **Hardware Engineer** (re-invoke): Address DFM issues
-11. **QG**: Re-evaluate
+3. **Embedded Systems Specialist** (Mode B — hardware design review from firmware perspective): Verify that the existing prototype firmware will continue to work on the production board. Especially important when the MCU variant changes (different package, speed grade, or family) — confirm peripheral availability, pin compatibility, HAL support, and that any firmware-critical timing/peripheral assumptions still hold.
+4. **QG**: Evaluate against criteria ES9–ES12. If the Mode B review surfaces firmware-blocking issues, send back to the Hardware Engineer (production design) before proceeding to component sourcing.
+5. **Component Sourcing**: Validate BOM for production quantities — focus on availability at volume, cost optimization, and lifecycle
+6. **QG**: Evaluate against criteria CS1-CS8
+7. **Hardware Engineer** (re-invoke): Address sourcing issues
+8. **QG**: Re-evaluate
+9. **Fab House Selection** (orchestrator-driven): Evaluate fab house against production board requirements. For Prototype to Production, pay special attention to volume pricing, assembly service capabilities, and turnaround time at production quantities.
+10. **DFM Reviewer**: Full production DFM review **against the selected fab house** — assembly process, testability, panelization
+11. **QG**: Evaluate against criteria DFM1–DFM10
+12. **Hardware Engineer** (re-invoke): Address DFM issues
+13. **QG**: Re-evaluate
 
 ### Step 6 Firmware Porting
 The existing prototype firmware is ported to the production board's pin mapping and peripherals:
@@ -509,7 +529,7 @@ DevOps Engineer → QG → Test Engineer (validation) → QG → [Short Review T
 ```
 
 1. **DevOps Engineer**: Create Dockerfiles, CI/CD pipelines, build scripts, or deployment configs
-2. **QG**: Evaluate against criteria DO1-DO7
+2. **QG**: Evaluate against criteria DO1–DO9
 3. **Test Engineer**: Write validation tests for DevOps configs — e.g., Docker image builds successfully, container starts and passes health check, CI pipeline dry-run succeeds, docker-compose services connect correctly. Classify each validation as host-safe or sandbox-required. The orchestrator executes the validation commands.
 4. **QG**: Evaluate against criteria T1-T11 (scoped to DevOps validation — focus on T1-T3, T5, T7-T8, T10-T11)
 5. **Short Review Tail** — Security Reviewer focuses on hardcoded secrets, supply-chain scanning gaps, privilege escalation, non-root enforcement; Code Reviewer focuses on maintainability, inline documentation, config best practices; Documentation Writer recommends usage docs, troubleshooting guides, deployment runbooks
@@ -522,17 +542,17 @@ Performance Optimizer (analyze) → QG → Programmer (implement) → QG → Tes
 Note: This workflow interleaves Performance Optimizer's verification step between the Security+Code reviews and Documentation — so it uses Short-Review-Tail components piecewise rather than the named tail.
 
 1. **Performance Optimizer**: Analyze and identify bottlenecks
-2. **QG**: Evaluate against criteria PO1-PO8
+2. **QG**: Evaluate against criteria PO1–PO9
 3. **Senior Programmer**: Implement the recommended optimizations
 4. **QG**: Evaluate against criteria P1-P10
 5. **Test Engineer**: Verify existing tests still pass (regression check) and add tests for optimized code paths
 6. **QG**: Evaluate against criteria T1-T11
 7. **Security Reviewer + Code Reviewer**: Run in parallel — Security Reviewer focuses on security regressions from optimizations (weakened crypto, disabled bounds checks, reduced logging); Code Reviewer checks code quality
-8. **QG**: Evaluate both reviews — security against SR1-SR8, code review against CR1-CR7
+8. **QG**: Evaluate both reviews — security against SR1–SR9, code review against CR1-CR7
 9. **Performance Optimizer**: Verify improvements with benchmarks (launch a fresh Performance Optimizer agent — pass the original analysis file path from step 1 so it can compare against its original findings)
-10. **QG**: Evaluate against criteria PO1-PO8
+10. **QG**: Evaluate against criteria PO1–PO9
 11. **Documentation Writer**: Recommend performance documentation updates (benchmarks, configuration tuning guides, etc.)
-12. **QG**: Evaluate against criteria D1-D8
+12. **QG**: Evaluate against criteria D1–D11
 
 ## Documentation Sprint
 ```
@@ -542,7 +562,7 @@ Software Architect (provide context) → QG → Documentation Writer → QG
 1. **Software Architect**: Provide architectural context for documentation
 2. **QG**: Evaluate against criteria A1-A11 (subset relevant to documentation context)
 3. **Documentation Writer**: Write the documentation
-4. **QG**: Evaluate against criteria D1-D8
+4. **QG**: Evaluate against criteria D1–D11
 
 ## Dependency Addition (During Step 5, 5.5, or 6)
 
@@ -581,7 +601,7 @@ If all verdicts CLEAN → Update SBOM, scs-report.md & Step 4 handoff → Resume
 9. **Supply Chain Security (one FRESH invocation per approved package, `mode: "per-package"`, `start_phase: 2`)**: For each package the user approved for scanning, launch a fresh SCS agent that runs Phase 2 (download sandbox) → Phase 3 (Defender, VirusTotal, source review — Layer 3 audit is NOT re-run; it was handled in Phase 1a) → Phase 4 (verdict) → Phase 5 post-CLEAN actions. Verification checkpoints (download config readback, post-download hash) and per-package log review apply to each invocation.
    - If any per-package Phase 4 verdict is **INCOMPLETE**: the Pause Rule applies — see the Pause Rule in `policies.md`. Work that depends on the unscanned dependency halts until the scan resumes and completes. Work on unrelated packages in the same batch can still proceed.
    - If any per-package Phase 4 verdict is **REJECT**: find an alternative (loop back to step 5 — pre-screen & packages array — with a revised packages array) or refactor to avoid the dependency. Only escalate to redo prior steps if the rejection forces an architectural change with no alternatives.
-10. **QG** (after all per-package verdicts return CLEAN or CONDITIONAL-with-approval): Evaluate against criteria SC1-SC7 over the set of scanned dependencies.
+10. **QG** (after all per-package verdicts return CLEAN or CONDITIONAL-with-approval): Evaluate against criteria SC1–SC10 over the set of scanned dependencies.
 11. **Orchestrator — wrap up**: For each approved dependency, artifact is in `.trusted-artifacts/`, `_registry.md` has a row, `scs-report.md` has the per-package section, SBOM is updated, Step 4 handoff is updated. Resume the work that was paused.
 
 ---

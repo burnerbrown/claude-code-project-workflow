@@ -59,7 +59,7 @@ Make the key technical decisions: language, components, data flow, interfaces, a
    **After all packages are CLEAN:**
    - The SBOM (`sbom-{language}.txt`) is generated as part of Phase 5 on the final package
    - `scs-report.md` holds the appended per-package sections — this is the persistent audit trail of all Phase 4 verdicts (see the SCS agent definition for the report format). The Stage 1 batch report itself is working material, not persisted to `scs-report.md`.
-   - Route the final SCS output through the Quality Gate (evaluate against SC1-SC7). No Project Manager needed in Step 4 — there are no tasks or status tracking yet.
+   - Route the final SCS output through the Quality Gate (evaluate against SC1–SC10). No Project Manager needed in Step 4 — there are no tasks or status tracking yet.
 10. **Review with the user** — walk through the design, confirmed dependency verdicts, explain trade-offs, get approval.
 
 ## When to Use the Software Architect Agent
@@ -94,7 +94,7 @@ After the user approves the architecture, **scaffold the project repository** ba
    .vscode/
 
    # Claude Code - whole .claude/ directory is machine-specific (settings.json contains
-   # an absolute path to the shared hook, plus per-machine permission approvals
+   # an absolute Windows path to the shared hook, plus per-machine permission approvals
    # and runtime log) — never commit
    .claude/
 
@@ -130,7 +130,7 @@ After the user approves the architecture, **scaffold the project repository** ba
      }
      ```
    - If the project already has a `.claude/settings.json` with other settings (e.g., permissions), merge the `hooks` key into the existing file — do not overwrite other settings.
-   - Note: The shared hook hardcodes paths to `PLACEHOLDER_PATH/.scs-sandbox/` and `PLACEHOLDER_PATH/.trusted-artifacts/` (shared cache resources). It writes its decision log to **each project's own** `.claude/scs-validator.log` using the `CLAUDE_PROJECT_DIR` env var Claude Code sets — so log entries from different project sessions stay isolated.
+   - Note: The shared hook hardcodes paths to `_ClaudeProjects/.scs-sandbox/` and `_ClaudeProjects/.trusted-artifacts/` (shared cache resources). It writes its decision log to **each project's own** `.claude/scs-validator.log` using the `CLAUDE_PROJECT_DIR` env var Claude Code sets — so log entries from different project sessions stay isolated.
 7. **Create QG evaluation subfolders** in each major directory that will produce agent output. QG evaluation reports go in these subfolders instead of cluttering the parent directory. At minimum, create:
    - `hardware/qg-evaluations/` (if the project has hardware design)
    - `design/qg-evaluations/` (if the project has UI design work)
