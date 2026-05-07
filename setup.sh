@@ -205,15 +205,22 @@ echo ""
 
 info "Checking for global CLAUDE.md..."
 
-GLOBAL_CLAUDE="${HOME_DIR}/CLAUDE.md"
+# Canonical user-level CLAUDE.md location is ~/.claude/CLAUDE.md (per Claude Code
+# docs at https://code.claude.com/docs/en/memory.md). A file at ~/CLAUDE.md only
+# loads via parent-directory walk-up from the project's cwd, so it would silently
+# fail to load for projects on a different drive (e.g., Windows D:\). The .claude
+# location loads as user-level memory regardless of cwd.
+GLOBAL_CLAUDE_DIR="${HOME_DIR}/.claude"
+GLOBAL_CLAUDE="${GLOBAL_CLAUDE_DIR}/CLAUDE.md"
 
 if [ -f "${GLOBAL_CLAUDE}" ]; then
-    warn "~/CLAUDE.md already exists. Not overwriting."
+    warn "~/.claude/CLAUDE.md already exists. Not overwriting."
     info "Review the repo's global-CLAUDE.md and merge any settings you want into your global copy."
 else
     echo ""
-    read -rp "Would you like to copy global-CLAUDE.md to your home directory as ~/CLAUDE.md? (y/n): " COPY_GLOBAL
+    read -rp "Would you like to copy global-CLAUDE.md to ~/.claude/CLAUDE.md as your user-level config? (y/n): " COPY_GLOBAL
     if [[ "${COPY_GLOBAL}" =~ ^[Yy]$ ]]; then
+        mkdir -p "${GLOBAL_CLAUDE_DIR}"
         cp "${GLOBAL_CLAUDE_SRC}" "${GLOBAL_CLAUDE}"
         success "Copied global-CLAUDE.md to ${GLOBAL_CLAUDE}"
     else
@@ -372,7 +379,7 @@ echo "    - Paths updated across all workflow and agent files"
 echo "    - Platform set to: ${PLATFORM_STRING#*: }"
 echo "    - .trusted-artifacts/ directory ready"
 if [ -f "${GLOBAL_CLAUDE}" ] && [ "${COPY_GLOBAL:-n}" != "n" ]; then
-echo "    - Global CLAUDE.md installed at ~/CLAUDE.md"
+echo "    - Global CLAUDE.md installed at ~/.claude/CLAUDE.md"
 fi
 echo ""
 echo "  To start your first project, open Claude Code and say:"

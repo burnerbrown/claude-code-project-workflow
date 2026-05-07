@@ -20,7 +20,7 @@ claude-code-project-workflow/        ← workflow root (the cloned repo)
 │   ├── hooks/                        ← shared SCS validator hook
 │   └── settings.json                 ← registers the hook for the workflow root
 ├── CLAUDE.md                         ← loaded when Claude is started in this folder
-├── global-CLAUDE.md                  ← copied to ~/CLAUDE.md by setup
+├── global-CLAUDE.md                  ← copied to ~/.claude/CLAUDE.md by setup
 ├── my-first-project/                 ← your project (subfolder)
 │   ├── .claude/settings.json         ← registers the shared hook via absolute path (created in Step 4)
 │   ├── CLAUDE.md                     ← project-local status board
@@ -54,7 +54,7 @@ You may rename the cloned folder (e.g., to `ClaudeProjects`) before or after run
    - Replace `PLACEHOLDER_PATH` across all workflow files (`.md`) and the SCS validator (`.py`) with your absolute path
    - Set the platform line in `global-CLAUDE.md`
    - Create `.trusted-artifacts/` and a starter registry
-   - Optionally copy `global-CLAUDE.md` to `~/CLAUDE.md` as your global Claude Code config
+   - Optionally copy `global-CLAUDE.md` to `~/.claude/CLAUDE.md` as your user-level Claude Code config (the canonical location for global memory; loads in every Claude Code session regardless of where the project lives)
    - Optionally walk you through Claude Code sandbox setup for your platform
 
 ## Starting Your First Project
@@ -84,7 +84,7 @@ You may rename the cloned folder (e.g., to `ClaudeProjects`) before or after run
 | `.claude/settings.json` | Registers the SCS hook when Claude Code is started in the workflow root itself |
 | `.trusted-artifacts/` | Vetted dependency cache (created by the setup script; populated by the SCS agent) |
 | `CLAUDE.md` | Loaded only when Claude Code is started in the workflow root — describes the system layout |
-| `global-CLAUDE.md` | Source for `~/CLAUDE.md` — global preferences loaded in every Claude Code session |
+| `global-CLAUDE.md` | Source for `~/.claude/CLAUDE.md` — user-level memory loaded in every Claude Code session |
 | `setup.sh` | One-shot setup script |
 
 ## Optional: VirusTotal API Key
@@ -101,7 +101,7 @@ There are two separate sandbox concepts in this system — don't confuse them:
 ## Troubleshooting
 
 - **`PLACEHOLDER_PATH` still appears in some files** — the script was run from the wrong directory. `cd` into the workflow root and run `bash setup.sh` again. The script is idempotent.
-- **`~/CLAUDE.md` already exists** — the script never overwrites this. Open both `~/CLAUDE.md` and the repo's `global-CLAUDE.md` and merge whatever you want manually.
+- **`~/.claude/CLAUDE.md` already exists** — the script never overwrites this. Open both `~/.claude/CLAUDE.md` and the repo's `global-CLAUDE.md` and merge whatever you want manually.
 - **`Could not find PLACEHOLDER_PLATFORM`** — the script already updated the platform line in a previous run. Safe to ignore on re-runs.
 - **PreToolUse hook fails with `python: command not found`** — the hook command in `.claude/settings.json` calls `python` directly. Many macOS/Linux systems only ship `python3`, and on Windows, Python from python.org installs as `py` (the launcher) rather than `python` unless the "Add to PATH" option was checked. Two options:
    1. Make `python` resolve. **macOS/Linux:** `ln -s "$(command -v python3)" ~/.local/bin/python` and ensure `~/.local/bin` is on your `PATH`. **Windows:** re-run the Python installer with "Add Python to PATH" checked, or create a `python.bat` shim that calls `py`.
