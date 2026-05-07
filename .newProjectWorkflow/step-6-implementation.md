@@ -43,6 +43,42 @@ Execute the implementation by orchestrating agents through the checklist produce
 
 **Why this matters**: Without per-task checklists, the orchestrator has no detailed agent instructions, acceptance criteria, or subtask checkboxes for crash recovery. Creating checklists on-the-fly during implementation defeats Step 5.5's purpose and produces lower-quality agent workflows.
 
+### Adding New Tasks Discovered During Step 6
+
+When new work is discovered after Step 5.5 — bug fixes, deferred-item promotions, scope additions, post-deployment commissioning fixes, or anything else not in the original plan — the orchestrator MUST create a per-task checklist file AND add an entry to `IMPLEMENTATION-CHECKLIST.md` BEFORE launching agents for that work. This applies the Step 5.5 task-detailing convention in miniature, so mid-Step-6 work is tracked the same way as planned-from-Step-5 tasks.
+
+**Timing — when to apply this rule:**
+
+- **New work discovered between tasks** (current task is complete, no work in flight): Apply this rule before starting the new task.
+- **New work discovered during current-task execution**: Finish the current task first (commit, STOP, `/clear`). Apply this rule in the next session before launching the new task's agents. *Exception:* if the new work is a true blocker on the current task (e.g., a missing prerequisite that must complete first), pause the current task, apply this rule, complete the new prerequisite task, then resume the original task.
+
+**Procedure for a new task:**
+
+1. **Pick the task ID**: Read `IMPLEMENTATION-CHECKLIST.md` to observe the ID convention this project uses. Projects use varied schemes — integers (`Task 1`, `Task 2`), prefixed sequences (`Pre-1`, `H-1`, `HW-1`), and variant suffixes (`Task 9a`, `9b`). The new ID must not collide with any existing one. For most scope additions, the next integer in the main `Task N` sequence is correct — compare numerically, not lexicographically (Task 10 > Task 9). For a follow-up variant of a specific existing task, use a letter suffix (`9a`). For prefixed tracks (hardware, pre-implementation), continue that prefix's numbering. If unsure, ask the user.
+2. **Pick the workflow**: Read `workflows.md` — you would normally skip this in Step 6, but mid-Step-6 task creation requires it because there is no existing checklist with an agent sequence yet. Choose the appropriate pattern. Common mid-Step-6 patterns: **Bug Fix**, **Refactoring**, **DevOps/Infrastructure**, **Performance Investigation**, **Documentation Sprint**, **Embedded/RTOS Feature**, **Firmware-Only Development**. Note: Dependency Addition follows the existing "Dependency Addition" workflow and the pause/scan rule already documented in this file — not this section. The Step 4 hardware-track workflows (Hardware + Firmware Full Development Step 4 track, Prototype to Production Step 4 track, Hardware Revision Step 4 track) do NOT apply mid-Step-6 — only their Step 6 sub-tracks do.
+3. **Create `checklists/task-{N}.md`**: Use the Per-Task Detail Template in `step-5.5-task-detailing.md` (this is the one place mid-Step-6 work needs that file — read only the template section). Populate it with task description, the chosen workflow's agent sequence as subtask checkboxes (`- [ ]` for each agent + each QG step), the specific agent instructions, file paths the agents will need, and acceptance criteria. Use a representative existing checklist file from `checklists/` as a format reference — one with a multi-agent sequence (e.g., Senior Programmer + Test Engineer + reviewers), NOT a trivial "Orchestrator only" task.
+4. **Performance Add-On scan**: Run this per `step-5.5-task-detailing.md` step 3 only if the new work has measurable performance targets (latency, throughput, memory budgets, WCET). Most bug fixes do not. Record the decision in the new checklist file.
+5. **Add the entry to `IMPLEMENTATION-CHECKLIST.md`**: Append a new task line under the appropriate section with `- [ ]`, a link to the new per-task file, and a `- **Depends On**:` sub-bullet (use `None` if standalone). Match the format of existing entries.
+6. **Then** enter the standard Orchestration Loop below with the new task as the current task.
+
+**Commit timing**: The new index entry and `checklists/task-{N}.md` file are committed as part of the task's normal completion commit (per `git-workflow.md`) — do NOT create a separate pre-task commit for the tracking files. They sit uncommitted on disk while agents work, just like planned-from-Step-5 checklists did during Step 6.
+
+**Do NOT** create a `project-handoffs/handoff-step-5.5-task-{N}-done.md` marker for mid-Step-6 tasks — those are Step 5.5 pacing artifacts and don't apply to additions made during Step 6.
+
+**Retroactive entries** apply when ALL relevant agent work for the new task is already committed (visible in `git log`) before the orchestrator creates the checklist. To capture it after the fact:
+
+- Create `checklists/task-{N}.md` and the index entry the same way as above.
+- Mark the index entry and all subtask boxes as already-checked (`- [x]`), since the work is done and committed.
+- Reconstruct the subtask list from the actual git history (commits, files changed) and include the relevant commit SHAs in the checklist file. Git history doesn't always indicate which agent did the work; if attribution is unclear, label subtasks with the agents that *would have been* assigned per the chosen workflow pattern, and note in the retroactive header that agent attribution is inferred.
+- Add a one-line note at the top of the new checklist file: *"Retroactive entry — work shipped before this convention was followed. Reconstructed from commits {SHAs}. Agent attribution {recorded from history | inferred from workflow pattern}."*
+- Commit the retroactive index entry and checklist file on creation (the underlying work is already committed in earlier commits; the tracking files can be committed standalone).
+- Do NOT re-run agents, re-evaluate via the QG, or re-test. The retroactive entry is documentation of completed work, not a re-execution.
+- Pre-Flight Check note: the Pre-Flight Check only runs on the first Step 6 session. Retroactive entries added in later sessions are not re-validated by Pre-Flight, so confirm the checklist file actually exists on disk before committing the index update.
+
+**Mixed case** (some related work committed, more still pending): Use the normal new-task path. Create the checklist with normal-path formatting (`- [ ]` boxes), then immediately mark already-committed subtasks as `- [x]` with their commit SHAs. Continue normal-path execution for the remaining unchecked subtasks. Do NOT split this into a separate retroactive entry plus a new task.
+
+**Why this matters**: Without this rule, every bug-fix or scope-addition session after Step 5.5 creates the same convention gap — agents launch directly, work commits, no per-task tracking exists, and `IMPLEMENTATION-CHECKLIST.md` becomes an incomplete record. Future maintenance sessions (later bug fixes, audits, handoffs) lose visibility into what was actually built.
+
 ### The Orchestration Loop
 
 Repeat the following cycle for each task/subtask until the checklist is complete:
