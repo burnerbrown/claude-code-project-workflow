@@ -133,11 +133,11 @@ echo ""
 
 # ─── Phase 2: Replace Placeholder Paths ──────────────────────────────────────
 
-info "Replacing placeholder paths in all .md files..."
+info "Replacing placeholder paths in all .md and .py files..."
 
-# Count files to process
-FILE_COUNT=$(find "${PROJECT_ROOT}" -name "*.md" -not -path "*/.git/*" | wc -l | tr -d ' ')
-info "Found ${FILE_COUNT} markdown files to process."
+# Count files to process (.md = workflow/agent docs, .py = SCS validator + tests)
+FILE_COUNT=$(find "${PROJECT_ROOT}" \( -name "*.md" -o -name "*.py" \) -not -path "*/.git/*" | wc -l | tr -d ' ')
+info "Found ${FILE_COUNT} files to process."
 
 # Escape backslashes in the replacement path for sed
 # On Windows, REPLACEMENT_PATH has backslashes that need escaping
@@ -145,11 +145,11 @@ SED_REPLACEMENT=$(echo "${REPLACEMENT_PATH}" | sed 's|\\|\\\\|g')
 
 # Run the replacement
 # PLACEHOLDER_PATH is a simple string with no special regex characters
-find "${PROJECT_ROOT}" -name "*.md" -not -path "*/.git/*" -exec \
+find "${PROJECT_ROOT}" \( -name "*.md" -o -name "*.py" \) -not -path "*/.git/*" -exec \
     sed -i "s|PLACEHOLDER_PATH|${SED_REPLACEMENT}|g" {} +
 
 # Verify the replacement
-REMAINING=$(grep -rl "PLACEHOLDER_PATH" "${PROJECT_ROOT}" --include="*.md" 2>/dev/null | grep -v ".git/" || true)
+REMAINING=$(grep -rl "PLACEHOLDER_PATH" "${PROJECT_ROOT}" --include="*.md" --include="*.py" 2>/dev/null | grep -v ".git/" || true)
 if [ -n "${REMAINING}" ]; then
     warn "Some files still contain PLACEHOLDER_PATH:"
     echo "${REMAINING}"
@@ -160,20 +160,20 @@ fi
 
 echo ""
 
-# ─── Phase 3: Update Platform Line in CLAUDE.md ─────────────────────────────
+# ─── Phase 3: Update Platform Line in global-CLAUDE.md ─────────────────────
 
-info "Updating platform line in CLAUDE.md..."
+info "Updating platform line in global-CLAUDE.md..."
 
-CLAUDE_MD="${PROJECT_ROOT}/CLAUDE.md"
-if [ -f "${CLAUDE_MD}" ]; then
-    if grep -q "PLACEHOLDER_PLATFORM" "${CLAUDE_MD}"; then
-        sed -i "s|- Platform: PLACEHOLDER_PLATFORM|${PLATFORM_STRING}|g" "${CLAUDE_MD}"
+GLOBAL_CLAUDE_SRC="${PROJECT_ROOT}/global-CLAUDE.md"
+if [ -f "${GLOBAL_CLAUDE_SRC}" ]; then
+    if grep -q "PLACEHOLDER_PLATFORM" "${GLOBAL_CLAUDE_SRC}"; then
+        sed -i "s|- Platform: PLACEHOLDER_PLATFORM|${PLATFORM_STRING}|g" "${GLOBAL_CLAUDE_SRC}"
         success "Platform updated to: ${PLATFORM_STRING}"
     else
-        warn "Could not find PLACEHOLDER_PLATFORM in CLAUDE.md — it may have already been updated."
+        warn "Could not find PLACEHOLDER_PLATFORM in global-CLAUDE.md — it may have already been updated."
     fi
 else
-    warn "CLAUDE.md not found at ${CLAUDE_MD}"
+    warn "global-CLAUDE.md not found at ${GLOBAL_CLAUDE_SRC}"
 fi
 
 echo ""
@@ -209,13 +209,13 @@ GLOBAL_CLAUDE="${HOME_DIR}/CLAUDE.md"
 
 if [ -f "${GLOBAL_CLAUDE}" ]; then
     warn "~/CLAUDE.md already exists. Not overwriting."
-    info "Review the repo's CLAUDE.md and merge any settings you want into your global copy."
+    info "Review the repo's global-CLAUDE.md and merge any settings you want into your global copy."
 else
     echo ""
-    read -rp "Would you like to copy CLAUDE.md to your home directory as your global config? (y/n): " COPY_GLOBAL
+    read -rp "Would you like to copy global-CLAUDE.md to your home directory as ~/CLAUDE.md? (y/n): " COPY_GLOBAL
     if [[ "${COPY_GLOBAL}" =~ ^[Yy]$ ]]; then
-        cp "${CLAUDE_MD}" "${GLOBAL_CLAUDE}"
-        success "Copied CLAUDE.md to ${GLOBAL_CLAUDE}"
+        cp "${GLOBAL_CLAUDE_SRC}" "${GLOBAL_CLAUDE}"
+        success "Copied global-CLAUDE.md to ${GLOBAL_CLAUDE}"
     else
         info "Skipped global CLAUDE.md copy. You can do this manually later."
     fi
