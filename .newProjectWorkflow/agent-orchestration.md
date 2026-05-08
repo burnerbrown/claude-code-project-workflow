@@ -26,6 +26,8 @@ The default workflow is strictly sequential: 1 → 2 → 3 → 4 → 5 → 5.5 �
 - **Going back to a previous step**: If a later step reveals a problem in an earlier step's output (e.g., Step 5 planning exposes an architecture flaw from Step 4), the orchestrator should: (1) identify the specific gap, (2) describe the minimum change needed, (3) ask the user whether to revise the earlier handoff or work around the gap. If revising, update only the affected sections of the earlier handoff — do not redo the entire step.
 - **In both cases, the user initiates the decision.** The orchestrator may recommend skipping or revisiting, but never does so unilaterally.
 
+See also `step-6-implementation.md` "Orchestrator Decision Authority (Escalate by Exception)" for the broader escalate-by-exception rule that governs the orchestrator's own routing/workaround/nit-level decisions during Step 6 — step skip/revisit is one of the explicit hard-guardrail triggers there.
+
 ---
 
 ## How to Use Agents
@@ -255,7 +257,7 @@ Agent files in `.agents/*.md` should contain only operational instructions: pers
 - Per-project scaffolding the workflow generates: project-local `CLAUDE.md`, project-level `.claude/settings.json`, `.gitignore`, repo folder structure, SBOM (`sbom-{language}.txt`), `scs-report.md`, `qg-evaluations/` reports.
 - Hardware artifacts (when applicable): `hardware/kicad-contributions.md` and the consolidated KiCad reference files (`bom-kicad-reference.csv`, `netlist-connection-reference.md`, `schematic-wiring-checklist.md`, `layout-net-classes.csv`, `layout-component-guide.md`).
 - `PROJECT_STATUS.md` — created by the Project Manager agent on its first invocation (multi-module projects only; absent if the PM is never invoked).
-- Runtime/diagnostic artifacts the workflow tells Claude to read and clean up: `research-inventories/task-*.md` (gitignored), `.claude/scs-validator.log` (read after each SCS scan and deleted), `.scs-sandbox/staging/*` (`download-config.json`, `hash.txt`, downloaded artifacts during SCS scans).
+- Runtime/diagnostic artifacts the workflow tells Claude to read and clean up: `research-inventories/task-*.md` (gitignored), `decisions/current-task.md` (gitignored, overwritten per-task by the orchestrator during Step 6 — see `step-6-implementation.md` "Orchestrator Decision Authority"), `.claude/scs-validator.log` (read after each SCS scan and deleted), `.scs-sandbox/staging/*` (`download-config.json`, `hash.txt`, downloaded artifacts during SCS scans).
 - Memory files (`MEMORY.md` and the individual memory files it points to) — managed under Claude's memory rules in the global `CLAUDE.md`.
 
 ### How agents and the orchestrator handle changes to governance files

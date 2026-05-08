@@ -103,12 +103,16 @@ After the user approves the architecture, **scaffold the project repository** ba
 
    # Research inventories (Step 6 working files, never committed)
    research-inventories/
+
+   # Orchestrator decision log (Step 6 working file, never committed)
+   decisions/
    ```
    The whole `.claude/` directory is gitignored because every file in it is machine-specific: `settings.json` registers the hook via an absolute path (`PLACEHOLDER_PATH/.claude/hooks/scs-validator.py`) that only resolves on this machine, `settings.local.json` accumulates per-session permission approvals, and `scs-validator.log` is the hook's runtime decision log. None of these belong in version control. The SCS validator hook script itself lives at the shared master location and is NOT copied into the project — it's referenced via the absolute path so security improvements propagate to all projects automatically. The hook writes its decision log into each project's own `.claude/scs-validator.log` (using the `CLAUDE_PROJECT_DIR` env var Claude Code sets), so log entries from different projects never mix — and the gitignore above ensures none of those logs ever get committed.
 3. **Create any boilerplate config files** the project needs (e.g., `Cargo.toml`, `go.mod`, `package.json`, `pom.xml`, `Makefile`, etc.)
 4. **Do NOT create source code files** — that's Step 6. Only create the skeleton structure, configuration, and ignore files.
 5. **Create the `research-inventories/` folder** in the project root. This folder holds Research Inventory Manifests during Step 6 implementation. It is already included in `.gitignore` via the standard entries above.
-6. **Register the shared SCS validator hook.** The hook lives at the master location `PLACEHOLDER_PATH\.claude\hooks\scs-validator.py` and every project references it via absolute path. This means hook improvements (security hardening, allowlist additions, bug fixes) propagate to all projects on the next Bash call — no per-project copy to maintain or sync.
+6. **Create the `decisions/` folder** in the project root. This folder holds the orchestrator's per-task decision log during Step 6 (`decisions/current-task.md`). It is already included in `.gitignore` via the standard entries above. The orchestrator wipes and re-headers `current-task.md` at the start of each Step 6 task — see `step-6-implementation.md` "Orchestrator Decision Authority (Escalate by Exception)."
+7. **Register the shared SCS validator hook.** The hook lives at the master location `PLACEHOLDER_PATH\.claude\hooks\scs-validator.py` and every project references it via absolute path. This means hook improvements (security hardening, allowlist additions, bug fixes) propagate to all projects on the next Bash call — no per-project copy to maintain or sync.
    - **Do NOT** create a `.claude/hooks/` directory in the project — the shared master hook handles all projects.
    - **Do NOT** copy any hook files into the project.
    - Create `.claude/settings.json` in the project root with:
@@ -131,11 +135,11 @@ After the user approves the architecture, **scaffold the project repository** ba
      ```
    - If the project already has a `.claude/settings.json` with other settings (e.g., permissions), merge the `hooks` key into the existing file — do not overwrite other settings.
    - Note: The shared hook hardcodes paths to `_ClaudeProjects/.scs-sandbox/` and `_ClaudeProjects/.trusted-artifacts/` (shared cache resources). It writes its decision log to **each project's own** `.claude/scs-validator.log` using the `CLAUDE_PROJECT_DIR` env var Claude Code sets — so log entries from different project sessions stay isolated.
-7. **Create QG evaluation subfolders** in each major directory that will produce agent output. QG evaluation reports go in these subfolders instead of cluttering the parent directory. At minimum, create:
+8. **Create QG evaluation subfolders** in each major directory that will produce agent output. QG evaluation reports go in these subfolders instead of cluttering the parent directory. At minimum, create:
    - `hardware/qg-evaluations/` (if the project has hardware design)
    - `design/qg-evaluations/` (if the project has UI design work)
    - `firmware/qg-evaluations/` or `{code-directory}/qg-evaluations/` (for firmware/software agent evaluations, where `{code-directory}` is the primary source folder — e.g., `firmware/`, `src/`, `lib/`)
-8. **Create KiCad project folders** (if the project includes custom PCB design). Create only the `libs/` subfolder structure below — the user will create the KiCad project themselves, and KiCad will automatically create a `{ProjectName}/` subfolder containing all project files (`.kicad_pro`, `.kicad_sch`, `.kicad_pcb`, etc.). The `.gitignore` patterns use `**` to match files at any depth, so this nesting is handled automatically.
+9. **Create KiCad project folders** (if the project includes custom PCB design). Create only the `libs/` subfolder structure below — the user will create the KiCad project themselves, and KiCad will automatically create a `{ProjectName}/` subfolder containing all project files (`.kicad_pro`, `.kicad_sch`, `.kicad_pcb`, etc.). The `.gitignore` patterns use `**` to match files at any depth, so this nesting is handled automatically.
    ```
    hardware/kicad/                          ← scaffold creates this + libs
    ├── {ProjectName}/                       ← KiCad creates this when user starts a new project

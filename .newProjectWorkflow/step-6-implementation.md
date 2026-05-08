@@ -98,6 +98,7 @@ Repeat the following cycle for each task/subtask until the checklist is complete
      5. **If any boxes show `- [ ] **REWORK:**`**, those agents need rework — read the rework reason and the relevant source files to understand current state before re-invoking the agent.
    - Check the task's **Depends On** field. If dependencies aren't complete, use `Grep` on the index to verify they're checked off. If not, STOP and flag the issue.
    - **Do NOT read** architecture docs, spec docs, agent definitions, Step 5.5 markers, or source files at this stage. These are for agents to read in their own context — not for the orchestrator. Only read additional files when YOU need them for a routing decision.
+   - **Reset the decision log:** If this is a fresh task (no subtask boxes checked), wipe `decisions/current-task.md` and write a header: `# Decisions for Task {id}: {task name}` followed by `Started: {YYYY-MM-DD}`. On a mid-task resume (some subtasks already checked), do NOT wipe — the existing log may contain decisions from a prior session that informed the committed work. If the file or `decisions/` folder does not exist (e.g., project predates this convention), create them and add `decisions/` to `.gitignore`. See "Orchestrator Decision Authority (Escalate by Exception)" below for what gets logged.
 
 3. **Run the Research Inventory phase** (before implementation — see `workflows.md` "Research Inventory Phase"):
    - For each worker agent about to be invoked, pre-create a manifest file in `research-inventories/task-{id}-{agent-role}.md`
@@ -179,6 +180,55 @@ Non-trivial or cross-agent routing cases:
 - **SCS scanning infrastructure fails** (sandbox won't launch, tool crash, bad API key): Report diagnostic info to the user. Do not proceed with the dependency. Do not retry the same scan more than twice.
 - **Quality Gate produces questionable evaluation** (orchestrator suspects the QG missed issues): See `policies.md` section "Orchestrator vs Quality Gate vs Project Manager" for the escalation procedure.
 - **Agent conflict** (two agents disagree): See `policies.md` section "Agent Conflict Resolution" for priority rules. When in doubt, present both perspectives to the user.
+
+### Orchestrator Decision Authority (Escalate by Exception)
+
+The orchestrator has standing authority to make routine routing, workaround, and nit-level decisions during Step 6. It does NOT escalate every small choice to the user. Instead, it weighs **security** (does this widen the attack surface or weaken any control?), **completeness** (does this satisfy the acceptance criteria for this task?), and **engineering correctness** (does this match the Step 4 architecture, the project's existing conventions, and the language's standard practice?), commits to a decision, and proceeds. Escalation is the exception, triggered only by the checklist below.
+
+Apply nits — small, clearly-correct improvements like variable renames or comment wording — without asking. Route the fix to the responsible agent; don't stop to ask the user about something the agent can fix in seconds.
+
+**Must escalate to the user** — if ANY of these apply, stop and ask before acting:
+
+1. The change alters something the user will see directly — UI, runtime behavior, install steps, or public APIs.
+2. The change deviates from the Step 3 specification or the Step 4 architecture.
+3. The change adds or removes scope — new feature, dropped feature, or new dependency.
+4. The change touches an existing hard guardrail — SCS verdict, Security Reviewer finding, QG verdict, governance file, or any rule elsewhere in this workflow that says "the user decides" (agent conflicts in `policies.md`, step skip/revisit in `agent-orchestration.md`, SCS verification mismatches, the Pause Rule).
+5. The orchestrator is genuinely uncertain after weighing security, completeness, and engineering correctness, and a wrong choice would be hard to reverse.
+
+**Scope of "decide and proceed."** This rule applies to advisory-content items in QG APPROVED verdicts (see step 6 of the Orchestration Loop above) and to the orchestrator's own routing/workaround/nit-level choices. SENT BACK and APPROVED WITH CONDITIONS verdicts are governed by existing routing rules — the orchestrator does not "decide" whether to act on those.
+
+**Decide and proceed (worked examples):**
+
+- *QG advisory note:* "Rename private helper `parseInput` → `parseRequestBody` for clarity." Security: no impact. Completeness: no impact. Engineering correctness: yes, the new name is clearer. User-visibility: no — private function. **Action:** Route the rename to the Senior Programmer and continue.
+- *Convention mismatch:* Senior Programmer placed a new module at `src/util/parser.rs` but Step 4 architecture says `src/parsers/`. Security: no. Completeness: no (file exists, just wrong path). Engineering correctness: yes, project convention wins. User-visibility: no — internal layout. **Action:** Send the path correction back to the Senior Programmer and continue.
+- *Flaky reviewer or test:* A reviewer or test run fails once with what looks like a transient error. **Action:** Re-run once; if it passes, proceed and log the retry. If it fails again, treat as a real failure and route to the responsible agent.
+
+**Escalate (worked example):**
+
+- Spec says: "after submitting the form, the user lands on a confirmation page." Implementation: redirects to the dashboard instead, because the agent argued the dashboard is more useful. Security: no impact. Completeness: a spec criterion is not met. Engineering correctness: debatable. User-visibility: **yes** — the user will see a different screen than the spec described. **Action:** Present both options to the user and let them decide.
+
+**Decision Log (visibility without interruption).**
+
+Autonomous decisions are logged to `decisions/current-task.md` (gitignored, created during Step 4 scaffolding). The user can open this file at any time during a task to watch decisions accumulate in real time and ask follow-up questions between agent invocations.
+
+- **At the start of each task** (during step 2 of the Orchestration Loop), the orchestrator wipes the file and writes a header with the task ID, name, and start date. On a mid-task resume, the existing log is preserved.
+- **After each autonomous decision**, the orchestrator appends a one-line bullet:
+  `- [HH:MM] [context] decision and brief reason` (24-hour clock)
+  Example: `- [14:32] [QG advisory] Renamed parser.rs → parsers/parser.rs to match Step 4 layout.`
+- **Routine routing is NOT logged** — the standard agent sequence is already in the task checklist. Only the orchestrator's own judgment calls belong in the log.
+- **The log is per-task only.** It is overwritten at the start of the next task; historical decisions are not retained on disk.
+- **On mid-task resume**, treat prior log entries as historical context — they describe decisions that informed already-committed work. If a prior decision looks wrong on review, escalate to the user; do not attempt to revert silently.
+- **If the user reads a logged decision and asks to revert it after the fact**, treat the request as a new task or send-back per normal workflow — route the change through the responsible agent and follow normal commit rules; do not edit committed work directly.
+
+**Why:**
+
+The default of asking the user about every small choice produces friction without producing better outcomes. The user is closer to the project's intent; the orchestrator is closer to the immediate routing context. Inverting the rule to "decide unless one of these triggers fires" matches how the user wants to work: pay attention when the project changes shape, not when the orchestrator picks between two equivalent next steps. The triggers above are deliberately narrow — they catch the cases where silent decisions would surprise the user later. The decision log preserves visibility without forcing interruption.
+
+**Interaction with the No Guessing Policy.**
+
+The No Guessing Policy still applies in full. "Decide and proceed" applies to **judgment calls between known options** — whether to act on a QG advisory note now or defer it, whether to accept a Code Reviewer's should-fix or waive it with a note, whether to retry a flaky test once before treating it as a real failure, whether to bundle multiple reviewer findings into one send-back or split them. It does NOT apply to **factual unknowns** — if the orchestrator doesn't know a library API, a spec detail, a project convention, or anything else factual, it must say so per the No Guessing Policy and ask the user, even if it could "pick something" to keep moving. Genuine factual uncertainty escalates per trigger #5.
+
+**This rule does NOT relax existing hard guardrails.** The orchestrator still never edits source code or tests (worker agents do that), never bypasses SCS, never overrides Security Reviewer or Compliance Reviewer findings, never skips the QG, and never unilaterally resolves conflicts that `policies.md` or `agent-orchestration.md` route to the user.
 
 ### CRITICAL: The Orchestrator Does Not Write Code
 

@@ -346,6 +346,8 @@ The orchestrator (Claude), Quality Gate (QG), and Project Manager (PM) serve dif
 
 **The user is always the tiebreaker.** No agent may unilaterally override another. All perspectives must be presented transparently so the user can make an informed decision.
 
+**Scope note.** The rules above govern disagreements between agents and verdict-level disputes. For low-stakes routing/workaround/nit-level judgment calls that do not trigger a user-visibility, spec-deviation, scope, or hard-guardrail concern, the orchestrator decides and proceeds without escalation — see `step-6-implementation.md` "Orchestrator Decision Authority (Escalate by Exception)" for the full trigger list.
+
 **Important:** These disagreements should be rare. If agents are frequently in conflict, it may indicate that the acceptance criteria need adjustment — flag this pattern to the user.
 
 ---
