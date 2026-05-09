@@ -50,7 +50,7 @@ Security Reviewer + Code Reviewer (parallel) → QG → Documentation Writer →
 
 **Steps (both variants):**
 - **Security Reviewer + Code Reviewer**: Run in parallel. Security checks vulnerabilities; Code review checks quality/maintainability. Each workflow below may add domain-specific focus inline (e.g., injection for DB, API security for API, firmware memory safety for embedded).
-- **QG**: Evaluate both — security against SR1–SR9, code review against CR1-CR7
+- **QG**: Evaluate both — security against SR1–SR10, code review against CR1–CR8
 - **Compliance Reviewer** (Standard only): Assess against NIST/CISA/OWASP standards, produce compliance report
 - **QG** (Standard only): Evaluate against criteria CO1-CO8
 - **Documentation Writer**: Recommend documentation additions/changes based on the completed, verified output
@@ -584,7 +584,7 @@ Note: This workflow interleaves Performance Optimizer's verification step betwee
 5. **Test Engineer**: Verify existing tests still pass (regression check) and add tests for optimized code paths
 6. **QG**: Evaluate against criteria T1-T11
 7. **Security Reviewer + Code Reviewer**: Run in parallel — Security Reviewer focuses on security regressions from optimizations (weakened crypto, disabled bounds checks, reduced logging); Code Reviewer checks code quality
-8. **QG**: Evaluate both reviews — security against SR1–SR9, code review against CR1-CR7
+8. **QG**: Evaluate both reviews — security against SR1–SR10, code review against CR1–CR8
 9. **Performance Optimizer**: Verify improvements with benchmarks (launch a fresh Performance Optimizer agent — pass the original analysis file path from step 1 so it can compare against its original findings)
 10. **QG**: Evaluate against criteria PO1–PO9
 11. **Documentation Writer**: Recommend performance documentation updates (benchmarks, configuration tuning guides, etc.)

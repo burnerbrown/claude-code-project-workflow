@@ -51,6 +51,19 @@ If you are unsure about anything — such as whether something is a real vulnera
 - Insufficient randomness
 - Improper certificate validation
 
+### Secure Configuration Defaults
+This is the OWASP A05 (Security Misconfiguration) check. The Code Reviewer covers operational config patterns (validation, centralized loading, schema evolution); this section covers defaults that have direct security consequences.
+
+- **Security controls are not opt-out**: Authentication, authorization, input validation, encryption, audit logging, and rate limiting are not behind feature flags that ship in the off state. Disabling a security control is opt-in with explicit justification, not a default.
+- **Authentication required by default**: New endpoints, new tools, new admin surfaces require auth unless explicitly marked public with documented reasoning. Scope: SR reviews the runtime/code-level default; API Designer reviews the contract specification (OpenAPI/proto auth schemes) per AD6. For non-HTTP surfaces (CLI admin commands, local IPC, management sockets, embedded service ports) where no API Designer is engaged, SR is sole owner of the auth-default check.
+- **TLS on by default**: Outbound HTTP clients default to HTTPS. Server config does not allow plaintext fallback unless explicitly justified.
+- **Debug / introspection interfaces off by default**: Debug endpoints, profiling endpoints, error-stack-trace responses, verbose logging modes, and developer-only routes are off in any non-development build configuration.
+- **CORS / cross-origin defaults are restrictive**: Default CORS policy denies cross-origin requests; permissive (`*` origins, credentials allowed) is opt-in with documented reasoning.
+- **Default credentials absent**: No default admin password, default API key, or default signing key shipped in code or config (CISA Secure-by-Design). This is the same surface as Cryptography → "Hardcoded secrets and keys" — file the finding under Cryptography → Hardcoded secrets (CWE-798), with a note that it also satisfies the A05 default-credentials check. Do not duplicate.
+- **Permissions/capabilities default to deny**: New roles, new permissions, new resource scopes default to deny; access is granted explicitly.
+
+Findings here map to OWASP A05 and are scored under the standard CVSS / severity rubric. CWE references commonly applicable: CWE-276 (Incorrect Default Permissions), CWE-489 (Active Debug Code), CWE-732 (Incorrect Permission Assignment for Critical Resource), CWE-798 (Use of Hard-coded Credentials), CWE-942 (Permissive Cross-domain Policy with Untrusted Domains), CWE-1188 (Insecure Default Initialization).
+
 ### Dependencies
 - Known vulnerable dependencies (CVE checks)
 - Supply chain risks

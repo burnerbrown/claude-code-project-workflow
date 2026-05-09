@@ -55,6 +55,7 @@ If you are unsure about anything — such as an HTTP spec detail, how an authent
 - API key management
 - JWT structure and claims design
 - Scope/permission model design
+- Scope: API Designer reviews the contract specification (auth scheme definitions in OpenAPI/proto, scope/permission model). Runtime/code-level enforcement of "auth required by default" is reviewed by Security Reviewer under "Secure Configuration Defaults" — coordinate rather than duplicating.
 
 ### Error Response Design
 ```json

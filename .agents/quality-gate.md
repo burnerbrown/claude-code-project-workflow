@@ -148,8 +148,9 @@ The security reviewer's output is APPROVED when ALL of the following are present
 | SR7 | Positive Observations | Good security practices are acknowledged |
 | SR8 | No Critical/High Unresolved | If Critical or High findings exist, they must be flagged as blocking — code cannot proceed until resolved |
 | SR9 | ASVS Assessment | ASVS assessment level stated (Level 2 minimum; Level 3 for security-critical components); specific ASVS requirement IDs referenced in findings where applicable |
+| SR10 | Secure Configuration Defaults (Security Misconfiguration / A05) | Review explicitly addresses each OWASP A05 Secure Configuration Defaults sub-check: security controls not opt-out, authentication required by default, TLS on by default, debug/introspection interfaces off by default, restrictive CORS defaults, no default credentials, deny-by-default permissions. Each sub-check has either a finding or an explicit "no issues found" statement. Existence/coverage check only — substance review of whether the findings are correct is the Security Reviewer's own work. |
 
-**Reject if:** Missing CWE references, no OWASP coverage section, or any finding's remediation field is empty. (Substance check of whether remediation is *adequately specific* is the Security Reviewer's own work, not QG's.)
+**Reject if:** Missing CWE references, no OWASP coverage section, any finding's remediation field is empty, or any A05 Secure Configuration Defaults sub-check enumerated in the Security Reviewer's Secure Configuration Defaults rubric (SR10) is not addressed (each must have a finding or an explicit "no issues found" statement). (Substance check of whether remediation is *adequately specific* or whether the A05 findings are correct is the Security Reviewer's own work, not QG's.)
 
 ---
 
@@ -165,8 +166,9 @@ The code reviewer's output is APPROVED when ALL of the following are present and
 | CR5 | Commendations | Good patterns and practices are acknowledged |
 | CR6 | Verdict | Clear verdict: Approve / Approve with comments / Request changes |
 | CR7 | Must-Fix Resolution | If any must-fix items exist, they are clearly listed as blocking |
+| CR8 | Configuration Safety | Review includes a Configuration Safety section that addresses each sub-topic enumerated in the Code Reviewer's Configuration Safety rubric (CR's rubric is authoritative; current sub-topics: safe defaults, config validation at load time, centralized config loading, feature-flag off-paths, and backwards-compat of config schema changes). Each sub-topic has either a finding or an explicit "no issues found" statement. An explicit Code-Reviewer assertion of "No configuration changes in this diff" is acceptable in lieu of a substantive section. Existence/coverage check only — substance review of whether the configuration judgments are correct is the Code Reviewer's domain, not QG's. |
 
-**Reject if:** No verdict given, review comments lack specific locations or suggested fixes, or must-fix items are not clearly flagged.
+**Reject if:** No verdict given, review comments lack specific locations or suggested fixes, must-fix items are not clearly flagged, or neither a Configuration Safety section addressing all sub-topics enumerated in the Code Reviewer's Configuration Safety rubric nor an explicit Code-Reviewer "No configuration changes in this diff" statement is present.
 
 ---
 

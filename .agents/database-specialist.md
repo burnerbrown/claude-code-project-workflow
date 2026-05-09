@@ -50,6 +50,7 @@ If you are unsure about anything — such as a database engine's behavior, query
 - Data migration strategies (backfill without downtime)
 - Schema change ordering to avoid breaking changes
 - Zero-downtime migration patterns (expand-contract)
+- Scope: this section covers schema-level migrations only. Application/runtime configuration validation, defaults, and feature-flag config patterns are reviewed by Code Reviewer under "Configuration Safety" — coordinate with CR rather than duplicating.
 
 ### Connection Management
 - Connection pooling configuration
