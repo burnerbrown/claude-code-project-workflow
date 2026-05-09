@@ -114,15 +114,19 @@ When launching agents, **pass file paths and instructions — not file contents.
 **Shared protocol for research-mode invocations.** The manifest format, categories, and rules live in a single shared file — `PLACEHOLDER_PATH\.agents\_research-inventory-protocol.md` — rather than being duplicated in every worker agent's definition. When launching a worker agent in research-only mode, the orchestrator's task prompt MUST include the instruction to read that file (see the research-mode prompt in `workflows.md` "Research Inventory Phase"). Note: Component Sourcing uses its own domain-specific variant (defined in `component-sourcing.md`) and does NOT use the shared protocol — it performs web research as part of its implementation role, not a separate research phase.
 
 ### Important: Quality Gate Routing
-**All worker agent output must be routed through the Quality Gate (QG) for evaluation.** The orchestrator's workflow for every agent handoff is:
+**All worker agent output must be routed through the Quality Gate (QG) for evaluation.** The QG is a **process-completion gate, not a reviewer** — it verifies the worker produced their assigned deliverables (files exist, reports have the required structure, advisory notes are surfaced) and returns a routing verdict. Code-substance review (correctness, security, quality, performance, compliance) is performed by the dedicated reviewer agents (Code Reviewer, Security Reviewer, etc.), each gated separately. See `quality-gate.md` "What This Agent Does NOT Do" for the boundary.
+
+The orchestrator's workflow for every agent handoff is:
 
 1. Invoke the worker agent with the task — tell it which files to read and what to do
-2. Receive the worker agent's output
-3. Run a language-appropriate compile/syntax check if applicable (e.g., `bash -n` for scripts, `cargo check` for Rust, `go build` for Go, `mvn compile` for Java)
+2. Receive the worker agent's output (which should include a deliverable summary: what files were produced, where, and any advisory notes for the orchestrator)
+3. Run a language-appropriate compile/syntax check if applicable (e.g., `bash -n` for scripts, `cargo check` for Rust, `go build` for Go, `mvn compile` for Java, `python -m py_compile` for Python). The QG does NOT run this check — the orchestrator does, then passes the result to the QG.
 4. Invoke the **Quality Gate** agent with:
-   - The file paths to review (let the QG read the files itself)
+   - The worker agent's deliverable summary (what was produced and where, plus any agent-flagged advisory notes)
+   - File paths the QG may verify for existence and structural conformance — the QG reads these ONLY to confirm files exist, are non-stub, and contain the required structural elements; it does NOT judge content quality
    - The agent role being evaluated (so the QG knows which acceptance criteria to use)
    - The acceptance criteria from the checklist
+   - The orchestrator's compile/syntax check result from step 3 (or "N/A" if the worker's output isn't compilable code)
 5. Receive the QG's verdict
 6. **Orchestrator routes based on the verdict:**
    - If APPROVED: check the subtask box, proceed to the next agent in the checklist
@@ -133,11 +137,13 @@ When launching agents, **pass file paths and instructions — not file contents.
 
 **Prompt structure for QG evaluation:**
 ```
-You are the Quality Gate agent. Evaluate the {Agent Role}'s output for Task {N} ({Task Name}).
+You are the Quality Gate agent. Verify completion of the {Agent Role}'s deliverables for Task {N} ({Task Name}). You are a process-completion gate, not a reviewer — do NOT judge code or content substance. See `quality-gate.md` "What This Agent Does NOT Do" for the boundary.
 
-Files to review: {file paths — let the QG read them}
+Worker's deliverable summary: {what files the agent claims to have produced and where; any advisory notes the agent surfaced for the orchestrator}
+Files to verify (existence and structure only — do not judge content): {file paths the QG may Read for verification}
+Compile/syntax check result: {pass | fail with errors | N/A}
 Acceptance criteria: {from the checklist}
-QG criteria to evaluate: {P1-P10, T1-T11, etc. — from quality-gate.md}
+QG criteria to evaluate: {role-appropriate criteria block — from quality-gate.md, e.g., P1-P5 for Senior Programmer, T1-T11 for Test Engineer}
 
 Produce your evaluation with PASS/FAIL/PARTIAL for each criterion and your overall verdict.
 ```
