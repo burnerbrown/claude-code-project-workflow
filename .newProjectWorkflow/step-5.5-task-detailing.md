@@ -22,12 +22,25 @@ Take the individual task files from Step 5 and produce detailed agent workflows 
 
 2. **Load one task file**: Read only the next unprocessed task file (e.g., `project-handoffs/handoff-step-5-task-1.md`), plus whatever architecture/spec context that task needs.
 
-3. **Performance Add-On scan**: Before selecting the workflow pattern, scan the task for performance markers:
+3. **Conditional Add-On scans**: Before selecting the workflow pattern, scan the task for each conditional add-on. For each add-on, run the listed triggers; if any trigger fires, suggest the add-on to the user with the matched triggers cited; the user decides **apply** or **skip**; record the decision in the per-task checklist file. Each add-on is independent — a single task can activate zero, one, or multiple add-ons.
+
+   **3a — Performance Add-On scan.** Triggers:
    - Step 3 handoff lists non-"no requirement" performance targets that apply to this task's scope
    - Step 4 handoff identifies this task's code as a performance-critical path
    - Task description or acceptance criteria contain perf keywords: `p50`, `p95`, `p99`, `latency`, `throughput`, `benchmark`, `optimize`, `hot path`, `WCET`, `performance budget`, `response time`, `SLA`
-   
-   If any trigger fires → suggest the Performance Verification Add-On (see `workflows.md` "Performance Verification Add-On") to the user, citing which trigger(s) matched. The user decides: **apply** (add-on is active for this task) or **skip**. Record the decision in the per-task checklist file.
+
+   If any trigger fires → suggest the **Performance Verification Add-On** (see `workflows.md` "Performance Verification Add-On"). Record decision as `Performance Add-On: Yes/No` in the per-task checklist file.
+
+   **3b — Observability Add-On scan.** Pre-condition: the architecture's `## Observability` section (gated by QG criterion A12) is in the **declared form**, not the explicit-N/A form. If the architecture is explicit-N/A, skip the trigger evaluation below and record `DevOps Observability Review: N/A — project Observability is explicit-N/A` on every task's checklist. The literal value `N/A` (with that prefix) is what the Senior Programmer's self-flag rule and the Step 6 mid-step backstop check to skip themselves; it is distinct from `No`, which means "this task does not currently meet observability triggers" and is subject to mid-step re-evaluation.
+
+   Triggers (any one suffices):
+   - The architecture's `## Observability` section declares metrics, SLO contracts, health-check expectations, or trace requirements for a component this task modifies, AND the task's expected deliverables include code in that component
+   - Task description or acceptance criteria reference any of: metric names from the architecture's Observability section, SLO targets, health-check endpoints (`/healthz`, `/readyz`), trace IDs, span names, or observability config files (`otel-collector`, `prometheus.yml`, `logging.yaml`, etc.)
+   - The task adds a new component / endpoint / service entry point in a project where any other component already has declared observability — flag with note "this task may surface an architecture-coverage gap; route gap finding to Software Architect"
+
+   **Exclusion:** If the task's expected deliverables are confined to test files (under `tests/`, matching `*_test.go` / `*.test.ts`, or in `#[cfg(test)]` modules / test-only build tags), do not activate the add-on — Mode B reviews production code paths only.
+
+   If any trigger fires → suggest the **Observability Verification Add-On** (see `workflows.md` "Observability Verification Add-On"). Record decision as `DevOps Observability Review: Yes/No` in the per-task checklist file.
 
 4. **Create the detailed agent workflow** for that task (see Per-Task Detail Template below).
 
@@ -88,7 +101,7 @@ A concrete checklist the Quality Gate uses to verify the task is complete. These
 - Don't skip any agent listed in the Step 5 plan — every assigned agent gets explicit instructions
 - Don't create vague acceptance criteria like "code works correctly" — be specific and verifiable
 - Don't make checklists so granular they become a burden — focus on outcomes, not line counts
-- Don't skip the **Performance Add-On scan** (step 3) — even if a task seems non-performance-critical, run the scan; the Step 3/4 handoffs may flag targets the task description doesn't mention
+- Don't skip the **Conditional Add-On scans** (step 3) — even if a task seems unrelated to performance or observability, run all sub-scans; the Step 3/4 handoffs and the architecture's `## Observability` section may flag triggers the task description doesn't mention
 - Don't skip the **Test Environment** classification for Test Engineer or Performance Optimizer agents — every task that involves tests or benchmarks must specify whether they are host-safe or require a sandbox, and which sandbox type. This prevents unsafe test execution during Step 6
 
 ## File Structure
@@ -144,6 +157,7 @@ Each file contains the full detail for one task: agent sequences, instructions, 
 **Agent Sequence**: [Execution order]
 **Workflow Pattern**: [From workflows.md]
 **Performance Add-On**: [Yes — targets: (list specific targets) | No]
+**DevOps Observability Review**: [Yes — components: (list components from architecture's Observability section that this task touches) | No | N/A — project Observability is explicit-N/A]
 
 ## Agent Sequence Detail
 
@@ -194,7 +208,9 @@ After the last task iteration, perform this active verification — do NOT skip 
 
 4. **Report any gaps**: If ANY checklist file or completion marker is missing, list the missing items explicitly and process those tasks before proceeding. Do NOT declare Step 5.5 complete with gaps.
 
-4a. **Performance Add-On cross-check**: Verify that every task whose scope covers a non-"no requirement" performance target from the Step 3 handoff has `Performance Add-On: Yes` in its checklist file. Flag any mismatches for review before proceeding.
+4a. **Conditional Add-On cross-check**: Verify the per-task add-on flags against the source documents for each conditional add-on. Flag any mismatches for review before proceeding.
+   - **Performance Add-On**: Every task whose scope covers a non-"no requirement" performance target from the Step 3 handoff must have `Performance Add-On: Yes` in its checklist file.
+   - **Observability Add-On**: If the architecture's `## Observability` section is in the declared form, every task whose scope touches a component for which the architecture declared observability requirements must have `DevOps Observability Review: Yes` in its checklist file. If the architecture is explicit-N/A, every task must have `DevOps Observability Review: N/A — project Observability is explicit-N/A` (the explicit `N/A` value, not `No`; this is what the Step 6 backstop and SP self-flag check to skip themselves).
 
 5. **Create the Step 5.5 handoff file** (serves as the gate signal for Step 6 — its existence confirms all tasks were detailed and verified): Only after all verifications pass, create `project-handoffs/handoff-step-5.5.md` with:
    - Total number of tasks detailed

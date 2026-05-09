@@ -91,6 +91,42 @@ Programmer → QG → Test Engineer → QG → [orchestrator runs tests] → Per
 
 **Embedded/RTOS tasks:** For firmware tasks with WCET or interrupt latency targets, the Performance Optimizer uses its Real-Time focus area (WCET analysis, interrupt latency measurement, priority inversion detection). The same add-on pattern applies — PO verifies against the declared timing budgets.
 
+### Observability Verification Add-On
+
+Optional add-on for tasks that touch code-level observability instrumentation (metrics, health checks, SLO signals, trace context, observability config files). Activated only when Step 5.5 flags a task for observability review. Not used when the architecture's `## Observability` section is the explicit-N/A form (no production observability requirements), and not used when this task's diff doesn't touch any of the trigger categories (see `senior-programmer.md` "Conditional Add-On Self-Flag" → Observability triggers).
+
+The add-on inserts a **DevOps Engineer Mode B** review **in parallel with Code Reviewer and Security Reviewer** in the review tail. Mode B reads producer source code and returns a findings report on metric emission, cardinality, health-check implementation, SLO signal exposure, and trace context propagation. Mode B is read-only — it does not modify code; fixes are routed to the producer (typically Senior Programmer).
+
+**When active, the modified review tail is:**
+```
+[workflow agents through tests] → Security Reviewer + Code Reviewer + DevOps Engineer Mode B (parallel) → QG (per-reviewer) → [fix loop if any reviewer flags must-fix] → Documentation Writer → QG
+```
+
+The same parallelization rule applies as for Security + Code Reviewer: all three reviewers are read-only, their reports are independent, and they can run concurrently. The orchestrator merges findings before routing to the producer for fixes.
+
+**Activation:** Step 5.5 flags tasks that need this add-on (see `step-5.5-task-detailing.md` "Conditional Add-On scans" → Observability Add-On). The per-task checklist file records the decision as `DevOps Observability Review: Yes/No`. The orchestrator applies the add-on during Step 6 only when the flag is `Yes`. Mid-Step-6 scope drift can flip the flag from `No` to `Yes` per the "Mid-Step-6 Add-On Re-evaluation" rule in `step-6-implementation.md`.
+
+**Mode B review step:**
+1. **DevOps Engineer (Mode B)**: Read the producer's modified/added files for the current task and the architecture's `## Observability` section. Produce a findings report per the Mode B output format (Coverage Map, Cardinality Assessment, Findings Table with category enum, Architecture Gaps, Verdict). Read-only — does not edit code.
+2. **QG**: Evaluate against criteria DO10–DO16 (Mode B rubric). Verify report structure, findings-table fields, verdict presence. QG does NOT judge whether Mode B's findings are correct — that's Mode B's own work.
+
+**If Mode B verdict is Approve or Approve with comments:** Findings (if any) are merged with CR / SR findings and routed to the producer for fixes. After fix, re-invoke Mode B (fresh) to re-verify.
+
+**If Mode B verdict is Request changes (must-fix items present):** Treat as a must-fix block on the task — same handling as a Security Reviewer or Code Reviewer must-fix. Producer reworks; Mode B re-reviews fresh after rework.
+
+**Architecture Gaps handling:** If Mode B's report includes an Architecture Gaps section (observability needs the producer code implies but the architecture didn't declare), the orchestrator routes those gaps to the **Software Architect** for an architecture amendment, not to the producer. The current task's commit may proceed once Mode B's verdict is Approve / Approve with comments — architecture gap follow-ups are tracked as separate tasks per the "Adding New Tasks Discovered During Step 6" rule.
+
+**Scope:** Applies to any workflow that has a review tail and whose architecture has a declared-form `## Observability` section. Does NOT apply to: Documentation Sprint (no production code under review), Dependency Addition (SCS workflow handles itself), DevOps / Infrastructure when the task IS the DevOps Engineer in Mode A (no producer code yet to review against — Mode B is for application code that consumes Mode A's monitoring configs).
+
+**Bug Fix workflow with skipped CR/SR.** A trivial bug fix may legitimately skip Code Reviewer and Security Reviewer (per the Short Review Tail rule for trivial fixes). If such a fix touches an Observability trigger (e.g., the bug fix renames a metric label), Mode B is NOT skipped — Mode B runs as the **sole reviewer** in the tail when its add-on flag is `Yes`. Mode B is independent of the CR/SR decision; activation is governed solely by the add-on flag.
+
+**Overlap with other add-ons:** A task may have BOTH the Performance and Observability add-ons active. The Performance Verification Add-On runs after tests and before the review tail; the Observability Verification Add-On runs in the review tail. Both can be active without conflict.
+
+**Interaction when Performance Verification fails.** If both add-ons are active and Performance Verification fails (any target NOT MET), the user picks one of the three Performance options (follow-up task / adjust targets / block — see Performance Verification Add-On section above). Mode B's invocation is independent of that choice:
+- **Follow-up task** (commit current code, defer perf fix): the current task proceeds to the review tail; **Mode B runs as part of that review tail** as normal.
+- **Adjust targets** (relax target, accept current code): same — proceeds to review tail; **Mode B runs**.
+- **Block** (rework with PO recommendations): the producer reworks; the rework re-enters the test → Performance Verify cycle. **Mode B runs only after the rework cycle completes and the workflow finally enters the review tail** — not during the perf rework loop.
+
 ### Research Inventory Phase (Mandatory for All Worker Agents)
 
 **Before any worker agent begins implementation**, the orchestrator runs a Research Inventory phase to identify what external resources the agent will need, giving the user full visibility before anything is accessed.

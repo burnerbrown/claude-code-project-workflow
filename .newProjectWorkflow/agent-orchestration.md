@@ -160,15 +160,16 @@ When the Quality Gate sends work back to a previously-invoked agent, **always la
 - Eliminates the resume-vs-fresh branching and fallback logic entirely
 
 **Foreground vs. background:**
-- **Foreground (mandatory for agents that write/edit files):** Senior Programmer, Test Engineer, DevOps Engineer, Database Specialist, API Designer, Hardware Engineer, Embedded Systems Specialist, Documentation Writer, Supply Chain Security, Software Architect, Project Manager, UX/UI Designer. These agents create or modify files and need the user's permission prompts to surface.
-- **Background (allowed for read-only agents):** Quality Gate, Security Reviewer, Code Reviewer, Compliance Reviewer, Performance Optimizer, Component Sourcing, DFM Reviewer. These agents only read files and produce reports/evaluations — they never call Write or Edit, so background mode is safe.
+- **Foreground (mandatory for agents that write/edit files):** Senior Programmer, Test Engineer, DevOps Engineer (Mode A — producer), Database Specialist, API Designer, Hardware Engineer, Embedded Systems Specialist, Documentation Writer, Supply Chain Security, Software Architect, Project Manager, UX/UI Designer. These agents create or modify files and need the user's permission prompts to surface.
+- **Background (allowed for read-only agents):** Quality Gate, Security Reviewer, Code Reviewer, Compliance Reviewer, Performance Optimizer, Component Sourcing, DFM Reviewer, DevOps Engineer (Mode B — observability review). These agents only read files and produce reports/evaluations — they never call Write or Edit on project source files (they may Write a single findings/report file), so background mode is safe. Mode B is the read-only mode of the DevOps Engineer; Mode A remains foreground.
 
 **When to re-invoke agents (always a fresh invocation):**
 - **Senior Programmer**: Re-invoke when QG sends code back for fixes, or when reviewers flag issues requiring code changes
 - **Test Engineer**: Re-invoke when QG sends tests back, or when code fixes require test updates
 - **Security Reviewer**: Re-invoke when re-verifying that flagged issues have been fixed
 - **Code Reviewer**: Re-invoke when re-reviewing after significant code changes
-- **DevOps Engineer**: Re-invoke when QG sends CI/CD configs or Dockerfiles back
+- **DevOps Engineer (Mode A — producer)**: Re-invoke when QG sends CI/CD configs or Dockerfiles back
+- **DevOps Engineer (Mode B — observability review)**: Re-invoke when QG sends the Mode B findings report back, or when the producer's rework changed instrumentation and Mode B must re-verify. Pass the prior Mode B report file path so the fresh agent can compare against the new diff. The fresh Mode B reviews the **full task diff vs. the base branch** (not only the rework hunk) — a producer rework can affect findings outside its directly-changed lines (e.g., changing a label key affects every emission site of that metric).
 - **Embedded Systems Specialist**: Re-invoke when QG sends firmware code back
 - **Database Specialist**: Re-invoke when QG sends schema/migration work back
 - **API Designer**: Re-invoke when QG sends API spec back
@@ -290,7 +291,8 @@ If the user directly asks the top-level Claude assistant in conversation to upda
 | Security Reviewer | `security-reviewer.md` | Reviewing code for vulnerabilities and security issues |
 | Code Reviewer | `code-reviewer.md` | Reviewing code for quality, readability, and maintainability |
 | Documentation Writer | `documentation-writer.md` | Writing README files, API docs, ADRs, or setup guides |
-| DevOps Engineer | `devops-engineer.md` | Creating Dockerfiles, CI/CD pipelines, build scripts, deployment configs |
+| DevOps Engineer (Mode A — producer) | `devops-engineer.md` | Creating Dockerfiles, CI/CD pipelines, build scripts, deployment configs, monitoring/alerting configs |
+| DevOps Engineer (Mode B — observability review) | `devops-engineer.md` | Reviewing producer source code for code-level observability instrumentation contracts (metric emission, cardinality, health-check implementation, SLO signal exposure, trace context propagation). Read-only — produces a findings report, does not modify code. Conditionally invoked per `step-5.5-task-detailing.md` Conditional Add-On scans (Observability sub-scan) and the Mid-Step-6 Add-On Re-evaluation rule in `step-6-implementation.md`. Inserts in parallel with Code Reviewer and Security Reviewer in the implementation review tail (see `workflows.md` "Observability Verification Add-On"). |
 | Performance Optimizer | `performance-optimizer.md` | Profiling, benchmarking, and optimizing code performance |
 | Database Specialist | `database-specialist.md` | Designing schemas, writing migrations, optimizing queries |
 | Embedded Systems Specialist | `embedded-systems-specialist.md` | RTOS firmware, peripheral drivers, bare-metal programming. Reviews hardware designs from a firmware perspective (pin mapping validation, peripheral resource conflicts, errata awareness). Hardware design itself is owned by the Hardware Engineer. |

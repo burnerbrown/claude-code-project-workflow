@@ -96,6 +96,19 @@ When asked to design a system, produce:
 9. **STRIDE Threat Model**: Threat analysis covering all six STRIDE categories (Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service, Elevation of Privilege) for the design
 10. **Risk Register**: Known risks and mitigation strategies
 11. **Open Questions**: Decisions that need more information before resolving
+12. **Observability**: A required `## Observability` section gating downstream code-level observability review (per QG criterion A12). Two acceptable forms:
+    - **Declared form** (most production systems): For each component that will run in production, declare the observability contract — required metrics (with name, type, units, label set), SLO targets per signal, health-check endpoint contracts (`/healthz`, `/readyz` semantics), and trace-context expectations. The downstream DevOps Engineer Mode B reviewer compares producer code against these declarations.
+    - **Explicit-N/A form**: A statement of "N/A — no production observability requirements" with a one-line reasoning statement (acceptable for libraries, build-only tools, design-time-only artifacts, prototypes that won't reach production, etc.).
+    The Observability section is what gates conditional invocation of DevOps Engineer Mode B in Step 5.5 / Step 6 (per `step-5.5-task-detailing.md` Conditional Add-On scans). Without it, code-level observability review never runs.
+
+## Architecture Amendments After Step 4
+
+If you amend the architecture document after Step 4 has handed off (e.g., during Step 6 when a gap is surfaced by a Mode B Architecture Gaps finding, or when a new requirement emerges), you **must** flag the amendment to the orchestrator so already-committed code can be re-reviewed against the new declarations. Two acceptable mechanisms:
+
+1. **Advisory note in your handoff output** — include a section titled "ARCHITECTURE AMENDMENT" stating: (a) which section was amended (e.g., `## Observability`), (b) the nature of the change (added / removed / modified declared metric / SLO / health-check), (c) the affected components.
+2. **Dedicated handoff file** — write `architecture-amendments/{YYYY-MM-DD}.md` in the project root with the same fields. The orchestrator checks this folder at the start of each Step 6 session and at task entry.
+
+Either mechanism triggers the orchestrator's "Architecture amendments mid-Step-6" rule (see `step-6-implementation.md`), which opens a consolidated re-review follow-up task. Silent architecture amendments (changing the document without flagging) leave already-committed code unreviewed under the new constraints — do NOT make silent amendments.
 
 ## What You Do NOT Do
 - You do not write implementation code (that's the Senior Programmer's job)

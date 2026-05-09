@@ -92,8 +92,9 @@ The architect's output is APPROVED when ALL of the following are present and com
 | A9 | STRIDE Threat Model | STRIDE threat model section is present and explicitly references all six categories (Spoofing, Tampering, Repudiation, Information disclosure, Denial of service, Elevation of privilege). Existence/structure check only — substance review of whether each category was *adequately* addressed is owned by the Security Reviewer. |
 | A10 | Dependency Summary Table | External dependencies listed in a summary table with CACHED/IN-HOUSE/NEW tags, version, and justification. CACHED tags reference the trusted-artifacts registry. IN-HOUSE alternatives are identified. NEW dependencies are justified. |
 | A11 | Open Questions | Any unresolved decisions are explicitly listed (not silently skipped) |
+| A12 | Observability Section | Architecture document contains an `## Observability` section. The section either (a) declares metrics, SLO contracts, and health-check expectations for each component that requires production observability — declared metric names, types, units, and label sets; SLO targets per signal; health-check endpoint contracts; trace propagation expectations — OR (b) explicitly states "N/A — no production observability requirements" with a one-line reasoning statement (acceptable for libraries, build-only tools, design-time-only artifacts, etc.). The presence of this section is what gates conditional invocation of DevOps Engineer Mode B in Step 5.5 / Step 6 (per `step-5.5-task-detailing.md` Conditional Add-On scans); without it, code-level observability never gets reviewed. Existence/structure check only — substance review of whether the declared metrics are technically well-chosen is owned by the Software Architect's own producer review and any subsequent Code Reviewer pass on the architecture document. |
 
-**Reject if:** Missing STRIDE analysis, no component diagram, no interface definitions, or technology choices lack justification.
+**Reject if:** Missing STRIDE analysis, no component diagram, no interface definitions, technology choices lack justification, or the Observability section (A12) is absent (must be present even if its contents are an explicit N/A statement).
 
 ---
 
@@ -418,7 +419,15 @@ The performance optimizer's output is APPROVED when ALL of the following are pre
 ---
 
 ### DevOps Engineer
-The DevOps engineer's output is APPROVED when ALL of the following are present and complete:
+
+The DevOps Engineer operates in two modes. Apply the criteria that match the mode specified by the orchestrator.
+
+**Mode A — DevOps Producer (default):** The agent produces Dockerfiles, CI/CD pipelines, build scripts, deployment configs, monitoring/alerting configs. Evaluate against DO1–DO9.
+
+**Mode B — Observability Review (read-only):** The agent reviews producer source code against the architecture's `## Observability` section and returns a findings report. Evaluate against DO10–DO16.
+
+#### Mode A — DevOps Producer (DO1–DO9)
+The Mode A output is APPROVED when ALL of the following are present and complete:
 
 | # | Criterion | What to Check |
 |---|-----------|---------------|
@@ -432,7 +441,22 @@ The DevOps engineer's output is APPROVED when ALL of the following are present a
 | DO8 | Security Considerations Documentation | Written narrative describing the security posture of the configuration — what assumptions the configs make, what threats they mitigate, what they explicitly do not protect against, and what the operator must do to maintain secure operation (secret rotation, access controls, log review). Distinct from DO4 which verifies the configs ARE secure — DO8 verifies the security posture is documented for future operators. |
 | DO9 | CI/CD Pipeline Stage Completeness | If CI/CD pipeline configurations are produced, the pipeline includes build, test, lint, and release stages appropriate to the project type. Security-scan stages are evaluated separately under DO4. Stage completeness is checked at the pipeline-structure level, not just file-presence. If no CI/CD pipeline is in scope for this work, this criterion is N/A. |
 
-**Reject if:** The Security section (DO4) is absent or fails to address any required topic (secret-handling policy, container user policy, dependency-acquisition policy, CI/CD pipeline stages, release-artifact signing, compiler-hardening flags), missing CI/CD dependency vulnerability scan stage, SBOM generation stage, container image scanning stage when images are built, or missing health checks. (Substance checks — are secrets actually hardcoded? does the container actually run as root? are base images actually pinned? — are owned by the Security Reviewer's pass on the configs, not QG.)
+**Reject if (Mode A):** The Security section (DO4) is absent or fails to address any required topic (secret-handling policy, container user policy, dependency-acquisition policy, CI/CD pipeline stages, release-artifact signing, compiler-hardening flags), missing CI/CD dependency vulnerability scan stage, SBOM generation stage, container image scanning stage when images are built, or missing health checks. (Substance checks — are secrets actually hardcoded? does the container actually run as root? are base images actually pinned? — are owned by the Security Reviewer's pass on the configs, not QG.)
+
+#### Mode B — Observability Review (DO10–DO16)
+The Mode B output is APPROVED when ALL of the following are present and complete:
+
+| # | Criterion | What to Check |
+|---|-----------|---------------|
+| DO10 | Executive Summary | 1–2 sentence overall instrumentation coverage assessment is present |
+| DO11 | Coverage Map | Coverage Map table is present, mapping each architecture-declared metric / SLO signal / health-check to the producer-code reference (file:line) where it is emitted, or explicitly flagging the item as missing. Existence/structure check only — substance review of whether the mapping is correct is the DevOps Engineer's own work. |
+| DO12 | Cardinality Assessment | Cardinality Assessment section is present listing every metric label found in the diff with a bounded / unbounded judgment for each. Ambiguous cases include reasoning. Existence/format check only — substance review of whether each label is correctly classified is the DevOps Engineer's domain. |
+| DO13 | Findings Table | Each finding has the required structural fields populated: ID, severity (must-fix / should-fix / nit), title, location (file + line), category (one of: `metric-emission`, `cardinality`, `health-check`, `slo-signal`, `trace-context`), description, and suggested fix. Existence/format check only — substance review of whether the suggested fix is correct is the DevOps Engineer's domain. |
+| DO14 | Architecture Gaps Handling | If the agent noticed observability needs in the producer code that the architecture's `## Observability` section did not declare, they are listed in an Architecture Gaps section to be routed to the Software Architect — NOT proposed as new metrics by Mode B itself. If no gaps were found, an explicit "no architecture gaps" statement is acceptable. Mode B proposing new metrics it invented is out-of-scope creep and a SENT BACK. |
+| DO15 | Verdict | Clear verdict: `Approve` / `Approve with comments` / `Request changes` |
+| DO16 | Must-Fix Resolution | If any must-fix items exist, they are clearly listed as blocking |
+
+**Reject if (Mode B):** Missing Coverage Map, missing Cardinality Assessment, findings lack required structural fields (location, severity, category, suggested fix), Mode B proposed new metrics rather than flagging architecture gaps, or no verdict given. (Substance checks — is the cardinality classification correct? is the suggested fix appropriate? — are owned by the DevOps Engineer's own work, not QG.)
 
 ---
 
@@ -479,7 +503,8 @@ When writing QG evaluation reports to disk, save them in the `qg-evaluations/` s
 | Embedded Systems Specialist, Senior Programmer, Test Engineer, Security Reviewer, Code Reviewer, Compliance Reviewer | `{code-directory}/qg-evaluations/` (e.g., `firmware/qg-evaluations/`, `src/qg-evaluations/`) |
 | Software Architect, Supply Chain Security, Documentation Writer | Project root or `project-handoffs/qg-evaluations/` |
 | UX/UI Designer | `design/qg-evaluations/` or project root `qg-evaluations/` |
-| DevOps Engineer | `devops/qg-evaluations/` or project root `qg-evaluations/` |
+| DevOps Engineer (Mode A — producer) | `devops/qg-evaluations/` or project root `qg-evaluations/` |
+| DevOps Engineer (Mode B — observability review) | `{code-directory}/qg-evaluations/` (alongside the code being reviewed; e.g., `src/qg-evaluations/`, `firmware/qg-evaluations/`) |
 
 The `{code-directory}` is the primary source code folder for the project (varies by project — `firmware/`, `src/`, `lib/`, etc.). If the `qg-evaluations/` subfolder does not exist, create it before writing the report.
 

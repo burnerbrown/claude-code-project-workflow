@@ -57,7 +57,7 @@ When new work is discovered after Step 5.5 — bug fixes, deferred-item promotio
 1. **Pick the task ID**: Read `IMPLEMENTATION-CHECKLIST.md` to observe the ID convention this project uses. Projects use varied schemes — integers (`Task 1`, `Task 2`), prefixed sequences (`Pre-1`, `H-1`, `HW-1`), and variant suffixes (`Task 9a`, `9b`). The new ID must not collide with any existing one. For most scope additions, the next integer in the main `Task N` sequence is correct — compare numerically, not lexicographically (Task 10 > Task 9). For a follow-up variant of a specific existing task, use a letter suffix (`9a`). For prefixed tracks (hardware, pre-implementation), continue that prefix's numbering. If unsure, ask the user.
 2. **Pick the workflow**: Read `workflows.md` — you would normally skip this in Step 6, but mid-Step-6 task creation requires it because there is no existing checklist with an agent sequence yet. Choose the appropriate pattern. Common mid-Step-6 patterns: **Bug Fix**, **Refactoring**, **DevOps/Infrastructure**, **Performance Investigation**, **Documentation Sprint**, **Embedded/RTOS Feature**, **Firmware-Only Development**. Note: Dependency Addition follows the existing "Dependency Addition" workflow and the pause/scan rule already documented in this file — not this section. The Step 4 hardware-track workflows (Hardware + Firmware Full Development Step 4 track, Prototype to Production Step 4 track, Hardware Revision Step 4 track) do NOT apply mid-Step-6 — only their Step 6 sub-tracks do.
 3. **Create `checklists/task-{N}.md`**: Use the Per-Task Detail Template in `step-5.5-task-detailing.md` (this is the one place mid-Step-6 work needs that file — read only the template section). Populate it with task description, the chosen workflow's agent sequence as subtask checkboxes (`- [ ]` for each agent + each QG step), the specific agent instructions, file paths the agents will need, and acceptance criteria. Use a representative existing checklist file from `checklists/` as a format reference — one with a multi-agent sequence (e.g., Senior Programmer + Test Engineer + reviewers), NOT a trivial "Orchestrator only" task.
-4. **Performance Add-On scan**: Run this per `step-5.5-task-detailing.md` step 3 only if the new work has measurable performance targets (latency, throughput, memory budgets, WCET). Most bug fixes do not. Record the decision in the new checklist file.
+4. **Conditional Add-On scans**: Run all sub-scans per `step-5.5-task-detailing.md` step 3 (Performance Add-On scan, Observability Add-On scan, and any future conditional add-ons). Most bug fixes will not activate any add-on, but run each scan rather than skipping by assumption — the Step 3/4 handoffs and the architecture's `## Observability` section may flag triggers the new task's description doesn't surface. Record each decision in the new checklist file (`Performance Add-On: Yes/No`, `DevOps Observability Review: Yes/No`).
 5. **Add the entry to `IMPLEMENTATION-CHECKLIST.md`**: Append a new task line under the appropriate section with `- [ ]`, a link to the new per-task file, and a `- **Depends On**:` sub-bullet (use `None` if standalone). Match the format of existing entries.
 6. **Then** enter the standard Orchestration Loop below with the new task as the current task.
 
@@ -78,6 +78,100 @@ When new work is discovered after Step 5.5 — bug fixes, deferred-item promotio
 **Mixed case** (some related work committed, more still pending): Use the normal new-task path. Create the checklist with normal-path formatting (`- [ ]` boxes), then immediately mark already-committed subtasks as `- [x]` with their commit SHAs. Continue normal-path execution for the remaining unchecked subtasks. Do NOT split this into a separate retroactive entry plus a new task.
 
 **Why this matters**: Without this rule, every bug-fix or scope-addition session after Step 5.5 creates the same convention gap — agents launch directly, work commits, no per-task tracking exists, and `IMPLEMENTATION-CHECKLIST.md` becomes an incomplete record. Future maintenance sessions (later bug fixes, audits, handoffs) lose visibility into what was actually built.
+
+### Mid-Step-6 Add-On Re-evaluation
+
+Conditional add-ons (Performance Verification Add-On, Observability Verification Add-On, future add-ons) are decided at task-detailing time in Step 5.5 and recorded on the per-task checklist (`Performance Add-On: Yes/No`, `DevOps Observability Review: Yes/No`). However, scope can drift during implementation — a Senior Programmer might add a metric, a hot loop, or a health-check endpoint that the original task description didn't anticipate. When that happens, the add-on flag must be re-evaluated **before the task commits**, not after, so the relevant reviewer (Performance Optimizer for perf, DevOps Engineer Mode B for observability, etc.) actually runs against the new code.
+
+This rule is **generic across all conditional add-ons**. The framework below applies the same way regardless of which add-on is involved.
+
+**Re-evaluation is NOT "new work."** A flag flip on the current task expands the *current task's* review tail; it does not spawn a new task per the "Adding New Tasks Discovered During Step 6" rule. That rule applies when a separate task surfaces, not when the current task's existing scope crosses a missed add-on threshold.
+
+**Compatibility with existing in-flight projects:** If a per-task checklist (created before this rule existed) is missing the `DevOps Observability Review` or `Performance Add-On` line entirely, treat the absent line as `No` for re-evaluation purposes. On the first re-evaluation that flips the flag, also backfill the checklist file with the explicit field so the audit trail is consistent.
+
+#### Two-layer detection
+
+**Layer 1 — Producer self-flag (primary).** The agent that wrote the code (Senior Programmer) is required to self-flag scope drift in their advisory notes. See `senior-programmer.md` "Conditional Add-On Self-Flag (MANDATORY)" for the trigger lists and the advisory-note format. (The same pattern is appropriate for any other producer agent that touches instrumentation or perf-critical code; if a future producer agent gets analogous self-flag rules added to its definition, this section automatically applies.)
+
+**Layer 2 — Orchestrator backstop (defense in depth).** When the orchestrator is about to enter the review tail, and ONLY when the relevant add-on flag is currently `No` (Layer 2 is a no-op when the flag is already `Yes` OR `N/A`), the orchestrator runs a single `Grep` pass over the producer's modified files. Use the closed pattern lists below — these are the patterns to match, no others. False positives are acceptable; false negatives are mitigated by Layer 1.
+
+**N/A skip — required.** If the per-task checklist's `DevOps Observability Review` field starts with `N/A` (e.g., `N/A — project Observability is explicit-N/A`), the entire Observability backstop is skipped — no grep, no flag flip, no Mode B routing. This is the project-level gate from `devops-engineer.md` Operating Modes pre-condition 1. Same rule applies to any future add-on that has a project-level N/A: the explicit `N/A` value short-circuits the backstop.
+
+**Observability backstop — closed pattern list:**
+
+Match any of (case-sensitive unless noted):
+- Import lines: `prometheus_client`, `prometheus/client`, `opentelemetry`, `otel`, `datadog`, `statsd`, `newrelic` (regex on import / use / require statements only — `^\s*(import|use|require|from|#include)\b.*<pattern>`)
+- API calls: `WithLabelValues(`, `\.inc\(`, `\.observe\(`, `\.add\(.*tags`, `meter\.`, `histogram\.`, `counter\.`, `gauge\.`, `tracer\.`, `Span\.`, `start_span`, `start_as_current_span`
+- Path literals: `"/healthz"`, `"/readyz"`, `'/healthz'`, `'/readyz'`, `\`/healthz\``, `\`/readyz\``
+- File path matches in the diff (file added/modified at): `otel-collector*.{yaml,yml}`, `prometheus*.{yaml,yml,conf}`, `logging.{yaml,yml,json,conf}`, `logback.xml`, `log4j2.{xml,yaml}`
+
+Patterns that look broad but are intentionally NOT included (would false-positive too often): bare `slog`, bare `tracing`, bare `metrics`, bare `Counter` / `Histogram` (without the `\.` API-call anchor). If the producer added these without the API-call anchors above, Layer 1 (self-flag) is the path — Layer 2 won't fire.
+
+**Performance backstop — closed pattern list:**
+
+Match any of:
+- New benchmark file additions: file path matches `benches/*.{rs,go,py,ts,js}`, `*_bench.go`, `*.bench.{ts,js}`, or addition of `criterion`/`Benchmark`/`pytest-benchmark` imports
+- New profiling-instrumentation additions: imports of `pprof`, `cProfile`, `criterion`, `flamegraph`
+- New synchronous I/O imports introduced where they weren't before AND the task's checklist references a latency target: `database/sql`, `net/http` client init, `requests`, `urllib`, `reqwest`, `jdbc`
+
+Pattern explicitly NOT used: "tight loops in request-serving / event-loop paths" — this requires call-graph reasoning the orchestrator cannot do reliably from grep. Loops that affect performance are caught by Layer 1 (the SP self-flag includes "Added a tight loop, recursion, or hot-path code in a request-serving / event-loop / real-time-task path that wasn't anticipated") because the producer has the call-graph context.
+
+**Test-path exclusion (applies to both backstops):** Before grepping, exclude files whose paths match `tests/*`, `*_test.go`, `*.test.{ts,tsx,js,jsx}`, files in `#[cfg(test)]` modules (heuristic: file path contains `/tests/` or filename contains `_test`), and files behind explicit test-only build tags. Mode B reviews production code paths only; test-file matches do not flip the flag.
+
+#### Re-evaluation procedure
+
+When the orchestrator is about to enter the review tail for a task:
+
+1. **Read the producer's advisory notes** for any "ADVISORY: Conditional Add-On Threshold Crossed" sections (Layer 1). Check the advisory's "Recommended action" field — it determines the routing path:
+   - `orchestrator should invoke <agent> in <mode>` → flip the corresponding add-on flag and route to that reviewer (see step 3 below).
+   - `orchestrator should open Architect amendment task` → this is an **Architect-only trigger** (see `senior-programmer.md` Conditional Add-On Self-Flag → Architect-only triggers). Do NOT flip the Observability flag. Open a follow-up task using the architecture-amendments mechanism (see "Architecture amendments mid-Step-6" below). The current task's review tail proceeds without Mode B unless other Mode B triggers also fire. This split routing is what separates "code that needs Mode B review" from "code that surfaces an architecture coverage gap" — they are different problems with different fixes.
+   - `orchestrator should escalate to user` → pause and escalate per "Orchestrator Decision Authority (Escalate by Exception)" below.
+2. **Run the backstop greps** for each add-on whose flag is currently `No` (Layer 2). Skip the backstop entirely for add-ons whose flag is already `Yes` (already running) or starts with `N/A` (project-level skip — see N/A skip rule above).
+3. **Evaluate the union** of Layer 1 (Mode B-routed advisories) and Layer 2 (grep matches). If either identifies a missed add-on:
+   - **Flip the flag** in the per-task checklist (`No` → `Yes`) with a one-line note explaining the trigger (cite the SP advisory OR the grep match).
+   - **Route to the add-on's reviewer** as defined in `workflows.md`:
+     - Performance Add-On flipped → run Performance Verification step before the review tail.
+     - Observability Add-On flipped → add DevOps Engineer Mode B to the review tail (parallel with CR / SR).
+   - **Log the re-evaluation** in `decisions/current-task.md` so the audit trail explains why the flag changed.
+4. **Run the (possibly expanded) review tail once.** The backstop runs ONCE at the entry to the parallel reviewer block — not before every reviewer, and not after each within-tail rework round. After a producer rework triggered by reviewer findings, do not re-run the backstop; the flag is already set correctly.
+5. **Continue the workflow** as if the add-on had been flagged `Yes` from the start.
+
+**Handling Mode B `Overlap:` markers.** Mode B's findings table may include findings with an `Overlap: <other-reviewer>` field (e.g., a metric label that's both unbounded AND PII-bearing → `Overlap: Security Reviewer`). When merging reviewer findings before routing fixes to the producer:
+- If the named overlap reviewer has already run for this task and approved: surface the Mode B finding to that reviewer as a re-review item (re-invoke the reviewer fresh with the specific finding for verification). The reviewer may produce additional findings of their own.
+- If the named overlap reviewer is also running in this review tail (e.g., parallel CR/SR/Mode B): annotate the merged-findings package with `[also relevant to <reviewer>]` so the producer's fix accounts for both perspectives.
+- If the named overlap reviewer was skipped for this task (e.g., trivial bug fix tail): treat the overlap finding as Mode B's primary finding (no re-invocation), and the producer fixes per Mode B's suggested fix.
+
+**Architecture-Gap deduplication.** If both an SP advisory ("Architect-only trigger") AND a Mode B Architecture Gaps section identify the same architecture coverage gap, deduplicate before routing to the Architect: open ONE consolidated architecture-amendment item per gap, citing both sources. Do NOT open two separate items.
+
+#### When the orchestrator backstop disagrees with the producer self-flag
+
+If the producer did not self-flag but the orchestrator's grep matches: trust the grep, flip the flag, add a one-line note in `decisions/current-task.md` that the producer missed the self-flag (so future workflow-system passes can review whether SP triggers should be tightened). Do NOT block the task — the audit trail captures the gap.
+
+#### Loop prevention
+
+Re-evaluation only flips a flag from `No` to `Yes`. Two layers of prevention guard against re-triggering:
+- **Layer 1 guard:** The producer's self-flag rule's pre-condition is "the corresponding add-on is currently `No` on the checklist" (see `senior-programmer.md`). Once `Yes`, the rule does not fire again, even if the producer reworks code.
+- **Layer 2 guard:** The orchestrator backstop is explicitly skipped when the relevant flag is already `Yes` (per step 2 above). It is a no-op in that state.
+
+These two guards together ensure the producer → reviewer → producer-rework → producer-re-flag-again cycle cannot occur.
+
+#### Cost
+
+The Layer 2 backstop is a single `Grep` pass over the producer's modified files before the review tail entry. It is intentionally lightweight — pattern matching against a closed list, not semantic analysis. Total cost: one Grep tool call, scoped to the diff's file list.
+
+#### Multiple add-ons on one task
+
+If a task has both flags flipped (or one was `Yes` from Step 5.5 and the other flipped mid-Step-6), the workflow ordering is the same as when both are activated at task-detailing time: **Performance Verification runs first** (after tests, before the review tail), **then Observability review runs in the review tail** alongside CR/SR. See `workflows.md` "Observability Verification Add-On" for the full multi-add-on flow.
+
+#### Architecture amendments mid-Step-6
+
+If the Software Architect amends the architecture's `## Observability` section (or perf-target sections) AFTER a task is approved and committed, the new declarations may apply to already-committed code that was not reviewed under the new constraints. The orchestrator must:
+
+1. **Notification trigger.** The Architect is required to flag amendments to the orchestrator via either (a) an advisory note in their handoff output, or (b) a dedicated `architecture-amendments/{date}.md` file the orchestrator checks at the start of each Step 6 session and at task entry. If the architect makes a silent amendment, the orchestrator has no obligation to detect it — and SHOULD NOT detect it heuristically (no architecture diffing). The contract is on the Architect side.
+2. **Identify affected committed tasks.** Use `git log` and the architecture's amended scope to find committed tasks whose modified files fall under the newly-amended observability scope. Granularity rule: open **one consolidated follow-up task** that covers all affected files (not one per affected prior task). Use the Bug Fix workflow pattern with the add-on flag set to `Yes`. The follow-up task is a re-review pass against the affected files, not a re-implementation.
+3. **Amendment removes a previously-declared metric/SLO.** Committed code that emits the now-removed metric is over-declared but not wrong — the metric is still valid telemetry, just not architecturally required. Open a cleanup follow-up task only if the architect's amendment explicitly states the emission should be removed; otherwise leave the code as-is and note the change in the architecture's revision history.
+4. **Cascade bound.** Architecture amendments triggered *by* a follow-up Mode B re-review pass do NOT themselves trigger another sweep — gaps surfaced during a re-review pass are logged for the next Architect-driven amendment cycle (or an explicit user-initiated revisit), not auto-cascaded. This bounds the amendment loop at one cycle per architect action.
+5. **Continue normal operation.** Do not block in-flight tasks unless the architecture amendment introduces a hard blocker (e.g., a removed metric the producer was depending on).
 
 ### The Orchestration Loop
 
