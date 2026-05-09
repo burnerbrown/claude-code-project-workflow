@@ -22,16 +22,18 @@ Take the individual task files from Step 5 and produce detailed agent workflows 
 
 2. **Load one task file**: Read only the next unprocessed task file (e.g., `project-handoffs/handoff-step-5-task-1.md`), plus whatever architecture/spec context that task needs.
 
-3. **Conditional Add-On scans**: Before selecting the workflow pattern, scan the task for each conditional add-on. For each add-on, run the listed triggers; if any trigger fires, suggest the add-on to the user with the matched triggers cited; the user decides **apply** or **skip**; record the decision in the per-task checklist file. Each add-on is independent — a single task can activate zero, one, or multiple add-ons.
+3. **Project-level Resilience Patterns determination** (one-time per project; record on every task's checklist): Read the architecture's `## Resilience Patterns` section once at the start of Step 5.5 (or at first task processing if Step 5.5 is being resumed). Record the form on every per-task checklist file: `Resilience Patterns: declared` if the architecture is in declared form (per QG criterion A13), or `Resilience Patterns: N/A — project Resilience Patterns is explicit-N/A` if the architecture is in explicit-N/A form. This is a project-level constant — every task gets the same value. Unlike the Conditional Add-On scans below, resilience does NOT have a per-task gating decision; it is a context field that consuming agents (Senior Programmer, Code Reviewer, API Designer, Database Specialist, Performance Optimizer, Test Engineer) read off the checklist instead of re-reading the architecture document on each invocation. The Senior Programmer's Resilience Implementation Standards apply when the field is `declared` and do not apply when the field is `N/A`. The Code Reviewer's Resilience Implementation pass short-circuits to *"Architect declared resilience N/A — no resilience review needed"* when the field is `N/A`.
 
-   **3a — Performance Add-On scan.** Triggers:
+4. **Conditional Add-On scans**: Before selecting the workflow pattern, scan the task for each conditional add-on. For each add-on, run the listed triggers; if any trigger fires, suggest the add-on to the user with the matched triggers cited; the user decides **apply** or **skip**; record the decision in the per-task checklist file. Each add-on is independent — a single task can activate zero, one, or multiple add-ons.
+
+   **4a — Performance Add-On scan.** Triggers:
    - Step 3 handoff lists non-"no requirement" performance targets that apply to this task's scope
    - Step 4 handoff identifies this task's code as a performance-critical path
    - Task description or acceptance criteria contain perf keywords: `p50`, `p95`, `p99`, `latency`, `throughput`, `benchmark`, `optimize`, `hot path`, `WCET`, `performance budget`, `response time`, `SLA`
 
    If any trigger fires → suggest the **Performance Verification Add-On** (see `workflows.md` "Performance Verification Add-On"). Record decision as `Performance Add-On: Yes/No` in the per-task checklist file.
 
-   **3b — Observability Add-On scan.** Pre-condition: the architecture's `## Observability` section (gated by QG criterion A12) is in the **declared form**, not the explicit-N/A form. If the architecture is explicit-N/A, skip the trigger evaluation below and record `DevOps Observability Review: N/A — project Observability is explicit-N/A` on every task's checklist. The literal value `N/A` (with that prefix) is what the Senior Programmer's self-flag rule and the Step 6 mid-step backstop check to skip themselves; it is distinct from `No`, which means "this task does not currently meet observability triggers" and is subject to mid-step re-evaluation.
+   **4b — Observability Add-On scan.** Pre-condition: the architecture's `## Observability` section (gated by QG criterion A12) is in the **declared form**, not the explicit-N/A form. If the architecture is explicit-N/A, skip the trigger evaluation below and record `DevOps Observability Review: N/A — project Observability is explicit-N/A` on every task's checklist. The literal value `N/A` (with that prefix) is what the Senior Programmer's self-flag rule and the Step 6 mid-step backstop check to skip themselves; it is distinct from `No`, which means "this task does not currently meet observability triggers" and is subject to mid-step re-evaluation.
 
    Triggers (any one suffices):
    - The architecture's `## Observability` section declares metrics, SLO contracts, health-check expectations, or trace requirements for a component this task modifies, AND the task's expected deliverables include code in that component
@@ -42,15 +44,15 @@ Take the individual task files from Step 5 and produce detailed agent workflows 
 
    If any trigger fires → suggest the **Observability Verification Add-On** (see `workflows.md` "Observability Verification Add-On"). Record decision as `DevOps Observability Review: Yes/No` in the per-task checklist file.
 
-4. **Create the detailed agent workflow** for that task (see Per-Task Detail Template below).
+5. **Create the detailed agent workflow** for that task (see Per-Task Detail Template below).
 
-5. **Create the per-task checklist file**: Write the task's full detail (agent sequences, instructions, acceptance criteria, subtask checkboxes) to `checklists/task-{id}.md` (e.g., `checklists/task-pre1.md`, `checklists/task-1.md`). Then update the lightweight `IMPLEMENTATION-CHECKLIST.md` index (in the project root) to include this task's summary entry. If this is the first task, create both the `checklists/` folder in the project root and the index file with the header. Commit and push to GitHub.
+6. **Create the per-task checklist file**: Write the task's full detail (agent sequences, instructions, acceptance criteria, subtask checkboxes) to `checklists/task-{id}.md` (e.g., `checklists/task-pre1.md`, `checklists/task-1.md`). Then update the lightweight `IMPLEMENTATION-CHECKLIST.md` index (in the project root) to include this task's summary entry. If this is the first task, create both the `checklists/` folder in the project root and the index file with the header. Commit and push to GitHub.
 
-6. **Write a completion marker**: Create `project-handoffs/handoff-step-5.5-task-{id}-done.md` with a brief summary confirming the task was detailed. Commit and push to GitHub.
+7. **Write a completion marker**: Create `project-handoffs/handoff-step-5.5-task-{id}-done.md` with a brief summary confirming the task was detailed. Commit and push to GitHub.
 
-7. **Clear context**: The user clears context between iterations.
+8. **Clear context**: The user clears context between iterations.
 
-8. **Repeat** from step 1 until all tasks are detailed.
+9. **Repeat** from step 1 until all tasks are detailed.
 
 ### Per-Task Detail Template
 
@@ -101,7 +103,7 @@ A concrete checklist the Quality Gate uses to verify the task is complete. These
 - Don't skip any agent listed in the Step 5 plan — every assigned agent gets explicit instructions
 - Don't create vague acceptance criteria like "code works correctly" — be specific and verifiable
 - Don't make checklists so granular they become a burden — focus on outcomes, not line counts
-- Don't skip the **Conditional Add-On scans** (step 3) — even if a task seems unrelated to performance or observability, run all sub-scans; the Step 3/4 handoffs and the architecture's `## Observability` section may flag triggers the task description doesn't mention
+- Don't skip the **Conditional Add-On scans** (step 4) — even if a task seems unrelated to performance or observability, run all sub-scans; the Step 3/4 handoffs and the architecture's `## Observability` section may flag triggers the task description doesn't mention
 - Don't skip the **Test Environment** classification for Test Engineer or Performance Optimizer agents — every task that involves tests or benchmarks must specify whether they are host-safe or require a sandbox, and which sandbox type. This prevents unsafe test execution during Step 6
 
 ## File Structure
@@ -158,6 +160,7 @@ Each file contains the full detail for one task: agent sequences, instructions, 
 **Workflow Pattern**: [From workflows.md]
 **Performance Add-On**: [Yes — targets: (list specific targets) | No]
 **DevOps Observability Review**: [Yes — components: (list components from architecture's Observability section that this task touches) | No | N/A — project Observability is explicit-N/A]
+**Resilience Patterns**: [declared | N/A — project Resilience Patterns is explicit-N/A]
 
 ## Agent Sequence Detail
 
@@ -211,6 +214,7 @@ After the last task iteration, perform this active verification — do NOT skip 
 4a. **Conditional Add-On cross-check**: Verify the per-task add-on flags against the source documents for each conditional add-on. Flag any mismatches for review before proceeding.
    - **Performance Add-On**: Every task whose scope covers a non-"no requirement" performance target from the Step 3 handoff must have `Performance Add-On: Yes` in its checklist file.
    - **Observability Add-On**: If the architecture's `## Observability` section is in the declared form, every task whose scope touches a component for which the architecture declared observability requirements must have `DevOps Observability Review: Yes` in its checklist file. If the architecture is explicit-N/A, every task must have `DevOps Observability Review: N/A — project Observability is explicit-N/A` (the explicit `N/A` value, not `No`; this is what the Step 6 backstop and SP self-flag check to skip themselves).
+   - **Resilience Patterns** (project-level field, not an add-on — but verified here because consuming agents key off it): Every task's checklist must have the `Resilience Patterns:` field set to either `declared` or `N/A — project Resilience Patterns is explicit-N/A`. The value must match the form of the architecture's `## Resilience Patterns` section (per QG criterion A13). All tasks in the same project receive the same value.
 
 5. **Create the Step 5.5 handoff file** (serves as the gate signal for Step 6 — its existence confirms all tasks were detailed and verified): Only after all verifications pass, create `project-handoffs/handoff-step-5.5.md` with:
    - Total number of tasks detailed

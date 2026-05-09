@@ -108,6 +108,10 @@ When launching agents, **pass file paths and instructions — not file contents.
 - **Exception:** Small, focused context is OK to include directly (e.g., a short code snippet from a QG verdict, specific review findings). If it's more than ~20 lines, pass the file path instead.
 - Supply Chain Security: always check `.trusted-artifacts/_registry.md` before invoking the SCS agent — a cache hit means no new scan is needed
 
+**Project-level context fields on the per-task checklist.** Beyond per-task add-on flags (`Performance Add-On`, `DevOps Observability Review`), the per-task checklist (see `step-5.5-task-detailing.md`) carries a project-level constant field consumed by multiple agents:
+
+- **`Resilience Patterns:`** — set during Step 5.5 (project-wide) to either `declared` or `N/A — project Resilience Patterns is explicit-N/A`, mirroring the form of the architecture's `## Resilience Patterns` section (gated by QG criterion A13). Senior Programmer, Code Reviewer, API Designer, Database Specialist, Performance Optimizer, and Test Engineer all read this field to determine whether their resilience-related instructions apply. Unlike the Add-On flags, this field has no per-task gating decision (resilience review folds into Code Reviewer's standard pass; there is no Resilience Add-On with a separate workflow). When the field is `declared`, agents read the architecture's `## Resilience Patterns` section in `handoff-step-4.md` for the actual policy values they implement against / review against.
+
 ### Important: Research Inventory Before Implementation
 **Before launching any worker agent for implementation**, the orchestrator MUST run a Research Inventory phase. The agent identifies all external resources it needs (downloads, web fetches, tool installs, web searches) in a manifest. The orchestrator reviews the manifest, assesses each item, and presents recommendations to the user. The agent proceeds only with user-approved resources. **If the manifest is empty, the orchestrator auto-continues without user input.** See `workflows.md` "Research Inventory Phase" for the full procedure.
 

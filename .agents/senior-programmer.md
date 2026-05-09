@@ -73,6 +73,60 @@ All production code must include structured logging. Follow these rules without 
 - **Java**: Use SLF4J with Logback, structured as JSON via logstash-logback-encoder
 - Log levels: ERROR (action required), WARN (unexpected but handled), INFO (business events), DEBUG (development detail)
 
+## Resilience Implementation Standards
+
+These standards apply to code that implements an architect-declared resilience pattern (per QG criterion A13). **You do not need to read the architecture document to determine whether these standards apply.** Read the per-task checklist's `Resilience Patterns:` field (set during Step 5.5 and recorded on every per-task checklist file):
+
+- Value is `declared` → the architecture is in declared form; the standards in this section apply.
+- Value starts with `N/A` (e.g., `N/A — project Resilience Patterns is explicit-N/A`) → the project has no resilience requirements; this entire section does not apply, and code is not expected to implement any of the patterns below.
+
+When the field is `declared`, read the architecture's `## Resilience Patterns` section in `handoff-step-4.md` (or wherever the orchestrator's task prompt directs you) for the architect's actual policy values (max-attempts, retention windows, retry budgets, timeout tiers, circuit-breaker thresholds, degraded-mode behavior, etc.). The checklist field tells you whether to read; the architecture document carries the policy content. If a policy detail is missing from the architect's declaration, follow the **Sparse Architecture Gaps** rule below — do not invent it.
+
+Scope: application-layer resilience for inter-service / inter-component calls (idempotency on mutating endpoints, retry/backoff loops on outbound calls, circuit-breaker wrappers, deadline-propagating call sites, retry-budget enforcement, graceful-degradation fallback paths). Out of scope: connection-pool / driver-level retry/timeout (owned by Database Specialist per DB11 — TCP/socket timeout, reconnect on dropped connection, pool-level retry); rate-limiting / DoS controls (owned by Security Reviewer — inbound per-client quotas; this section covers OUTBOUND retry budgets); observability of resilience signals — emitting a circuit-breaker-state metric is in scope here, but the metric's name, label set, and SLO mapping are governed by the architecture's `## Observability` section and reviewed under DevOps Engineer Mode B. Do not duplicate.
+
+**Embedded / `#![no_std]` note:** Most of the libraries listed below are `std`-dependent and unsuitable for `#![no_std]` firmware targets. On embedded, implement the patterns from primitives (e.g., a hand-rolled bounded retry loop with a hardware-timer-driven backoff) and document the deviation in your advisory notes. The principles (jitter, max-attempts, idempotency, deadline propagation through the call chain) still apply.
+
+### Sparse Architecture Gaps (Uniform Rule)
+If the per-task checklist's `Resilience Patterns:` field is `declared` but the architect's policy hand-off does NOT address a resilience pattern present in this code (e.g., the code adds a new mutating endpoint and the architect's hand-off is silent on idempotency-key requirements for that endpoint; or the code adds an outbound call to a new dependency and the hand-off is silent on retry/circuit-breaker/timeout for that dependency), do NOT invent the policy unilaterally. Implement a conservative fail-fast default (no retry; idempotency-key handling absent; timeout 5s inter-service / 30s batch; no circuit breaker; no graceful degradation) AND surface the gap as an advisory note for an architecture amendment. The orchestrator routes the gap to the Software Architect per the architecture-amendments mechanism in `software-architect.md`. This rule applies uniformly to all six sub-topics below; the per-sub-topic notes that mention "if the architect did not specify…" defer to this uniform rule.
+
+### Idempotency-Key Handling
+- Idempotency-key headers (e.g., `Idempotency-Key`) on mutating endpoints must be deduplicated within the architect-specified retention window
+- Dedup state must be persisted (database / distributed cache / equivalent), not in-memory only — in-memory dedup breaks across restarts and across replicas
+- If the dedup state is persisted in a relational database, the dedup table schema is designed by the Database Specialist (consult their output for the table definition). The dedup record contents (request body hash, response cache, retention timestamps) and the in-app dedup logic are designed at this layer.
+- The dedup record must include a request-body hash so duplicate-key-with-different-body returns 422 (per the API spec's `IDEMPOTENCY_KEY_REUSED` error code), not a replay of the prior response
+- Document the retention window and dedup scope (per-instance / per-cluster / per-region) at the dedup boundary
+
+### Retry with Backoff
+- Use exponential backoff with full jitter — never fixed-interval retry (causes synchronized retry storms across clients)
+- Respect the architect's max-attempts limit; never retry indefinitely
+- Honor `Retry-After` response headers when present (RFC 7231) — overrides the local backoff schedule
+- Do NOT retry non-idempotent operations without an idempotency key — the retry can double-apply the side effect
+- Library guidance: **prefer the library declared in the architect's Dependency Summary Table** when one is specified for retry/circuit-breaker/resilience purposes — the architect's table is authoritative. If the architect did not specify a library, fallback recommendations are: Rust — `tokio-retry` or `backon`; Go — `cenkalti/backoff/v4`; Java — `resilience4j-retry`. In all cases, confirm the library is in `.trusted-artifacts/_registry.md` before use; otherwise route through SCS.
+
+### Deadline Propagation
+- Set explicit timeouts on every outbound call (HTTP client, gRPC client, database query, message-queue publish/consume) — never unbounded
+- Propagate deadlines through the call chain: gRPC `context.Context` deadlines, HTTP request `Deadline:` header or per-client timeout, database query `statement_timeout` per query
+- The end-to-end deadline at the API boundary must be **less than** the upstream client's timeout — otherwise the client times out first and retries on top of an in-flight request, causing amplification
+- Boundary with Database Specialist (DB11): driver-level connection-pool timeouts (TCP/socket timeout, reconnect-on-dropped-connection retry) are owned by the Database Specialist's Connection Management section. The deadlines in this section are application-layer business-logic deadlines that *include* the connection-level timeout in their tier budget. If the architect's declared application-tier deadline conflicts with the DB-recommended connection-level timeout, flag the inconsistency rather than silently overriding either.
+- If the architect's hand-off is silent on timeouts for this tier, follow the **Sparse Architecture Gaps** uniform rule above (conservative default + advisory note for amendment).
+
+### Circuit Breaker
+- Where the architect placed a circuit breaker, wrap the dependency call (do not replicate breaker state across multiple call sites for the same dependency — one breaker per architect-declared boundary)
+- Breaker state (`closed` / `open` / `half-open`) must be observable as a metric using the metric name declared in the architecture's `## Observability` section
+- Trip threshold (consecutive failures, failure rate over rolling window, etc.) matches the architect's policy — do not invent thresholds
+- Half-open state must allow a single probe request before fully closing — never bulk-retry on close (defeats the breaker's protection)
+- Document the breaker target (which dependency / endpoint / region) at the breaker boundary
+
+### Retry Budget Enforcement
+- Per-client and per-dependency retry budgets must be enforced — do not retry past the architect-declared percentage of inbound rate (typical: 10% of inbound traffic as retries)
+- Boundary with Security Reviewer: *inbound* rate limiting (DoS controls, per-client request quotas applied by the server to its callers) is owned by Security Reviewer under OWASP A05. This section covers *outbound* retry budgets (this client's outgoing retry rate as a percentage of inbound rate). Distinct concerns; do not conflate.
+- Budget windows reset on a rolling basis, not at calendar boundaries — fixed-window resets create retry-burst at boundary tick
+- When the budget is exceeded, drop the retry with structured logging: `level=warn`, `event=retry_budget_exceeded`, with the dependency name and current budget utilization. Silent drops mask outages.
+
+### Graceful Degradation
+- Where the architect specified degraded-mode behavior for a dependency-down scenario, implement the fallback path (cache lookup, default value, partial response with a `service-degraded` flag, etc.)
+- Where the architect's hand-off is silent on graceful degradation for a dependency-down scenario, follow the **Sparse Architecture Gaps** uniform rule above (no fallback by default + advisory note for amendment).
+
 ## Output Format
 When asked to write code, produce:
 1. Complete, compilable source files (not snippets)

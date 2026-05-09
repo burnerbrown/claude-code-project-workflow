@@ -57,6 +57,25 @@ If you are unsure about anything — such as a database engine's behavior, query
 - Transaction isolation level selection
 - Connection timeout and retry strategies
 - Read replica routing
+- Scope: this section covers connection-pool-level concerns only — pool sizing/lifetime, transaction isolation, *driver-level* connection timeout (TCP/socket) and reconnect-on-dropped-connection retry, and primary-vs-replica routing. Application-layer resilience (idempotency keys on mutating operations, exponential-backoff retry of business-logic calls, circuit breakers across services, deadline propagation through the call chain, retry-budget enforcement, graceful-degradation fallbacks) is reviewed by Senior Programmer's Resilience Implementation Standards and Code Reviewer's Resilience Implementation section. Coordinate rather than duplicating: a query-level `statement_timeout` recommended here belongs to the connection-pool tier; the architect's per-tier deadline budget that *includes* that timeout belongs to the application-layer tier. When the architect's `## Resilience Patterns` section (per QG criterion A13) declares timeout defaults — read the per-task checklist's `Resilience Patterns:` field; if `declared`, read the architect's `## Resilience Patterns` section in `handoff-step-4.md` for the tier-budget values — ensure your connection-level timeout values are consistent with the architect's tier budget. If they are inconsistent, flag the inconsistency in a labeled `## Open Issues / Advisory Notes` section of your output (do not silently override). The orchestrator routes such advisory notes to the Software Architect for resolution.
+
+### Idempotency Dedup Table (when applicable)
+If the architect's `## Resilience Patterns` section declares idempotency-key requirements that are persisted in a relational database (the typical case for inter-service mutating endpoints), the dedup table schema is part of the Database Specialist's deliverable. The Senior Programmer's Resilience Implementation Standards reference this schema when implementing the dedup logic. Recommended baseline columns:
+
+- `idempotency_key` (`TEXT` / `VARCHAR(64)`, primary key) — the client-supplied key from the `Idempotency-Key` request header
+- `request_body_hash` (`BYTEA` / `BLOB`, NOT NULL) — SHA-256 of the canonicalized request body, used to detect key-with-different-body and return 422
+- `response_status` (`INT`, NOT NULL) — canonical column name regardless of transport: stores the HTTP status code for HTTP APIs OR the gRPC status code for gRPC APIs. The transport is determined by the API Designer's spec; the column name does NOT change per transport. The semantics are the same: replayed on subsequent same-key+same-body requests.
+- `response_body` (`BYTEA` / `BLOB`) — the response body to replay; nullable if response is small enough to recompute deterministically. The body format (JSON, Protobuf, etc.) is determined by API Designer; DB stores it as opaque bytes.
+- `created_at` (`TIMESTAMPTZ`, NOT NULL, default `now()`) — for retention-window pruning
+- `expires_at` (`TIMESTAMPTZ`, NOT NULL) — `created_at + architect's retention window`; an index on this column supports the cleanup job
+
+The retention window value comes from the architect's policy (read `handoff-step-4.md`'s `## Resilience Patterns` section). The cleanup job (delete WHERE `expires_at < now()`) is a recurring background task; document its schedule in your output. If the architect declared a non-relational store (Redis, distributed cache), document the equivalent key/value layout instead. If the architect's section is silent on persistence choice, flag the gap in your `## Open Issues / Advisory Notes` rather than choosing for them.
+
+**QG gating note:** This dedup-table column set is NOT separately gated by a QG criterion — DB Specialist's producer review owns column adequacy. QG verifies the schema deliverable exists per DB1/DB2/DB3, not its specific column composition. Future divergence (schema with fewer than the columns above) is caught downstream as follows:
+
+- **CR's Resilience Implementation pass (`code-reviewer.md`)** explicitly covers idempotency-key dedup logic correctness. When SQL files appear in the diff, CR reads them as part of the idempotency-keys sub-topic review and flags missing critical columns (especially `request_body_hash`, without which duplicate-key-with-different-body returns the wrong response and breaks the API spec's `IDEMPOTENCY_KEY_REUSED` contract).
+- The Database Specialist's own producer review against this section (DB Specialist re-reading their own output before declaring complete) is the first line of defense.
+- Code Reviewer's general schema review (when the diff includes SQL DDL) is a backstop for column adequacy outside the idempotency case.
 
 ### Backup & Recovery
 - Define backup strategy for every database in the system (frequency, retention period, storage location)

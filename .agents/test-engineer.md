@@ -29,6 +29,23 @@ Every test suite must include:
 - **Error handling tests** that confirm errors don't leak sensitive information (CWE-209)
 - **Injection tests** that confirm injection vectors are neutralized (CWE-89, CWE-78, CWE-79)
 
+### Resilience Pattern Test Requirements (per QG criterion T12)
+**Read the per-task checklist's `Resilience Patterns:` field.** If the value starts with `N/A` (e.g., `N/A — project Resilience Patterns is explicit-N/A`), this section does not apply. If the value is `declared` AND this task implements one or more architect-declared resilience patterns — use the **Code Reviewer's resilience-relevant-code detection signals** (see `code-reviewer.md` Resilience Implementation section) as the canonical definition of "implements a resilience pattern", so that TE and CR/QG agree on scope — read the architect's `## Resilience Patterns` section in `handoff-step-4.md` for the policy values your tests assert against (max-attempts, retention windows, retry budgets, timeout tiers, breaker thresholds), and include tests for each implemented pattern:
+
+- **Idempotency-key replay tests**: same key + same body returns the cached response (matching status, body, and `Idempotency-Replayed: true` if specified by API Designer); same key + different body returns 422 with the API spec's `IDEMPOTENCY_KEY_REUSED` error code
+- **Retry behavior tests**: max-attempts limit honored (the producer stops at architect-declared N attempts); exponential backoff with jitter is applied (assert delay grows; do not assert exact wall-clock values — use a mock clock); `Retry-After` response headers are honored (the producer waits at least that long before next attempt); retry-budget exceeded drops the retry with the structured WARN log
+- **Circuit-breaker tests**: opens after the architect-declared trip threshold (consecutive failures or rolling-window failure rate); half-open state allows exactly one probe request before fully closing; closed state re-arms correctly after a successful probe
+- **Deadline propagation tests**: timeout enforced at the architect-declared tier (e.g., a 5s tier-budget call against a 10s mock dependency times out at 5s); deadline propagation through nested calls does not exceed the parent budget
+- **Graceful-degradation tests**: when the dependency is mocked as down, the architect-declared fallback path is exercised (cache served, default value returned, partial response with `service-degraded` flag, etc.)
+
+If this task is `declared` but implements no architect-declared resilience pattern (i.e., no resilience-relevant code per CR's signals), record the explicit statement *"N/A — task implements no architect-declared resilience pattern"* in the test plan to satisfy T12.
+
+Use deterministic mocks (mock clocks, fault-injection wrappers, in-memory dedup stores) for resilience tests — never depend on wall-clock timing or live network for these assertions; flaky resilience tests mask real bugs.
+
+**T3 vs T12 tiebreaker:** A test case may legitimately fit both T3 (Error Path Coverage) and T12 (Resilience Pattern Tests) — e.g., a circuit-breaker-open response is both an error path and a resilience-pattern assertion. **When both apply, file the test under T12.** Reasoning: T12 captures the architect-declared constraint (trip threshold, half-open count) that T3 does not encode. Filing under T12 also keeps the test's purpose visible during future architecture amendments — if the architect changes the trip threshold, the T12-tagged tests are the ones that need re-tuning.
+
+**Note on bucket count:** the Resilience Pattern Test Requirements above use **5 test buckets** (idempotency, retry behavior, circuit breaker, deadline propagation, graceful degradation). This intentionally diverges from the **6 sub-topics** used by Senior Programmer (Resilience Implementation Standards), Code Reviewer (Resilience Implementation rubric), and QG criterion CR9 — the divergence folds retry-budget assertions into the "retry behavior" bucket rather than treating retry budget as its own test category, since retry-budget tests are typically a single-assertion file that adds no value as a separate bucket. QG T12 documents this divergence; producers should not interpret it as an oversight.
+
 ## Test Data Safety Rules
 - **Never use real PII in tests.** No real names, addresses, phone numbers, SSNs, or credit card numbers. Use obviously fake data (e.g., "Jane Doe", "123 Test Street", "555-0100").
 - **Never hardcode real credentials in test fixtures.** No real API keys, passwords, tokens, or connection strings. Use placeholder values like `test-api-key-not-real` or environment variables.

@@ -90,6 +90,20 @@ For APIs consumed by web frontends:
 - Document CORS configuration in the API spec
 - For development, allow `localhost` origins but do NOT ship that to production
 
+### Idempotency & Resilience Headers
+
+**Pre-condition / workflow ordering:** Before designing mutating endpoints, read the per-task checklist's `Resilience Patterns:` field (set during Step 5.5). If the value starts with `N/A` (e.g., `N/A — project Resilience Patterns is explicit-N/A`), this section does not apply — skip the idempotency-key contract entirely (the OpenAPI/proto spec simply omits the `Idempotency-Key` header parameter), and document the N/A status in your **narrative output** (the API Designer's text deliverable, not the OpenAPI spec body itself — specs are machine-readable contracts and shouldn't carry prose like "N/A — no resilience requirements"). If the value is `declared`, read the architect's `## Resilience Patterns` section in `handoff-step-4.md` (or wherever the orchestrator's task prompt directs you) for the architect's policy on which mutating operations require keys, retention windows, and dedup scopes, and apply the rules below. If the architect's section is silent on idempotency requirements for a specific mutating endpoint you are designing, do NOT invent the requirement unilaterally — flag the gap in your output advisory notes for an architecture amendment per `software-architect.md`.
+
+For mutating operations (POST, PATCH, PUT, DELETE) where the architect's `## Resilience Patterns` section (per QG criterion A13) declares idempotency-key requirements, the API spec must define the contract that downstream Senior Programmer code implements against:
+
+- Define an `Idempotency-Key` request header for each mutating endpoint where the architect specified one. Document the format (UUID v4 recommended), the retention window from the architect's policy, and the dedup scope (per-tenant / per-account / global)
+- Document response semantics for replays: same key + same body returns the cached response with status 200/201 plus an `Idempotency-Replayed: true` response header; same key + different body returns 422 with error code `IDEMPOTENCY_KEY_REUSED`
+- For gRPC, specify the equivalent metadata key (`x-idempotency-key`) on the request — RFC 7240 / draft idempotency-key spec applies to HTTP only; for gRPC, document this in the service's design notes
+- Document `Retry-After` response semantics for 429 (rate-limited) and 503 (service unavailable) — value is delay-seconds or HTTP-date per RFC 7231; clients use this to override their local backoff schedule
+- If the architect's `## Resilience Patterns` section is in explicit-N/A form, this section does not apply — state "N/A — architecture declares no resilience requirements" in the spec
+
+Scope: API Designer specifies the *contract* (header definitions, response codes, semantics). Senior Programmer implements the dedup/retry behavior. Code Reviewer reviews the implementation against the contract under its Resilience Implementation section. Coordinate rather than duplicating.
+
 ### Versioning Strategy
 - URL path versioning (`/v1/resources`) for simplicity
 - Header versioning for fine-grained control
