@@ -37,14 +37,50 @@
 - If an agent discovers something during research and wants to act on it (install, download, etc.), the permission system will prompt the user — deny anything unexpected and the orchestrator will follow up
 
 ## File Permissions
-- You may read all files in the `.newProjectWorkflow`, `.agents`, and `.trusted-artifacts` folders at any time without asking — these are reference files and the vetted dependency cache
-- You may read and write any files that pertain to the current project within the current working directory without asking — this includes creating, editing, and overwriting project files
-- You may NOT read, write, or delete files outside the current working directory without explicit user approval
+
+**Default rule:** You may NOT read, write, or delete files outside the current working directory without explicit user approval.
+
+**Exceptions to the default:**
+- **Inside the current working directory:** you may read and write freely without asking — this includes creating, editing, and overwriting project files.
+- **The following three reference folders may be read (read-only) at any time without asking, even when they live outside the current working directory:**
+  - `PLACEHOLDER_PATH\.newProjectWorkflow\` — workflow rules and per-step instructions
+  - `PLACEHOLDER_PATH\.agents\` — agent definition files
+  - `PLACEHOLDER_PATH\.trusted-artifacts\` — vetted dependency cache
 
 ## Tools & Environment
-- VS Code is installed and available
-- GitHub account is available — can use git and gh CLI for version control and pull requests
+
+This list reflects the development tools and runtimes installed on the user's machine. Refer to it to know what's available without needing to check at runtime.
+
+**Initial setup:** This file ships with placeholder bullets — fill them in based on what you have installed so Claude has accurate information from session 1.
+
+**MANDATORY:** Keep this list accurate. When you observe a tool being installed system-wide or removed during a session (e.g., `winget install`, `brew install`, `apt install`, `cargo install`, downloading and adding an executable to PATH, uninstalling) — OR when the user explicitly mentions installing or removing a tool — propose an update to this list before continuing. (Project-local package installs like `pip install <pkg>` inside a venv, `npm install`, or `cargo add` do NOT belong here — those are project dependencies, not machine-level tools.)
+
+### Platform
 - Platform: PLACEHOLDER_PLATFORM
+- (Shell(s) available — e.g., PowerShell, bash, zsh, fish)
+- (VM/sandbox tools — e.g., WSL2, Windows Sandbox, Docker)
+
+### Programming Languages & Runtimes
+- (e.g., Python 3.x, Node.js, Rust, Go, Java, .NET — list what you have, with versions if known)
+
+### Editors & IDEs
+- (e.g., VS Code, JetBrains IDEs, Vim, Neovim, Emacs)
+
+### Hardware / CAD Tools (optional — remove this section if not applicable)
+- (e.g., KiCad, FreeCAD, Arduino IDE)
+
+### Version Control
+- `git` (if installed)
+- `gh` CLI (if installed and a GitHub account is configured)
+
+### Package Managers
+- (e.g., winget / Homebrew / apt / dnf / pip / npm / cargo)
+
+### Other
+- (API keys, sandbox tools, or other relevant items)
+
+### Notable absences (optional — list tools Claude should NOT assume are available)
+- (e.g., "Node.js not installed", "Docker not installed", "no jq")
 
 ## Project Workflow
 - All projects follow a 7-step workflow: Concept → Discovery → Specification → Architecture → Planning → Task Detailing → Implementation
