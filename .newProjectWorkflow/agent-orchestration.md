@@ -287,7 +287,7 @@ Agent files in `.agents/*.md` should contain only operational instructions: pers
 
 - All files in `.agents/` (agent definitions)
 - All files in `.newProjectWorkflow/` (workflow rules and step instructions)
-- The global `PLACEHOLDER_HOME\CLAUDE.md`
+- The global `PLACEHOLDER_HOME\.claude\CLAUDE.md`
 - The `_ClaudeProjects\CLAUDE.md` (workflow-system-local instructions)
 - All files in `_ClaudeProjects\.claude\hooks\` (shared hook scripts and their tests)
 - `_ClaudeProjects\.claude\settings.json` and `_ClaudeProjects\.claude\settings.local.json` (workflow-system Claude Code configuration)
