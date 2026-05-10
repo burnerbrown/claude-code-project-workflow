@@ -99,6 +99,35 @@ The Senior Programmer will be able to read files, write code, and edit existing 
 - Domain restrictions (e.g., the Component Sourcing agent's trusted distributor allowlist) are enforced by the orchestrator's Research Inventory pre-screening, not by frontmatter. The orchestrator applies the Domain Allowlist rule in `policies.md` Web Content Trust Policy to all URLs before any agent fetches them. YAML frontmatter can restrict which tools are available but cannot restrict tool parameters like target URLs.
 - The frontmatter must be the very first content in the prompt — before any tags or text
 
+### MANDATORY: Filter Out-of-Scope Work Using the Agent's Role-Boundary Section
+
+**Before constructing the `<task>` block for any agent, load that agent's role-boundary section and use it to filter out-of-scope instructions from the prompt.**
+
+**Why this exists:** The orchestrator already knows WHICH agent to invoke (workflows.md and per-task checklists prescribe the sequence). But when constructing the `<task>` block, the orchestrator can accidentally include work that belongs to a different agent — e.g., asking Senior Programmer to verify their own code (Test Engineer writes tests; orchestrator runs them; Code Reviewer reviews substance), or asking Code Reviewer to review CI/CD pipeline configuration (DevOps Engineer Mode A owns this). Mis-prompting like this defeats the role separation the workflow exists to enforce.
+
+**Each agent file includes a `## What You Do NOT Do` section** (Quality Gate uses the variant `## What This Agent Does NOT Do` — its elaborate format is grandfathered). The section lists what the agent does NOT do with route-to-instead pointers in parens, e.g., `- Write tests (Test Engineer)`.
+
+**Procedure (perform BEFORE writing the `<task>` block):**
+
+1. Find the boundary section's line number in the target agent's file:
+   ```
+   Grep -n "^## What You Do NOT Do$|^## What This Agent Does NOT Do$" PLACEHOLDER_PATH\.agents\<agent>.md
+   ```
+2. Read just that section using `Read` with `offset` = the matched line and `limit` = 30 (typical sections are 10-20 lines; 30 is a safe bound). The section ends at the next `^## ` heading — sub-headings inside the section use `###` and deeper, never `##`. **Ignore any content past the next `^## ` heading**: the over-read pulls extra lines for safety, but those lines belong to the next section and must not influence your filtering decisions for the current agent.
+3. Use the loaded section to filter your task prompt: strip any instruction that the boundary section assigns to a different agent. The route-to-instead pointer in each bullet tells you who the work belongs to — route the stripped work as a separate downstream task per the workflow rather than bundling it into the wrong agent's prompt.
+
+   **Don't silently drop stripped items.** The agent reads the per-task checklist and other on-disk context independently — if you remove an out-of-scope acceptance criterion from your prompt without comment, the agent may re-derive it from the checklist and try to do the work anyway. Instead, name each stripped item in an explicit `## Out of scope (do NOT do)` block inside the `<task>` block, with the destination agent in parens — e.g., `Verify integration tests pass (orchestrator runs them)`, `Author migration file 0050 (Database Specialist)`. This gives the agent a clear signal that the orchestrator already routed the work elsewhere.
+
+**Why grep just the section instead of reading the whole agent file:** Reading every agent's full file (~200-500 lines × 18+ agents) would bloat the orchestrator's context budget on every delegation. Grep + Read with offset/limit loads only the ~10-20 lines of the boundary section per delegation — cheap and targeted. The agent itself reads its own full file when invoked, so the agent always sees its own boundaries (defense in depth).
+
+**Coverage gap (as of 2026-05-09):** Four agent files do not yet have the boundary section, and the grep will return no results:
+- `devops-engineer.md` — has `### What Mode B Does NOT Do` as a sub-section under Mode B only; a top-level boundary covering Mode A and shared scope is pending
+- `supply-chain-security.md` — has `## Scope` (positive scope only)
+- `component-sourcing.md` — has `## Responsibilities` (positive scope only)
+- `project-manager.md` — has `## Responsibilities` + `## Role` (positive scope only)
+
+For these four agents, **proceed with the task prompt without filtering** but flag the missing section to the user as a known workflow gap so it can be addressed. Once the section is added, the directive applies normally.
+
 ### Important: Passing Context to Agents
 When launching agents, **pass file paths and instructions — not file contents.** Agents can read files in their own context. This keeps the orchestrator's context small.
 
@@ -243,6 +272,8 @@ Agent files in `.agents/*.md` should contain only operational instructions: pers
 **Why:** Every token in an agent's definition costs context budget on every invocation. Rationale is valuable but it belongs upstream of the agent. The orchestrator reads orchestrator-facing files to decide *when and how* to invoke an agent; the agent itself only needs to know *what to execute*.
 
 **How to apply:** When drafting agent-file edits, ask "does the agent need this to execute, or does the orchestrator need this to decide?" If the latter, move it to `agent-orchestration.md` or the appropriate workflow file.
+
+**Required section — `## What You Do NOT Do`:** Every agent file MUST include a `## What You Do NOT Do` section (Quality Gate's variant `## What This Agent Does NOT Do` is also accepted). The section lists what the agent does NOT do, with route-to-instead pointers in parens — e.g., `- Write tests (Test Engineer)`. The orchestrator greps this section before constructing each `<task>` block to filter out-of-scope work (see "MANDATORY: Filter Out-of-Scope Work Using the Agent's Role-Boundary Section" above). Use only `###` and deeper sub-headings inside the section so the next `^## ` heading reliably terminates it for the orchestrator's grep. New agent files added to `.agents/` must include this section before they are used in a workflow.
 
 **Exception — governing-standards/compliance traceability stays in agent files.** Entries declaring which NIST/OWASP/CISA controls an agent implements (e.g., "**NIST SSDF PW.7**: This agent fulfills the code review requirement…") serve audit traceability and document the agent's compliance purpose. Do NOT trim these as meta-content.
 

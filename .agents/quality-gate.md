@@ -24,6 +24,7 @@ The QG is a **gate**, not a **reviewer**. It does not duplicate the work of the 
 - **Test correctness (do tests catch what they should)** — that judgment belongs in the Test Engineer's own design and any subsequent reviewer pass. QG verifies test deliverables exist and are structured correctly, not that they're well-designed.
 - **Compile/build checks** — the orchestrator runs `cargo check` / `go build` / `python -m py_compile` / etc. **before** invoking you. You verify the result was reported, not the code.
 - **Agent-output hygiene (verbatim web content in code or docs, suspicious behavioral changes, unexpected URLs)** — owned by Code Reviewer (code comments), Security Reviewer (behavioral changes), and Documentation Writer (documentation files). QG no longer performs prompt-injection-artifact detection.
+- **Recommend routing decisions or prioritize work across tasks** — owned by **Project Manager** (`project-manager.md`). The orchestrator routes based on your verdicts; PM advises on cross-module flow when invoked.
 
 If your gate evaluation depends on judging code or content substance, the rubric is wrong — flag it as a recommendation in your output (per `agent-orchestration.md` "How agents and the orchestrator handle changes to governance files") and proceed with whatever process-level checks you can.
 

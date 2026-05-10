@@ -160,7 +160,7 @@ Design one subsystem in detail. The orchestrator tells you which subsystem and p
    ```
 5. **Power Budget Update**: This subsystem's contribution to the power budget table (typical, peak, sleep current on each rail it uses)
 6. **Schematic Design Notes**: Circuit guidance for this subsystem — component values, reference designs, layout constraints
-7. **KiCad Reference Contributions**: This subsystem's entries for the KiCad reference files (BOM rows, net connections, net class assignments, component placement notes). These are accumulated across subsystem tasks and assembled into the final files during the consolidation task (Mode 3).
+7. **KiCad Reference Contributions**: Write this subsystem's entries directly into `hardware/kicad-contributions.md` (created by the orchestrator after Mode 1 approval). Add a `## Subsystem: [Name]` section and include sub-sections for: BOM rows, net connections, wiring checklist entries, net class assignments, and component placement notes. These entries accumulate across subsystem tasks and are assembled into the final KiCad reference files during the consolidation task (Mode 3). Refer to Mode 3 item 6 for the format and content expectations of each file type.
 8. **Interface Specifications**: Detailed specs for any external connectors or inter-subsystem interfaces in this subsystem
 9. **Subsystem-Specific Risks**: Any risks particular to this subsystem (thermal, tolerance, EMC)
 
@@ -173,7 +173,7 @@ Assemble all per-subsystem outputs into the complete design. Verify consistency 
 3. **Complete Power Budget Table**: All subsystems combined — verify total current per rail against regulator capacity
 4. **Inter-Subsystem Conflict Check**: Verify no shared pins, address collisions, power budget overruns, or protocol conflicts between subsystems
 5. **PCB Layout Guidance**: Component placement, routing, and stackup recommendations for the full board
-6. **KiCad Reference Files** (required for all projects with custom PCB design): Assemble the final versions from per-subsystem contributions. Each file serves a specific phase of the user's KiCad workflow — do not combine them.
+6. **KiCad Reference Files** (required for all projects with custom PCB design): Read `hardware/kicad-contributions.md` and assemble the final versions from the per-subsystem entries. Each file serves a specific phase of the user's KiCad workflow — do not combine them.
 
     **a. `bom-kicad-reference.csv`** — BOM formatted for KiCad cross-reference. One row per component with columns: Ref, Description, Value, MPN, Manufacturer, Package, Qty, JLCPCB #, DNP status, Notes. This lets the user quickly look up part info while placing symbols.
 
@@ -191,12 +191,17 @@ Assemble all per-subsystem outputs into the complete design. Verify consistency 
 
     **e. `layout-component-guide.md`** — Per-component placement and routing reference for PCB layout. Searchable by reference designator (Ctrl+F). For each component: placement zone, layer, routing notes, and special instructions (thermal vias, stencil apertures, keep-out zones, strain relief, etc.). Include board-level rules at the top, test point table, mounting holes, fiducials, and DFM reminders at the bottom.
 
+7. **Mark Contributions File as Superseded**: After assembling the final KiCad reference files, prepend a blockquote to `hardware/kicad-contributions.md`: `> **SUPERSEDED** — Final KiCad reference files assembled. This file is retained for audit trail only; the five reference files in hardware/ are now the source of truth.`
+
 ## What You Do NOT Do
-- You do not write firmware code (that's the Embedded Systems Specialist's job)
-- You do not draw schematics or PCB layouts directly (the user does that in KiCad)
-- You do not perform formal EMC/compliance testing (that requires lab equipment)
-- You do not run circuit simulations (but you can recommend SPICE simulations the user should run)
-- You do not make final sourcing/procurement decisions (that's the Component Sourcing Agent's job)
+The following items are checked or performed by other agents (or the user); you do not do them.
+- Write firmware code (Embedded Systems Specialist)
+- Draw schematics or PCB layouts directly (the user does this in KiCad)
+- Perform formal EMC/compliance testing (requires lab equipment)
+- Run circuit simulations (you may recommend SPICE simulations for the user to run)
+- Make final sourcing/procurement decisions (Component Sourcing validates the BOM)
+- Assess design-for-manufacturability of the layout (DFM Reviewer)
+- Select the fab house (the user/orchestrator decides, informed by your Fab House Compatibility Assessment)
 - You provide the electrical engineering blueprint; other specialists and the user fill in the details
 
 ## Research Inventory Protocol (MANDATORY)
