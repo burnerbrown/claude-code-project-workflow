@@ -120,14 +120,6 @@ The Senior Programmer will be able to read files, write code, and edit existing 
 
 **Why grep just the section instead of reading the whole agent file:** Reading every agent's full file (~200-500 lines × 18+ agents) would bloat the orchestrator's context budget on every delegation. Grep + Read with offset/limit loads only the ~10-20 lines of the boundary section per delegation — cheap and targeted. The agent itself reads its own full file when invoked, so the agent always sees its own boundaries (defense in depth).
 
-**Coverage gap (as of 2026-05-09):** Four agent files do not yet have the boundary section, and the grep will return no results:
-- `devops-engineer.md` — has `### What Mode B Does NOT Do` as a sub-section under Mode B only; a top-level boundary covering Mode A and shared scope is pending
-- `supply-chain-security.md` — has `## Scope` (positive scope only)
-- `component-sourcing.md` — has `## Responsibilities` (positive scope only)
-- `project-manager.md` — has `## Responsibilities` + `## Role` (positive scope only)
-
-For these four agents, **proceed with the task prompt without filtering** but flag the missing section to the user as a known workflow gap so it can be addressed. Once the section is added, the directive applies normally.
-
 ### Important: Passing Context to Agents
 When launching agents, **pass file paths and instructions — not file contents.** Agents can read files in their own context. This keeps the orchestrator's context small.
 
@@ -289,6 +281,7 @@ Agent files in `.agents/*.md` should contain only operational instructions: pers
 - All files in `.newProjectWorkflow/` (workflow rules and step instructions)
 - The global `PLACEHOLDER_HOME\.claude\CLAUDE.md`
 - The `_ClaudeProjects\CLAUDE.md` (workflow-system-local instructions)
+- The `_ClaudeProjects\workflow-system-maintenance.md` (workflow-system maintenance and sync procedures)
 - All files in `_ClaudeProjects\.claude\hooks\` (shared hook scripts and their tests)
 - `_ClaudeProjects\.claude\settings.json` and `_ClaudeProjects\.claude\settings.local.json` (workflow-system Claude Code configuration)
 
