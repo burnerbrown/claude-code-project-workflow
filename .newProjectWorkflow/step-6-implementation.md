@@ -318,10 +318,10 @@ Apply nits — small, clearly-correct improvements like variable renames or comm
 
 **Must escalate to the user** — if ANY of these apply, stop and ask before acting:
 
-1. The change alters something the user will see directly — UI, runtime behavior, install steps, or public APIs.
+1. **The change is user-visible** — UI, runtime behavior, or public APIs. Nits and other internal-only changes (comment wording, private-symbol renames, behavior-preserving refactors of internal code, added tests, internal/contributor documentation) are NOT in this category — apply them per the "nits" rule above. When in doubt whether a change is behavioral, trigger #5 applies.
 2. The change deviates from the Step 3 specification or the Step 4 architecture.
 3. The change adds or removes scope — new feature, dropped feature, or new dependency.
-4. The change touches an existing hard guardrail — SCS verdict, Security Reviewer finding, QG verdict, governance file, or any rule elsewhere in this workflow that says "the user decides" (agent conflicts in `policies.md`, step skip/revisit in `agent-orchestration.md`, SCS verification mismatches, the Pause Rule).
+4. The change touches an existing hard guardrail — SCS verdict, Security Reviewer finding, QG verdict (not the verdict's advisory content — see Orchestration Loop step 6), governance file, or any rule elsewhere in this workflow that says "the user decides" (agent conflicts in `policies.md`, step skip/revisit in `agent-orchestration.md`, SCS verification mismatches, the Pause Rule).
 5. The orchestrator is genuinely uncertain after weighing security, completeness, and engineering correctness, and a wrong choice would be hard to reverse.
 
 **Scope of "decide and proceed."** This rule covers QG advisory-content items (see Orchestration Loop step 6) and the orchestrator's own routing/workaround/nit-level choices. SENT BACK and APPROVED WITH CONDITIONS verdicts follow existing routing rules.
@@ -346,6 +346,8 @@ Autonomous decisions are logged to `decisions/current-task.md` (gitignored, crea
   `- [HH:MM] [context] decision and brief reason` (24-hour clock)
   Example: `- [14:32] [QG advisory] Renamed parser.rs → parsers/parser.rs to match Step 4 layout.`
 - **Routine routing is NOT logged** — only the orchestrator's own judgment calls belong in the log.
+  - **Do NOT log:** agent invocations that follow the checklist's pre-scripted sequence (including routine send-backs when bugs, nits, or reviewer findings need rework); QG verdicts themselves (APPROVED / SENT BACK / APPROVED WITH CONDITIONS); test runs that pass first try; compile/syntax check results; Research-Inventory auto-continues for empty manifests; commits, pushes, checklist box updates, file creation/edit reports from agents.
+  - **DO log** the orchestrator's *judgment call*, not the routine action it produced — e.g., bundling four reviewer findings into one send-back, retrying a flaky test, deciding to act on an advisory now vs. defer, picking between two equivalent next steps, or routing rework when QG's send-back didn't specify which agent.
 - **The log is per-task only.** It is overwritten at the start of the next task; historical decisions are not retained on disk.
 - **On mid-task resume**, treat prior log entries as historical context — they describe decisions that informed already-committed work. If a prior decision looks wrong on review, escalate to the user; do not attempt to revert silently.
 - **If the user reads a logged decision and asks to revert it after the fact**, treat the request as a new task or send-back per normal workflow — route the change through the responsible agent and follow normal commit rules; do not edit committed work directly.
