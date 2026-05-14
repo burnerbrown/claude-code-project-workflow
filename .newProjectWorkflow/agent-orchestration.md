@@ -279,7 +279,7 @@ Agent files in `.agents/*.md` should contain only operational instructions: pers
 
 - All files in `.agents/` (agent definitions)
 - All files in `.newProjectWorkflow/` (workflow rules and step instructions)
-- The global `PLACEHOLDER_HOME\.claude\CLAUDE.md`
+- The global `~/.claude/CLAUDE.md`
 - The `_ClaudeProjects\CLAUDE.md` (workflow-system-local instructions)
 - The `_ClaudeProjects\workflow-system-maintenance.md` (workflow-system maintenance and sync procedures)
 - All files in `_ClaudeProjects\.claude\hooks\` (shared hook scripts and their tests)
@@ -289,15 +289,15 @@ Agent files in `.agents/*.md` should contain only operational instructions: pers
 
 - All files Claude produces during normal step execution: `project-handoffs/handoff-step-{N}.md` (Steps 1-6), per-step task files (Step 5), `IMPLEMENTATION-CHECKLIST.md` and `checklists/task-{id}.md` (Step 5.5), `handoff-step-5.5-task-{id}-done.md` completion markers, `handoff-step-6-final.md` (Step 6).
 - Project source code, tests, configuration, and documentation produced during Step 6 — handled by worker agents per "Agent Roles: Who Does What" in `step-6-implementation.md`.
-- Per-project scaffolding the workflow generates: project-local `CLAUDE.md`, project-level `.claude/settings.json`, `.gitignore`, repo folder structure, SBOM (`sbom-{language}.txt`), `scs-report.md`, `qg-evaluations/` reports.
+- Per-project scaffolding the workflow generates: project-local `CLAUDE.md`, project-local `PASSDOWN.md` (created in Step 1; written to ONLY during Step 6 task-end triage — never mid-task; observations go to `decisions/current-task.md` first, then triage moves them to PASSDOWN.md. See `step-1-concept.md` for template and `step-6-implementation.md` "Task-End Triage" for write rules), project-level `.claude/settings.json`, `.gitignore`, repo folder structure, SBOM (`sbom-{language}.txt`), `scs-report.md`, `qg-evaluations/` reports.
 - Hardware artifacts (when applicable): `hardware/kicad-contributions.md` and the consolidated KiCad reference files (`bom-kicad-reference.csv`, `netlist-connection-reference.md`, `schematic-wiring-checklist.md`, `layout-net-classes.csv`, `layout-component-guide.md`).
 - `PROJECT_STATUS.md` — created by the Project Manager agent on its first invocation (multi-module projects only; absent if the PM is never invoked).
 - Runtime/diagnostic artifacts the workflow tells Claude to read and clean up: `research-inventories/task-*.md` (gitignored), `decisions/current-task.md` (gitignored, overwritten per-task by the orchestrator during Step 6 — see `step-6-implementation.md` "Orchestrator Decision Authority"), `.claude/scs-validator.log` (read after each SCS scan and deleted), `.scs-sandbox/staging/*` (`download-config.json`, `hash.txt`, downloaded artifacts during SCS scans).
-- Memory files (`MEMORY.md` and the individual memory files it points to) — managed under Claude's memory rules in the global `CLAUDE.md`.
+- Memory files (`MEMORY.md` and individual memory files) — read-only during the workflow; writes only on explicit user request per `~/.claude/CLAUDE.md` "MANDATORY: Memory Policy."
 
 ### How agents and the orchestrator handle changes to governance files
 
-If an agent notices an issue with its own definition, with another agent's definition, or with a workflow rule, it states the observation as a **plaintext recommendation** in its report — not as a diff, a proposed file replacement, or a code block intended to be applied. The orchestrator passes the recommendation to the user. The user decides whether to act on it and is the one who applies the edit.
+If an agent notices an issue with its own definition, with another agent's definition, or with a workflow rule, it logs the observation as a **plaintext recommendation** in its report — not as a diff, a proposed file replacement, or a code block intended to be applied. The recommendation format is three short fields: (a) the rule or file affected, (b) the observed gap, (c) a one-sentence suggested change. See `step-6-implementation.md` "Task-End Triage" for the canonical format definition. The orchestrator surfaces the recommendation to the user during task-end triage in a dedicated `## Workflow Recommendations` block. The user decides whether to act on it and is the one who applies the edit offline.
 
 ### When the user explicitly asks Claude to edit a governance file
 
@@ -332,7 +332,7 @@ If the user directly asks the top-level Claude assistant in conversation to upda
 | Supply Chain Security | `supply-chain-security.md` | **Step 4**: Full 5-phase scan of all external dependencies. In Step 6, only used if a new dependency is discovered mid-implementation (emergency workflow). **Always check `.trusted-artifacts/_registry.md` before invoking — if the dependency is cached and hash-verified, skip the scan entirely.** Must run synchronously — do NOT use `run_in_background: true`. **First-time use:** the sandbox infrastructure must be installed once per machine — see `.newProjectWorkflow/scs-sandbox-setup.md`. If a sandbox launch fails, direct the user to that doc. |
 | Compliance Reviewer | `compliance-reviewer.md` | Final-gate NIST/CISA/OWASP compliance assessment |
 | Quality Gate | `quality-gate.md` | **Evaluates every agent's output against acceptance criteria** — produces APPROVED/SENT BACK/APPROVED WITH CONDITIONS verdicts with specific feedback and code snippets. |
-| Project Manager | `project-manager.md` | **Optional project coordinator** — only invoked for multi-module projects with cross-module dependencies, complex send-back routing, agent conflicts, or user-requested progress reports. Tracks cross-module blockers, deferred items, and status via `PROJECT_STATUS.md`. See `workflows.md` "When to Invoke the Project Manager Agent" for criteria. Most single-module projects skip the PM entirely. |
+| Project Manager | `project-manager.md` | **Optional project coordinator** — only invoked for multi-module projects with cross-module dependencies, complex send-back routing, agent conflicts, or user-requested progress reports. Tracks cross-module blockers and status via `PROJECT_STATUS.md`. (Deferred work becomes new tasks in `IMPLEMENTATION-CHECKLIST.md` per Step 6 "Adding New Tasks Discovered During Step 6" — not tracked in `PROJECT_STATUS.md`.) See `workflows.md` "When to Invoke the Project Manager Agent" for criteria. Most single-module projects skip the PM entirely. |
 
 All agent files are located in: `PLACEHOLDER_PATH\.agents\`
 

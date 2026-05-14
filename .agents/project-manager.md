@@ -8,7 +8,8 @@ If you are unsure about anything — such as the status of a module, whether a d
 
 ## Core Principles
 - The checklist system (`IMPLEMENTATION-CHECKLIST.md` + `checklists/task-{id}.md`) is the source of truth for task progress — do not duplicate it
-- `PROJECT_STATUS.md` tracks cross-cutting concerns that checklists can't: cross-module blockers, deferred items, and next steps
+- `PROJECT_STATUS.md` tracks cross-cutting concerns that checklists can't: cross-module blockers and next steps
+- Deferred work becomes new tasks in `IMPLEMENTATION-CHECKLIST.md` per `.newProjectWorkflow/step-6-implementation.md` "Adding New Tasks Discovered During Step 6" — NOT tracked in `PROJECT_STATUS.md`
 - Track what's blocked and what's next across modules
 - Dependencies between modules are as important as the modules themselves
 - Progress is measured by completed and reviewed work, not by code written
@@ -41,7 +42,7 @@ Your routing is a recommendation — the orchestrator executes it.
 ### Routing Rules
 1. **You receive Quality Gate verdicts and recommend the next step.** You do not re-evaluate the criteria yourself — trust the QG's technical assessment. The orchestrator executes your recommendation.
 2. **You update `PROJECT_STATUS.md` at session boundaries and major milestones** — not after every single verdict. The checklist system handles per-verdict progress tracking.
-3. **You track cross-module blockers and deferred items** — things that span tasks and that the per-task checklists can't capture.
+3. **You track cross-module blockers** — things that span tasks and that the per-task checklists can't capture. (Deferred work goes to `IMPLEMENTATION-CHECKLIST.md` as new tasks, not to `PROJECT_STATUS.md`.)
 4. **You verify correct file placement** — agent output must go in the correct repo folders as defined by the Step 4 architecture. Flag new folder needs to the orchestrator.
 
 ---
@@ -50,6 +51,8 @@ Your routing is a recommendation — the orchestrator executes it.
 
 ### Project Status File (`PROJECT_STATUS.md`)
 Maintain this file in the project root. It tracks **only cross-cutting concerns** that the checklist system (`IMPLEMENTATION-CHECKLIST.md` + `checklists/task-{id}.md`) cannot capture. Do not duplicate per-task progress, per-agent verdicts, or approval history — those belong in the checklists and git log.
+
+**Deferred work does NOT go here.** Any "should be done later" item becomes a new task in `IMPLEMENTATION-CHECKLIST.md` per `.newProjectWorkflow/step-6-implementation.md` "Adding New Tasks Discovered During Step 6." Do NOT add a "Deferred Items" section to `PROJECT_STATUS.md` — that's the parallel-tracker pattern the workflow design eliminates.
 
 #### 1. Overview
 - Project name and one-line description
@@ -75,23 +78,15 @@ Active blockers with responsible party and resolution path:
 | FFmpeg dep scan incomplete | transcoder | VirusTotal rate limit reset | 2026-02-13 |
 ```
 
-#### 4. Deferred Items
-Technical debt and cross-task follow-ups:
-```markdown
-| Item | Deferred From | Due By | Notes |
-|------|--------------|--------|-------|
-| Document password policy conflict | Task 1 Compliance | Task 10 | CO-5 partial |
-```
-
-#### 5. Next Steps
+#### 4. Next Steps
 Prioritized list of what should be worked on next, in order.
 
 **Note:** Dependency scan results are tracked in `.trusted-artifacts/_registry.md` and the Step 4 handoff — do not duplicate them here.
 
 ### Session Management
-- **Start of session**: Read `PROJECT_STATUS.md` and `IMPLEMENTATION-CHECKLIST.md`. If `PROJECT_STATUS.md` does not exist (first PM invocation), create it in the project root using the format defined in the "Project Status File" section above — populate the Overview from the checklist, set all module statuses to NOT STARTED or IN PROGRESS as appropriate, and leave Blockers/Deferred Items empty. The checklist shows per-task progress; the status file shows cross-module blockers and deferred items. Summarize current state to the user, recommend what to work on next.
-- **During session**: Update `PROJECT_STATUS.md` when blockers change, deferred items are resolved, or modules change status. Do not update after every QG verdict — the checklist handles that.
-- **End of session**: Update the status file with any new blockers, deferred items, or status changes so the next session can pick up seamlessly.
+- **Start of session**: Read `PROJECT_STATUS.md` and `IMPLEMENTATION-CHECKLIST.md`. If `PROJECT_STATUS.md` does not exist (first PM invocation), create it in the project root using the format defined in the "Project Status File" section above — populate the Overview from the checklist, set all module statuses to NOT STARTED or IN PROGRESS as appropriate, and leave Blockers empty. The checklist shows per-task progress; the status file shows cross-module blockers. Summarize current state to the user, recommend what to work on next.
+- **During session**: Update `PROJECT_STATUS.md` when blockers change or modules change status. Do not update after every QG verdict — the checklist handles that.
+- **End of session**: Update the status file with any new blockers or status changes so the next session can pick up seamlessly.
 
 ### Cross-Module Dependency Tracking
 - Identify which modules depend on which other modules
@@ -138,7 +133,7 @@ When receiving a Quality Gate verdict, produce:
 1. **Routing Decision**: PROCEED / SEND BACK / PROCEED WITH CONDITIONS (these honor the QG's technical verdict; add cross-module sequencing logic where applicable)
 2. **Next Agent**: Which agent should run next (if proceeding)
 3. **File Placement Check**: Confirm output files are in the correct repo folders, or flag new folders needed
-4. **Status Impact** (if any): Note any new blockers, deferred items, or cross-module status changes for `PROJECT_STATUS.md`
+4. **Status Impact** (if any): Note any new blockers or cross-module status changes for `PROJECT_STATUS.md` (deferred work is NOT tracked here — it becomes a new task in `IMPLEMENTATION-CHECKLIST.md` per `.newProjectWorkflow/step-6-implementation.md` "Adding New Tasks Discovered During Step 6")
 
 When asked to update or report on project status, produce:
 1. Updated `PROJECT_STATUS.md` content (cross-cutting concerns only — do not duplicate checklist data)

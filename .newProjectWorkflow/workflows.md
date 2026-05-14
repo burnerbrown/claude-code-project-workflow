@@ -4,6 +4,8 @@ This file defines all agent workflow sequences, the Quality Gate pattern, and pa
 
 **Parent file:** `agent-orchestration.md`
 
+**Out of scope for this file:** Task-end triage, `decisions/current-task.md` logging, and `PASSDOWN.md` updates are governed by `step-6-implementation.md` "Task-End Triage" (per-task lifecycle) and `step-1-concept.md` (file creation). The workflow sequences below define agent ordering and QG flow — they do not describe how the orchestrator logs decisions during execution or routes triage entries afterward.
+
 **When to read this file:**
 - During Step 5 (planning) — to assign the correct workflow to each task
 - During Step 5.5 (task detailing) — to define the agent sequence for each task

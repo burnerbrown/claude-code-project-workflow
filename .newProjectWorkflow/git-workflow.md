@@ -26,11 +26,16 @@ The orchestrator **creates a local commit when the full task is complete** — a
 - If the session crashes mid-task, the on-disk checklist and source files show the current state. On resume, the orchestrator reads the checklist to find the first unchecked subtask and continues from there
 
 **Commit point (triggered when ALL subtasks in the task are QG-approved):**
+- **Precondition:** Task-End Triage MUST be complete (see `step-6-implementation.md` "Task-End Triage"). Do NOT commit while triage items remain unresolved — surface them to the user first.
 - Commit all QG-approved work products (code, tests, configuration, documentation) produced during the task
 - Commit the fully-checked per-task checklist file
+- Commit `PASSDOWN.md` if triage added or removed entries
 - Commit the updated project-local `CLAUDE.md` (reflects current state for crash recovery)
 - Mark the task as checked (`- [x]`) in the index (`IMPLEMENTATION-CHECKLIST.md`) and commit that too
 - One or two commits per task is typical — keep it clean
+- `decisions/current-task.md` is gitignored and is NOT committed — it gets wiped at the start of the next task
+
+**If you discover triage was skipped after committing:** Do NOT amend the prior commit. Run triage now and commit any resulting changes (new PASSDOWN entries, new tasks, CLAUDE.md updates, etc.) as a follow-up commit titled `chore(triage): post-commit triage for Task N — process slip-up`. Surface the slip-up to the user. Tighten the next task by announcing triage explicitly per the visibility rule in `step-6-implementation.md` "Task-End Triage."
 
 **Commit rules:**
 - Each commit uses conventional commit format: `type(scope): description`

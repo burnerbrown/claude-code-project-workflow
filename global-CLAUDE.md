@@ -7,9 +7,26 @@
 - This applies to: code, architecture decisions, hardware specifications, library APIs, configuration values, security claims, compliance requirements, questions the user asked, and anything else.
 - Getting it wrong silently is always worse than asking a question.
 
+## MANDATORY: Memory Policy (Overrides Harness Defaults)
+
+The Claude Code harness has built-in auto-memory triggers that proactively save observations, corrections, and inferred preferences to `~/.claude/projects/<encoded-cwd>/memory/`. **This rule overrides those triggers.**
+
+**Hard rule:** Do NOT proactively save to memory. Memory writes happen ONLY when the user explicitly asks ("remember this," "save this," "add to memory," or equivalent direct request). Observations during work, user corrections, inferred preferences, completed-project summaries, and project-state notes do NOT trigger a memory write.
+
+**What counts as "explicit":** A direct save request — "remember X," "save this," "add to memory," "store this." What does NOT count as explicit: the user agreeing with an observation ("yes, that's right"), confirming a working approach ("perfect, keep doing that"), or any non-imperative phrasing. Agreement is feedback to act on now, not authorization to save a memory. The user must use save-request language.
+
+**Why:** Memory drifts from version-controlled files and creates a parallel rulebook that conflicts with them. Information belongs in the correct file, not in memory. Workflow-system projects have a routing table in `_ClaudeProjects\CLAUDE.md` naming the correct file for each information type.
+
+**When the user explicitly asks to save a memory — ALWAYS pause first:**
+- Even when memory seems clearly right, ALWAYS confirm: "Should this go in memory, or in [the appropriate alternative]?" The user often asks out of habit when an alternative is better. Do NOT skip the confirmation step.
+- If the user confirms memory after the pause, follow the harness auto-memory file format. This override applies only to the *proactive-save triggers* — the harness's *structural rules* (the per-memory frontmatter with `name` / `description` / `metadata.type`, kebab-case filenames, the user/feedback/project/reference type taxonomy, and the `MEMORY.md` index pattern) still apply when a memory does get written.
+
+**Disambiguation for "remember X" requests with deferred-work language.** If the request implies deferred work ("remember to do X next session," "don't forget to Y," "next time we should Z"), the keyword "remember" alone does NOT determine the destination. Pause and ask explicitly: *"Do you want me to (a) save this as a memory item, (b) create a new task in `IMPLEMENTATION-CHECKLIST.md` so it actually gets done, or (c) just chat about this?"* Deferred work routed to memory would violate the no-parallel-trackers hard rule in `_ClaudeProjects\CLAUDE.md` — memory is for durable cross-project facts about *you*, not a to-do list.
+
+**Editing memory files:** Do NOT silently edit or delete memory files, regardless of context (inside a workflow-system project, ad-hoc session, or any other state). If a memory appears stale or conflicts with current state, surface it to the user — they decide what stays. For workflow-system projects, surfacing timing follows the parent `_ClaudeProjects\CLAUDE.md` "Pruning memory files" rule (during task-end triage when a Step 6 task is in flight; as soon as noticed otherwise). Outside workflow-system projects, surface as soon as noticed.
+
 ## Communication Style
 - Always provide detailed, step-by-step explanations
-- Use two `===` separator lines after user input before your response for readability
 - Always explain what you are about to do before doing it
 
 ## Constructive Pushback
@@ -46,6 +63,7 @@
   - `PLACEHOLDER_PATH\.newProjectWorkflow\` — workflow rules and per-step instructions
   - `PLACEHOLDER_PATH\.agents\` — agent definition files
   - `PLACEHOLDER_PATH\.trusted-artifacts\` — vetted dependency cache
+- **Append-only writes to `PLACEHOLDER_PATH\workflow-recommendations.md`** are allowed from any sub-folder of `_ClaudeProjects\` during Step 6 task-end triage, without asking. This is the persistent inbox for workflow-system recommendations surfaced from project sessions. Claude may APPEND new entries during triage; Claude may NOT edit or remove existing entries — the user maintains the file directly.
 
 ## Tools & Environment
 

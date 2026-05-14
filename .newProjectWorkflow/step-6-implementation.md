@@ -176,7 +176,7 @@ If the Software Architect amends the architecture's `## Observability` section, 
    - **Perf-target amendment** → re-review by Performance Optimizer's Performance Verification pass.
    The follow-up task is a re-review pass against the affected files; it becomes a re-implementation only when the amendment introduces a new requirement the committed code does not satisfy.
 3. **Amendment removes a previously-declared metric / SLO / resilience pattern.** Committed code that implements the now-removed declaration is over-declared but not wrong — the implementation (metric, retry handler, breaker, dedup table) is still valid behavior, just not architecturally required. Open a cleanup follow-up task only if the architect's amendment explicitly states the implementation should be removed; otherwise leave the code as-is and note the change in the architecture's revision history.
-4. **Cascade bound.** Architecture amendments triggered *by* a follow-up re-review pass (Mode B Architecture Gaps, CR Resilience Sparse Architecture Gaps, etc.) do NOT themselves trigger another sweep — gaps surfaced during a re-review pass are logged for the next Architect-driven amendment cycle (or an explicit user-initiated revisit), not auto-cascaded. This bounds the amendment loop at one cycle per architect action.
+4. **Cascade bound.** Architecture amendments triggered *by* a follow-up re-review pass (Mode B Architecture Gaps, CR Resilience Sparse Architecture Gaps, etc.) do NOT themselves trigger another amendment cycle — gaps surfaced during a re-review pass are logged for the next Architect-driven amendment cycle (or an explicit user-initiated revisit), not auto-cascaded. This bounds the amendment loop at one cycle per architect action.
 5. **Continue normal operation.** Do not block in-flight tasks unless the architecture amendment introduces a hard blocker (e.g., a removed metric the producer was depending on; a newly-declared idempotency-key requirement on an endpoint already in production traffic).
 
 ### The Orchestration Loop
@@ -199,6 +199,13 @@ Repeat the following cycle for each task/subtask until the checklist is complete
    - Check the task's **Depends On** field. If dependencies aren't complete, use `Grep` on the index to verify they're checked off. If not, STOP and flag the issue.
    - **Do NOT read** architecture docs, spec docs, agent definitions, Step 5.5 markers, or source files at this stage. These are for agents to read in their own context — not for the orchestrator. Only read additional files when YOU need them for a routing decision.
    - **Reset the decision log:** If this is a fresh task (no subtask boxes checked), wipe `decisions/current-task.md` and write a header: `# Decisions for Task {id}: {task name}` followed by `Started: {YYYY-MM-DD}`. On a mid-task resume (some subtasks already checked), do NOT wipe — the existing log may contain decisions from a prior session that informed the committed work. If the file or `decisions/` folder does not exist (e.g., project predates this convention), create them and add `decisions/` to `.gitignore`. See "Orchestrator Decision Authority (Escalate by Exception)" below for what gets logged.
+   - **When the user reports the prior session was interrupted mid-task** (power outage, `/clear`, OS reboot, etc.):
+     1. Read `decisions/current-task.md` in full — these are in-flight observations from the prior session.
+     2. Locate the previous session transcript at `~/.claude/projects/<encoded-cwd>/*.jsonl`. Pick the most recent file by mtime, excluding the current session's own transcript. Do NOT read the whole file — transcripts can be 1-2 MB / hundreds of messages. Use a parser (PowerShell `ConvertFrom-Json` or equivalent) to extract slices: the last 5-10 assistant text messages, the last 5-10 user messages, any announcement-style messages (step/task/edit-set starts), and any `TaskCreate` / `TaskUpdate` calls.
+     3. **Recovery decision:**
+        - **If the recovered context is clear** (you can identify what was last in flight, where it left off, and what each decision-log entry means): proceed. Summarize the recovery briefly to the user for situational awareness, then continue.
+        - **If anything is unclear** (gaps in recovered context, decision-log entries that don't map to recovered work, half-truncated entries, conflicting signals): summarize what you found, name the specific doubt, and wait for the user to confirm or correct before doing anything irreversible (commits, deletes, triage).
+     4. **Fallbacks:** If no prior transcript exists or `decisions/current-task.md` is missing/empty, report that fact and ask the user for context manually. Do not invent state.
 
 3. **Run the Research Inventory phase** (before implementation — see `workflows.md` "Research Inventory Phase"):
    - For each worker agent about to be invoked, pre-create a manifest file in `research-inventories/task-{id}-{agent-role}.md`
@@ -249,12 +256,14 @@ Repeat the following cycle for each task/subtask until the checklist is complete
    **On send-back (rework):** If a reviewer sends work back to an earlier agent and the fix changes previously-approved output, replace the affected subtask's checked box with `- [ ] **REWORK:** [reason from QG feedback]`. This distinguishes "never started" (`- [ ]`) from "was done but needs rework" (`- [ ] **REWORK:** ...`) using standard Markdown that renders correctly on GitHub and is unambiguous even if context is lost between sessions. After the fix is re-approved, change the rework item back to `- [x]` with the original description.
 
    **When the full task is complete (all subtasks checked):**
+   - **Task-End Triage MUST run first** — before any `git add`, before any commit. See "Task-End Triage" section below for procedure and routing table. If you've already staged anything before reading `decisions/current-task.md`, you are out of order; un-stage and run triage.
    - Commit all QG-approved work products (code, tests, configuration, documentation) to the local repository
    - Commit the fully-checked per-task checklist file
+   - Commit `PASSDOWN.md` if triage added or removed entries
    - Mark the task as checked (`- [x]`) in the index (`IMPLEMENTATION-CHECKLIST.md`) and commit
    - **Remind the user to push** — after each task workflow, suggest pushing to remote. The user decides when to push; do not push without being asked
    - **Update the project-local `CLAUDE.md`:** Update the "Current State" section to reflect what was just completed and what the next action is. This file is loaded automatically on session start, so a crash recovery session immediately knows the current state without reading checklists first.
-   - **Prune deferred-item trackers:** Remove or close-tag any entries in deferred-item trackers — the project's `CLAUDE.md` "Deferred Items" section, `TODO.md`, project boards, GitHub issues, etc. — that this task addressed. Keep entries for items not yet closed. This is tracker-agnostic: apply to whatever trackers the project actually uses. Without this step, trackers accumulate stale closed items and stop being trustworthy planning sources.
+   - **GitHub issues (if used):** If the project uses GitHub issues, close or update any issues this task addressed. (Deferred-item lists in `CLAUDE.md`, `TODO.md`, etc. are no longer maintained — deferred work becomes new tasks in `IMPLEMENTATION-CHECKLIST.md` per "Adding New Tasks Discovered During Step 6" above.)
 
 9. **Check for review checkpoints**:
    - If the plan specifies a review checkpoint after this task, pause and notify the user
@@ -339,16 +348,51 @@ Apply nits — small, clearly-correct improvements like variable renames or comm
 
 **Decision Log (visibility without interruption).**
 
-Autonomous decisions are logged to `decisions/current-task.md` (gitignored, created during Step 4 scaffolding). The user can open this file at any time during a task to watch decisions accumulate in real time and ask follow-up questions between agent invocations.
+Autonomous decisions are logged to `decisions/current-task.md` (gitignored, created at Step 1 scaffolding; created lazily by the orchestrator at task start if the project predates Step 1's `decisions/` creation rule — see Orchestration Loop step 2). The user can open this file at any time during a task to watch decisions accumulate in real time and ask follow-up questions between agent invocations.
 
 - **At the start of each task** (during step 2 of the Orchestration Loop), the orchestrator wipes the file and writes a header with the task ID, name, and start date. On a mid-task resume, the existing log is preserved.
 - **After each autonomous decision**, the orchestrator appends a one-line bullet:
   `- [HH:MM] [context] decision and brief reason` (24-hour clock)
   Example: `- [14:32] [QG advisory] Renamed parser.rs → parsers/parser.rs to match Step 4 layout.`
-- **Routine routing is NOT logged** — only the orchestrator's own judgment calls belong in the log.
-  - **Do NOT log:** agent invocations that follow the checklist's pre-scripted sequence (including routine send-backs when bugs, nits, or reviewer findings need rework); QG verdicts themselves (APPROVED / SENT BACK / APPROVED WITH CONDITIONS); test runs that pass first try; compile/syntax check results; Research-Inventory auto-continues for empty manifests; commits, pushes, checklist box updates, file creation/edit reports from agents.
-  - **DO log** the orchestrator's *judgment call*, not the routine action it produced — e.g., bundling four reviewer findings into one send-back, retrying a flaky test, deciding to act on an advisory now vs. defer, picking between two equivalent next steps, or routing rework when QG's send-back didn't specify which agent.
+- **Routine routing is NOT logged** — only the orchestrator's own judgment calls belong in the log. This rule is enforced strictly: routine workflow events that follow from the checklist or rubric do NOT belong here, even when the orchestrator "did" something.
+
+  **Do NOT log** (closed list of routine event categories — none of these are judgment calls):
+  - QG verdicts (any agent, any outcome) — already captured in the QG report file
+  - Test pass/fail results — already captured in test output
+  - Compile/syntax check results — already captured in their own output
+  - Routine rework routing ("CR found a bug, sending to SP") — pre-scripted by the workflow
+  - Decisions to allow another rework cycle — the rework loop is workflow-prescribed; if you're approaching an escalation trigger, escalate, don't log the deliberation
+  - Agent-internal approach choices ("TE chose Approach 1") — that is the agent's decision, not the orchestrator's
+  - Research-Inventory auto-continues for empty manifests
+  - Status summaries ("code/test/review phase COMPLETE")
+  - Commits, pushes, checklist box updates, file creation/edit reports from agents
+  - Pre-flight checks that pass (line-number drift checks, head pin, etc.)
+
+  **Anti-examples** — actual entries observed in production that violated this rule. Do not produce entries in any of these shapes:
+  - `[QG verdict — DevOps] APPROVED. All P1-P5 PASS...`
+  - `[pytest re-run — 8/8 PASS]`
+  - `[syntax checks PASS] bash -n clean for install.sh...`
+  - `[Research Inventory skip — SP]`
+  - `[code/test/review phase COMPLETE]`
+  - `[TE rework — APPROACH 1 chosen]`
+  - `[pytest result — 1 FAILED post-QG] ... routing fresh TE for regex tweak.` (the bare failure + routine routing is noise; the diagnosis "test bug not impl bug" IS a judgment call and earns ONE entry on its own)
+  - `[Canonical HEAD pinned: <sha>]` and `[Line-number drift check ... No drift.]` (pre-flight bookkeeping)
+
+  **DO log** the orchestrator's judgment calls — the specific cases where it chose between two reasonable options:
+  - Scope expansion accepted or rejected
+  - Advisory finding accepted, deferred, or escalated
+  - Reviewer-finding bundling (multiple nits → one send-back)
+  - Flaky retry decisions — distinct from real-failure rework; this is "looked transient, retried once, passed"
+  - Defer vs. act-now decisions on advisory items
+  - Routing rework when QG's send-back didn't specify the target agent
+  - New-task creation (mid-Step-6 task additions)
+  - Project-convention calls (which of two acceptable patterns to use)
+  - User-input pivots captured into the record
+  - Diagnoses that distinguish "test bug" from "implementation bug" (or similar root-cause judgments)
+
+  When unsure whether an event qualifies, ask: "Did I choose between two reasonable options, or did the checklist tell me what to do?" If the latter, do not log.
 - **The log is per-task only.** It is overwritten at the start of the next task; historical decisions are not retained on disk.
+- **Mid-task log immutability.** During a task, the orchestrator may APPEND to `decisions/current-task.md` but MUST NOT edit or delete prior entries. The user is watching live and prior entries are part of the audit trail. If you logged something that should not have been logged, leave it — surface the over-logging during task-end triage (it counts as a tightening signal).
 - **On mid-task resume**, treat prior log entries as historical context — they describe decisions that informed already-committed work. If a prior decision looks wrong on review, escalate to the user; do not attempt to revert silently.
 - **If the user reads a logged decision and asks to revert it after the fact**, treat the request as a new task or send-back per normal workflow — route the change through the responsible agent and follow normal commit rules; do not edit committed work directly.
 
@@ -361,6 +405,78 @@ Asking the user about every small choice produces friction without better outcom
 The No Guessing Policy still applies in full. "Decide and proceed" applies to **judgment calls between known options** — whether to act on a QG advisory note now or defer it, whether to accept a Code Reviewer's should-fix or waive it with a note, whether to retry a flaky test once before treating it as a real failure, whether to bundle multiple reviewer findings into one send-back or split them. It does NOT apply to **factual unknowns** — if the orchestrator doesn't know a library API, a spec detail, a project convention, or anything else factual, it must say so per the No Guessing Policy and ask the user, even if it could "pick something" to keep moving. Genuine factual uncertainty escalates per trigger #5.
 
 **This rule does NOT relax existing hard guardrails** — see "CRITICAL: The Orchestrator Does Not Write Code" above and "What to Avoid" below.
+
+### Task-End Triage
+
+When a task is complete (all subtasks checked, all reviewers approved), the orchestrator MUST process `decisions/current-task.md` BEFORE committing. This is the ONLY moment entries leave the scratch space and land in their persistent destinations. Skipping triage means PASSDOWN entries are lost, deferred work is forgotten, and the next task starts with stale context.
+
+**Announce triage explicitly.** Before routing anything, tell the user:
+
+> "Running task-end triage on N entries in `decisions/current-task.md`."
+
+Do this every task, even when N=0 or all entries are routine. Triage is a visible step, not a silent check. If routine entries were logged that shouldn't have been (per the Do-NOT-log rule above), also report the count as a tightening signal — e.g., "3 routine entries were logged that shouldn't have been; reviewing what to tighten."
+
+**Procedure:**
+
+1. State the announcement above.
+2. Read `decisions/current-task.md` top to bottom.
+3. For each entry, name the destination explicitly in your triage output (e.g., "Entry 1 → PASSDOWN Band-Aids; Entry 2 → new task Pre-7; Entry 3 → user escalation"). The destinations are listed in the routing table below — do not invent new destinations.
+4. After routing each entry, delete it from `decisions/current-task.md`. (The file is wiped at the next task's start regardless, but deleting as you go prevents double-routing and makes the file's post-triage state diagnostic — empty = clean exit.)
+5. Surface any "escalate to user" items before commit — the user decides; the orchestrator does NOT auto-handle these. Wait for the user's answer before continuing.
+6. Do NOT commit while triage items remain unresolved.
+7. **Surface workflow recommendations in a dedicated `## Workflow Recommendations` block** at the end of your triage output (separate from band-aids and lessons), AND append each recommendation to `_ClaudeProjects\workflow-recommendations.md` so it survives past the chat session. Each recommendation uses the format `- [YYYY-MM-DD] [project: <project name>] [task: <task-id>]` followed by indented `**Affected:**` / `**Gap:**` / `**Suggested change:**` sub-bullets (see the format block at the top of `workflow-recommendations.md`). Claude may APPEND only — do NOT edit or remove existing entries in that file (the user maintains it directly). The user acknowledges each recommendation in the chat-triage block before commit (typically with "noted" or "will address") — Claude does NOT edit workflow files.
+
+**Routing table:**
+
+| Entry type | Routes to |
+|------------|-----------|
+| Routine workflow events (QG verdicts, test results, compile checks, routine rework routing, agent-internal approach choices, status summaries) | **Delete.** Should not have been logged (see Do-NOT-log rule above). If 3+ such entries appear in one task, note the slip-up to the user as a tightening signal. |
+| Out-of-ordinary judgment calls that left no lingering effect (e.g., a one-off retry decision that worked) | **Delete.** The user watched it live; no future-session value. |
+| Band-aid applied (the fix is in production code right now, marked as temporary; real fix is something else) | → `PASSDOWN.md` "Temporary Modifications / Band-Aids" |
+| Approach tried and abandoned (code or configuration that is NOT in the repo because it didn't work; future-Claude shouldn't repeat the attempt) | → `PASSDOWN.md` "Things Tried That Didn't Work" |
+| Project-specific lesson or environment gotcha (no code involved; pure knowledge about the codebase, environment, or external system that future-Claude needs) | → `PASSDOWN.md` "Lessons Learned / Gotchas" |
+| Open question that wasn't answered this task and isn't currently blocking | → `PASSDOWN.md` "Open Questions" |
+| Thing that should be done later (any deferred work) | → **Create a new task** in `IMPLEMENTATION-CHECKLIST.md` per "Adding New Tasks Discovered During Step 6" above. Do NOT add to PASSDOWN.md as a deferred list. |
+| Question for the user that requires an answer before commit | → **Surface to user before commit.** Do not auto-decide. |
+| Apparent workflow-system issue (rule unclear, gap in coverage, contradiction between files) | → **Surface to user in the `## Workflow Recommendations` block** of the triage output AND **append the entry to `_ClaudeProjects\workflow-recommendations.md`** (persistent inbox — the user maintains it directly). Claude does NOT edit workflow files. The user applies the edit offline (per "Self-Modification Boundary" in `agent-orchestration.md`). |
+| Possible user-memory candidate (durable cross-project fact) | → **Surface to user during triage.** Do NOT auto-save memory (per `~/.claude/CLAUDE.md` "Memory Policy"). |
+| Memory file appears stale or conflicts with current project state | → **Surface to user during triage.** Claude does NOT silently edit memory files. User decides whether to delete, update, or keep. |
+| Entry that has plausible routings to two or more different destinations | → **Surface to user with both options.** Do NOT decide internally and document later — the user is the tiebreaker on ambiguous routing. |
+
+**The destinations above are a closed list.** If an entry doesn't fit any row, re-check the table — most "doesn't fit" cases are actually "should escalate to user." Do NOT invent a new destination or add a new section to PASSDOWN.md to absorb the entry.
+
+**Pruning PASSDOWN.md during triage:** While routing new entries, also scan existing PASSDOWN.md Active Items for entries this task made obsolete (a band-aid replaced by a real fix; a gotcha that no longer applies). Delete obsolete entries and note each deletion in the commit message ("Removed PASSDOWN band-aid — fixed in commit XXX"). PASSDOWN.md keeps only currently-active items; git history is the archive.
+
+**Periodic PASSDOWN review.** At task-end triage, if `PASSDOWN.md` Active Items exceeds 30 lines AND no prior PASSDOWN review task is unchecked in `IMPLEMENTATION-CHECKLIST.md`, create a new task per "Adding New Tasks Discovered During Step 6" — but with one exception: insert the entry **immediately after the current task's entry** in `IMPLEMENTATION-CHECKLIST.md` (not appended to the end), so the standard "first unchecked" search picks it up as the next task to run. The review task does a full pass through `PASSDOWN.md` — for each Active Item, decide whether it's still relevant and delete obsolete entries (note each deletion in the commit message). This prevents monotonic growth and ensures the cleanup actually happens rather than languishing in the queue.
+
+**Loop prevention:** Triage runs ONCE per task, at the end. It does not run during the task, between agents, or after individual QG approvals.
+
+**Task abandoned mid-flight.** A task can be abandoned before completion when the current approach is determined to be wrong.
+
+**Trigger:**
+- **Orchestrator-proposed (most common path).** If you notice signs that the current task is on the wrong path — multiple rework cycles on the same subtask without convergence, an architectural constraint discovered mid-task that invalidates the approach, discovered scope much larger than planned, or a reviewer finding that suggests the task's premise is wrong — propose abandoning to the user with the specific reason and what you'd suggest doing instead. The user must confirm before this procedure runs. Do NOT abandon unilaterally.
+- **User-initiated (rare).** The user explicitly says to abandon, drop, or scrap. If their language is ambiguous ("hold off," "pause"), ask whether they mean abandon (this procedure) or pause (no triage; treat as crash-recovery on next resume).
+
+**Procedure (only after confirmation):**
+
+1. **Run the standard Task-End Triage procedure** with a relaxed precondition: do NOT require all subtasks checked.
+2. **Create a handoff file** at `project-handoffs/handoff-step-6-task-{N}.md` noting `Status: ABANDONED — <one-line reason>` at the top.
+3. **Truncate the per-task checklist** (`checklists/task-{N}.md`): change every unchecked subtask from `- [ ]` to `- [x] (ABANDONED — task not pursued)`.
+4. **Update the index** (`IMPLEMENTATION-CHECKLIST.md`): mark the task entry as `- [x]` with an `ABANDONED — see handoff-step-6-task-{N}.md` suffix.
+5. **Commit as one atomic commit** titled `chore(abandon): Task {N} abandoned — <one-line reason>`. Include: the handoff file, the truncated per-task checklist, the index update, and any PASSDOWN delta. No source code commits.
+6. **Proceed** to the next iteration of the Orchestration Loop.
+
+**Recovery if triage is skipped:** If you discover after committing that triage was not run, do NOT amend the prior commit. Run triage now, surface the slip-up to the user, and commit any resulting changes (new PASSDOWN entries, new tasks, etc.) as a follow-up commit titled `chore(triage): post-commit triage for Task N — process slip-up`. Tighten the next task by announcing triage explicitly per the visibility rule above.
+
+### Legacy Project Onboarding
+
+If a project predates this design (its `CLAUDE.md` contains a "Deferred Items" section or other prohibited content, or `PASSDOWN.md` does not exist in the project root), do NOT auto-migrate during normal Step 6 work. At session start, surface the legacy state to the user:
+
+> "This project predates the [date] governance update. CLAUDE.md has a [Deferred Items/etc.] section that should migrate; PASSDOWN.md is missing. Want to schedule a migration task, or work around the legacy state for now?"
+
+If the user approves a migration task, run it via the Bug Fix workflow pattern. The migration task's scope: (a) convert each existing "Deferred Items" entry to either a new task in `IMPLEMENTATION-CHECKLIST.md` (if action is owed) or delete it (if obsolete — git history retains it); (b) create `PASSDOWN.md` from the Step 1 template, seeded with any band-aids / lessons / gotchas extracted from the legacy CLAUDE.md; (c) shrink `CLAUDE.md` to the three-section scope; (d) commit as one or two atomic commits with clear messages.
+
+The missing `decisions/` folder is handled lazily at task start per Orchestration Loop step 2 and does NOT need a migration task.
 
 ### Test Sandboxing Policy
 
