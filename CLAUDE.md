@@ -47,3 +47,9 @@ If a project's `CLAUDE.md` predates the trimmed-scope rule (contains a "Deferred
 > "This project predates the [date] governance update. CLAUDE.md has a [Deferred Items/etc.] section that should migrate; PASSDOWN.md is missing. Want to schedule a migration task, or work around the legacy state for now?"
 
 Migration runs as a dedicated user-approved task (Bug Fix workflow pattern is fine), never silently during another task. The missing `decisions/` folder is handled lazily at task start per `.newProjectWorkflow\step-6-implementation.md` Orchestration Loop step 2 and does NOT need a migration task.
+
+## When to read `workflow-recommendations.md`
+
+`PLACEHOLDER_PATH\workflow-recommendations.md` is a persistent inbox of workflow-system recommendations surfaced during Step 6 task-end triage across projects. The user maintains it directly.
+
+**MANDATORY:** If your **Primary working directory** is exactly `PLACEHOLDER_PATH` (NOT a sub-folder of it), read `PLACEHOLDER_PATH\workflow-recommendations.md` immediately — that's the signal the user is working on the workflow system, and they may want to act on pending items at the start of the session. If your Primary working directory is anywhere else (a sub-folder of `PLACEHOLDER_PATH`, or unrelated to it), skip this file unless the user explicitly asks you to read it.
