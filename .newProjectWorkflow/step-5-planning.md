@@ -24,7 +24,7 @@ Break the architecture into an ordered sequence of implementation tasks. Each ta
    - How to verify it works (test criteria)
    - Which agent(s) to use (if using the agent system)
    - Estimated complexity (simple / moderate / complex) — NOT time estimates
-5. **Identify the dependency chain** — what must happen in what order.
+5. **Identify the dependency chain** — what must happen in what order. **The task ordering MUST be a valid topological sort of the dependency graph:** no task may be sequenced before a task it depends on. If the dependency graph contains a cycle (Task A depends on B which depends on A), that is a planning defect — surface it to the user and break the cycle before finishing the plan. Correct ordering here is the primary defense against a Step 6 task stalling half-done because a prerequisite was not built first; `step-6-implementation.md` "Blocked Task — Pause and Resume" handles only the residual case of a blocker that genuinely could not be foreseen at planning time.
 6. **Flag any pre-implementation work**:
    - Infrastructure setup (repos, CI/CD, databases)
    - Build toolchain verification (compile stubs, verify dependencies resolve)
