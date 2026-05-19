@@ -513,7 +513,6 @@ def check_deny_segment(segment):
     #    Allowed endpoints (all anchored on the start of an extracted URL token):
     #      - https://www.virustotal.com/api/v3/                                (CMDs 10-13: VirusTotal)
     #      - https://api.osv.dev/v1/query                                       (CMD 20a/b/c: OSV-DB)
-    #      - https://security-tracker.debian.org/tracker/source-package/        (CMD 20a: Debian Security Tracker)
     #      - https://access.redhat.com/hydra/rest/securitydata/cve.json         (CMD 20b: Red Hat security-data API)
     #      - https://secdb.alpinelinux.org/v<digit>                             (CMD 20c: Alpine secdb)
     #
@@ -535,7 +534,10 @@ def check_deny_segment(segment):
         allowed_url_prefixes = (
             r'^https://www\.virustotal\.com/api/v3/',
             r'^https://api\.osv\.dev/v1/query(?:[?/#]|$)',
-            r'^https://security-tracker\.debian\.org/tracker/source-package/',
+            # Debian Security Tracker per-source-package endpoint retired 2026-05-17:
+            # structurally invalid + OSV-DB's Debian feed derives from it. See policies.md
+            # "Debian ecosystem - OSV-DB subsumes the Security Tracker". Do NOT re-add
+            # without the bulk /tracker/data/json escape-hatch design.
             r'^https://access\.redhat\.com/hydra/rest/securitydata/cve\.json(?:[?]|$)',
             r'^https://secdb\.alpinelinux\.org/v\d',
         )
@@ -861,11 +863,13 @@ def check_allow_segment(segment):
     ):
         return "CMD 12: VirusTotal poll analysis"
 
-    # Note: CMDs 20a/b/c (system-package CVE feeds — OSV-DB, Debian Security Tracker,
-    # Red Hat security-data, Alpine secdb) are intentionally NOT given ALLOW rules here.
+    # Note: CMDs 20a/b/c (system-package CVE feeds — OSV-DB, Red Hat security-data,
+    # Alpine secdb) are intentionally NOT given ALLOW rules here. (The Debian Security
+    # Tracker per-source-package feed was retired 2026-05-17 — see the allowlist note
+    # above and policies.md "Debian ecosystem - OSV-DB subsumes the Security Tracker".)
     # Per agent-orchestration.md "Command Log Review" expected-commands table, those
     # commands are designed to be PASS-THROUGH (user-approved once per session), not
-    # auto-allowed. The DENY rule above already exempts the four allowed CVE-feed URLs
+    # auto-allowed. The DENY rule above already exempts the three allowed CVE-feed URLs
     # from the network-access denylist — that exemption is what unblocks the templated
     # CMDs. The output redirection in the CMD 20 templates (`> "osv-<pkg>.json"`) also
     # trips the shell-expansion gate at the top of this function, so even if an ALLOW

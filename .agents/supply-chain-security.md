@@ -98,6 +98,8 @@ Runs once per invocation in `batch-phase1` mode — NOT once per package. Skip t
 
 **Input expectation.** The orchestrator is responsible for resolving the full transitive graph BEFORE invoking this agent and including every transitive in the `packages` array (see the Transitive Dependency Rule below). Phase 1a re-runs the tree command as an independent verification — if the tree output reveals transitives the orchestrator did not include in the input `packages` array, flag this as an input mismatch in the batch report and assess those transitives as if they were MISSes (they have no cached status and no publish-date metadata yet — note the gap so the orchestrator can re-invoke with a corrected array, or accept the gap explicitly). Do NOT silently add them; surface the mismatch.
 
+**Cross-platform / remote-target carve-out.** When this agent's host lacks the target ecosystem's package manager (the cross-platform / remote-target case per `policies.md` "Cross-platform / remote-target graph resolution" — e.g., scanning apt packages from a Windows dev host for a Debian target), the independent re-run of the tree command is not possible. This is a documented designed path, NOT a deviation from the templated-command hard-lock: treat the orchestrator-provided graph as authoritative for graph/origin (this host cannot independently re-verify it; artifact-level Phase 2–5 scanning is unaffected and still runs for any Tier B package), record `host-side tree/origin re-verification N/A (host lacks <pm>); graph resolved by orchestrator on target per policies.md` in the batch report's **Dependency Tree (from Phase 1a)** section, and proceed with the host-runnable assessment (CVE via CMD 20a/b/c, license, reputation). Do NOT attempt CMD 19a/b/c or the origin commands in that case, and do NOT improvise an SSH/remote variant — graph + origin arrive pre-resolved in the input.
+
 1. **Dependency tree.** Run the ecosystem-appropriate tree command to produce the full transitive graph for the project as it would look after these packages are added:
    - Rust: `cargo tree` (CMD 18a pattern)
    - Go: `go mod graph` (CMD 18b pattern)
@@ -112,14 +114,14 @@ Runs once per invocation in `batch-phase1` mode — NOT once per package. Skip t
    - CMD 14c (Java): `mvn org.owasp:dependency-check-maven:check`
    - CMD 14d (Python): `pip-audit`
    - CMD 15 (Rust only): `cargo deny check`
-   - CMD 20a (apt): OSV-DB + Debian Security Tracker cross-reference per package in graph
+   - CMD 20a (apt): OSV-DB per package in graph (sole source for Debian — OSV-DB's Debian feed derives from the Security Tracker; see `policies.md` "Debian ecosystem — OSV-DB subsumes the Security Tracker")
    - CMD 20b (dnf): OSV-DB + Red Hat security-data API
    - CMD 20c (apk): OSV-DB + Alpine `secdb`
 3. **Capture the raw output** and attribute each finding back to a specific package in the input list. Findings that reference packages NOT in the input list (pre-existing project deps) are still reported but marked "pre-existing."
 4. **Input-vs-tree reconciliation.** Compare the tree output's node set against the input `packages` array. Packages in the tree but NOT in the input are "input mismatches" — list them explicitly in the batch report under a separate "Input Mismatch" section so the orchestrator knows to re-invoke with a corrected array or accept the gap.
 5. **Transitive tree size signal.** If the tree pulls in 50+ new transitive dependencies as a result of the additions under review, flag this prominently in the batch report — excessively deep trees are a supply-chain concern, and the user may want to pick an alternative with fewer transitives.
 
-If the tree/audit commands fail to run (missing `Cargo.lock`, no `go.sum`, etc.), note the failure in the batch report and continue — Phase 1b can still run, and the orchestrator will handle the gap.
+If the tree/audit commands fail to run (missing `Cargo.lock`, no `go.sum`, etc.), note the failure in the batch report and continue — Phase 1b can still run, and the orchestrator will handle the gap. (If the cause is that this host lacks the target ecosystem's package manager, this is NOT a failure — use the "Cross-platform / remote-target carve-out" in Phase 1a above instead of this generic path.)
 
 #### Phase 1b: Per-Package Assessment (Cache Misses Only)
 
@@ -131,7 +133,7 @@ Run this for each cache-miss package in the input list (batch mode) or for the s
 4. **Known vulnerabilities.** Cross-reference the Phase 1a audit output AND the relevant public databases (CVE, RustSec, Go vulnerability database, GitHub Advisory, npm advisory, PyPI advisory).
 5. **Publication age (30-Day Rule).** Verify that the specific version was published to its registry at least 30 days ago (per `policies.md` rule 6). The orchestrator should already have pre-filtered these, but re-check and flag any violations — except under the narrow security-patch exception described in that rule.
 6. **Transitive role.** Mark each package as `direct` or `transitive of [parent]` using the tree output from Phase 1a.
-7. **Origin verification (system-package ecosystems only).** For every package in the transitive graph, run origin query: apt → `apt-cache policy` (verify `500` priority matches Tier A suite); dnf → `dnf info` (verify `From repo` matches Tier A repo); apk → `apk info -a` (verify `repository` is `main`/`community`). All origins eligible → `tier: "A"`. Any non-Tier-A origin in graph → whole install `tier: "B"`; record failing package in the Rejection Cascade section. Closes PPA shadow / version-pinning attack — see `policies.md` "Scope: System Package Managers / Whole-graph rule."
+7. **Origin verification (system-package ecosystems only).** For every package in the transitive graph, run origin query: apt → `apt-cache policy` (verify `500` priority matches Tier A suite); dnf → `dnf info` (verify `From repo` matches Tier A repo); apk → `apk info -a` (verify `repository` is `main`/`community`). All origins eligible → `tier: "A"`. Any non-Tier-A origin in graph → whole install `tier: "B"`; record failing package in the Rejection Cascade section. Closes PPA shadow / version-pinning attack — see `policies.md` "Scope: System Package Managers / Whole-graph rule." (In the cross-platform / remote-target case, origin is resolved by the orchestrator on the target and arrives in the input as authoritative — do not run `apt-cache policy` / `dnf info` / `apk info -a` host-side; see the "Cross-platform / remote-target carve-out" in Phase 1a.)
 
 Produce a per-package **recommendation**, not a verdict:
 - `PROCEED` — no Phase 1 concerns; send to Phase 2 for scanning
@@ -673,11 +675,16 @@ dnf repoquery --requires --recursive --resolve <PKG>
 apk info -R <PKG>
 ```
 
-**CMD 20a** (apt — CVE lookup per package; OSV-DB primary, Debian Security Tracker cross-reference):
+**CMD 20a** (apt — CVE lookup per package; OSV-DB is the sole source for Debian — see note):
 ```bash
 curl -s -X POST "https://api.osv.dev/v1/query" -H "Content-Type: application/json" -d "{\"package\":{\"name\":\"<PKG>\",\"ecosystem\":\"Debian:<VERSION>\"},\"version\":\"<PKGVER>\"}" > "osv-<PKG>.json"
-curl -s "https://security-tracker.debian.org/tracker/source-package/<PKG>/data.json" > "dst-<PKG>.json"
 ```
+> **Debian secondary source retired (2026-05-17).** The former second curl to
+> `security-tracker.debian.org/tracker/source-package/<PKG>/data.json` is removed: that URL is
+> structurally invalid (the tracker is keyed by *source* package and exposes no per-source-package
+> JSON), and OSV-DB's Debian feed is derived from the Security Tracker, so OSV-DB alone satisfies
+> corroboration for Debian. Do NOT re-add a per-package Security Tracker call. See `policies.md`
+> "Debian ecosystem — OSV-DB subsumes the Security Tracker" for rationale + the bulk-feed escape hatch.
 
 **CMD 20b** (dnf — CVE lookup per package; OSV-DB primary, Red Hat security-data API cross-reference):
 ```bash
@@ -707,7 +714,6 @@ The following are explicitly forbidden — deny immediately if attempted:
 - Any `curl`, `wget`, or `Invoke-WebRequest` to a URL that is NOT one of the allowed endpoints:
   - `https://www.virustotal.com/api/v3/` (Layer 2 VirusTotal)
   - `https://api.osv.dev/v1/query` (CMD 20a/b/c — OSV-DB)
-  - `https://security-tracker.debian.org/tracker/source-package/*/data.json` (CMD 20a — Debian Security Tracker)
   - `https://access.redhat.com/hydra/rest/securitydata/cve.json` (CMD 20b — Red Hat security-data API)
   - `https://secdb.alpinelinux.org/v*/main.json` (CMD 20c — Alpine secdb)
 - Any `pip install`, `npm install`, `cargo add`, `go get`, or package manager install command

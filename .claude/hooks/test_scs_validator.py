@@ -16,7 +16,7 @@ returned permissionDecision (allow / deny / pass-through) matches the
 expected value. "Not-allow" tests assert the decision is anything except
 "allow" — both deny and pass-through are acceptable for those cases.
 
-NOTE: paths used in tests include the literal PLACEHOLDER_PATH prefix
+NOTE: paths used in tests include the literal `PLACEHOLDER_HOME/...` prefix
 because the hook anchors on absolute paths. If the SCS sandbox base path
 changes, update HOOK_PATH and SANDBOX_ROOT below.
 """
@@ -258,10 +258,6 @@ CMD20_LEGITIMATE = [
     ("CMD 20c OSV-DB Alpine",
      'curl -s -X POST "https://api.osv.dev/v1/query" -H "Content-Type: application/json" -d "{\\"package\\":{\\"name\\":\\"openssl\\",\\"ecosystem\\":\\"Alpine:v3.18\\"},\\"version\\":\\"3.1.4-r1\\"}" > "osv-openssl.json"',
      "pass-through"),
-    # CMD 20a Debian Security Tracker
-    ("CMD 20a Debian Security Tracker",
-     'curl -s "https://security-tracker.debian.org/tracker/source-package/openssl/data.json" > "dst-openssl.json"',
-     "pass-through"),
     # CMD 20b Red Hat security-data API
     ("CMD 20b Red Hat security-data",
      'curl -s "https://access.redhat.com/hydra/rest/securitydata/cve.json?package=openssl" > "rh-openssl.json"',
@@ -304,9 +300,15 @@ CMD20_ATTACKS = [
     ("Debian Tracker with path traversal in pkg",
      'curl -s "https://security-tracker.debian.org/tracker/source-package/../../etc/passwd/data.json" > "dst-x.json"',
      "not-allow"),
-    # Disallowed CVE-feed URL outside the four (e.g., Ubuntu USN feed) — must be blocked
+    # Disallowed CVE-feed URL outside the allowlist (e.g., Ubuntu USN feed) — must be blocked
     ("Ubuntu USN feed (not in allowlist)",
      'curl -s "https://ubuntu.com/security/notices.json" > "usn.json"',
+     "deny"),
+    # CMD 20a Debian Security Tracker — RETIRED 2026-05-17 (direction B): endpoint
+    # de-allowlisted; OSV-DB subsumes it for Debian (see policies.md). Regression:
+    # a Debian Security Tracker curl must now be denied, not pass-through.
+    ("CMD 20a Debian Security Tracker (retired — must deny)",
+     'curl -s "https://security-tracker.debian.org/tracker/source-package/openssl/data.json" > "dst-openssl.json"',
      "deny"),
     # Reviewer-flagged additions (Batch 5 round-2 hardening)
     # Query-string smuggling: allowed URL appears as a parameter value to a hostile URL
@@ -538,25 +540,25 @@ EXISTING_PROTECTIONS = [
 
 SUBAGENT_ID = "agent-abc123"
 
-# Group 1: Real project false positives — orchestrator gets PASS-THROUGH
+# Group 1: Real MyMediaPlayer false positives — orchestrator gets PASS-THROUGH
 ORCHESTRATOR_FALSE_POSITIVE_RECOVERY = [
     ("FP-1 PyQt6 import via SSH (orchestrator)",
-     "ssh user@192.168.1.100 'python3 -c \"import PyQt6; print(PyQt6.__path__)\"'",
+     "ssh watcher@192.168.249.5 'python3 -c \"import PyQt6; print(PyQt6.__path__)\"'",
      None, "pass-through"),
     ("FP-2 git clone via SSH (orchestrator)",
-     "ssh user@192.168.1.100 'git clone https://github.com/example-user/example-project.git /home/user/example-project'",
+     "ssh watcher@192.168.249.5 'git clone https://github.com/burnerbrown/MyMediaPlayer.git /home/watcher/MyMediaPlayer'",
      None, "pass-through"),
     ("FP-3 curl to GitHub (orchestrator)",
-     'curl -s -o /dev/null -w "HTTP %{http_code}\\n" https://github.com/example-user/example-project',
+     'curl -s -o /dev/null -w "HTTP %{http_code}\\n" https://github.com/burnerbrown/MyMediaPlayer',
      None, "pass-through"),
     ("FP-4 pip install -e via SSH (orchestrator)",
-     "ssh user@192.168.1.100 \"/home/user/.venv/bin/pip install -e '/home/user/example-project/pi-app[dev]'\"",
+     "ssh watcher@192.168.249.5 \"/home/watcher/.venv/bin/pip install -e '/home/watcher/MyMediaPlayer/pi-app[dev]'\"",
      None, "pass-through"),
     ("FP-5 commit message containing 'pip install' (orchestrator)",
      "git add pyproject.toml && git commit -m \"fix: correct PEP 517 build-backend\\n\\nRecommended: pip install -e .[dev]\"",
      None, "pass-through"),
     ("FP-6 venv rm + recreate via SSH (orchestrator)",
-     "ssh user@192.168.1.100 'rm -rf .venv && python3 -m venv --system-site-packages .venv'",
+     "ssh watcher@192.168.249.5 'rm -rf .venv && python3 -m venv --system-site-packages .venv'",
      None, "pass-through"),
     ("FP-7 rm -rf /c/media (orchestrator)",
      "rm -rf /c/media",
@@ -569,22 +571,22 @@ ORCHESTRATOR_FALSE_POSITIVE_RECOVERY = [
 # Group 2: Same false positives — sub-agent still gets DENY
 SUBAGENT_DENY_ENFORCEMENT = [
     ("FP-1 PyQt6 import via SSH (sub-agent)",
-     "ssh user@192.168.1.100 'python3 -c \"import PyQt6; print(PyQt6.__path__)\"'",
+     "ssh watcher@192.168.249.5 'python3 -c \"import PyQt6; print(PyQt6.__path__)\"'",
      SUBAGENT_ID, "deny"),
     ("FP-2 git clone via SSH (sub-agent)",
-     "ssh user@192.168.1.100 'git clone https://github.com/example-user/example-project.git /home/user/example-project'",
+     "ssh watcher@192.168.249.5 'git clone https://github.com/burnerbrown/MyMediaPlayer.git /home/watcher/MyMediaPlayer'",
      SUBAGENT_ID, "deny"),
     ("FP-3 curl to GitHub (sub-agent)",
-     'curl -s -o /dev/null -w "HTTP %{http_code}\\n" https://github.com/example-user/example-project',
+     'curl -s -o /dev/null -w "HTTP %{http_code}\\n" https://github.com/burnerbrown/MyMediaPlayer',
      SUBAGENT_ID, "deny"),
     ("FP-4 pip install -e via SSH (sub-agent)",
-     "ssh user@192.168.1.100 \"/home/user/.venv/bin/pip install -e '/home/user/example-project/pi-app[dev]'\"",
+     "ssh watcher@192.168.249.5 \"/home/watcher/.venv/bin/pip install -e '/home/watcher/MyMediaPlayer/pi-app[dev]'\"",
      SUBAGENT_ID, "deny"),
     ("FP-5 commit msg 'pip install' in quotes (sub-agent, not denied — text not a command)",
      "git add pyproject.toml && git commit -m \"fix: correct PEP 517 build-backend\\n\\nRecommended: pip install -e .[dev]\"",
      SUBAGENT_ID, "pass-through"),
     ("FP-6 venv recreate + import check via SSH (sub-agent)",
-     "ssh user@192.168.1.100 'rm -rf .venv && python3 -m venv --system-site-packages .venv && .venv/bin/python -c \"import sys,PyQt6\"'",
+     "ssh watcher@192.168.249.5 'rm -rf .venv && python3 -m venv --system-site-packages .venv && .venv/bin/python -c \"import sys,PyQt6\"'",
      SUBAGENT_ID, "deny"),
     ("FP-7 rm -rf /c/media (sub-agent)",
      "rm -rf /c/media",

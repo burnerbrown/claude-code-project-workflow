@@ -39,6 +39,10 @@ The Claude Code harness has built-in auto-memory triggers that proactively save 
 - Avoid social media, blog posts, forums, and other unreliable sources unless no better source is available.
 - If you must use a lower-quality source, explicitly tell the user which sources were used and why a better source wasn't available.
 
+## Third-Party Software Caution
+- Do not suggest installing third-party utilities unless they are from a well-known, trusted publisher (Microsoft, etc.). The user is cautious about installing unknown software on their system.
+- When a tool fails due to a missing system utility, prefer an alternative approach (e.g., export as PNG instead of requiring a PDF reader) rather than asking the user to install software. If an install is genuinely necessary, only propose tools from major trusted publishers and explain why it is needed.
+
 ## Coding Preferences
 - Ask before creating new files outside the current working directory — never create files there without explicit permission
 - Within the current working directory, you may create, edit, and overwrite project files without asking (see File Permissions)
@@ -121,7 +125,7 @@ This list reflects the development tools and runtimes installed on the user's ma
 - The orchestrator's hands-on actions are: routing work between agents, running compile/syntax checks (e.g., `bash -n`, `cargo check`, `go build`, `python -m py_compile`), executing test commands using the Test Engineer's run instructions, committing QG-approved work, pushing to remote, and updating checklists
 - If you catch yourself about to edit a source file or write a test, STOP — delegate it to the appropriate agent
 - **CRITICAL — REPEATED VIOLATION**: When a compile check or test fails, do NOT "quickly fix" the code yourself. Send the error output to the worker agent and let them fix it. This applies even when the fix is trivially obvious (e.g., swapping one icon name). The rule is about role boundaries, not difficulty. The user has corrected this behavior multiple times — do not repeat it.
-- The orchestrator MUST NOT run SCS scan commands (sandbox launches, sentinel polling, VirusTotal API calls, archive extraction, artifact copies). These are exclusively the SCS agent's domain. If the SCS agent cannot be resumed (e.g., SendMessage unavailable or agent ID lost), invoke a fresh SCS agent — do NOT take over the scan yourself.
+- The orchestrator MUST NOT run SCS scan commands (sandbox launches, sentinel polling, VirusTotal API calls, archive extraction, artifact copies). These are exclusively the SCS agent's domain. Resolving a system-package dependency graph + origin/tier for a cross-platform scan (e.g., `apt-get install --simulate` / `apt-cache policy`, run read-only on the target over SSH) is NOT an SCS scan command in this sense — it is the pre-invocation input the SCS agent definition already assigns to the orchestrator; see `policies.md` "Cross-platform / remote-target graph resolution." If the SCS agent cannot be resumed (e.g., SendMessage unavailable or agent ID lost), invoke a fresh SCS agent — do NOT take over the scan yourself.
 
 ## GitHub Repository Rules
 - When creating a new repository for a project, ALWAYS ask the user whether they want it **Public** or **Private** before creating it. Never assume.
