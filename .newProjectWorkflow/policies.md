@@ -163,6 +163,8 @@ No new mode. Both tiers use existing two-stage flow:
 
 Ecosystem enum extended: `python, rust, go, java, apt, dnf, apk, pacman, zypper`.
 
+**Lockstep with the SCS hook.** This enum is mirrored in `.claude/hooks/scs-validator.py` as the `_RUNLOCK_ECOSYSTEMS` constant. If you add or remove an entry here, you MUST update `_RUNLOCK_ECOSYSTEMS` in the same change — otherwise the runlock manifest's `ecosystem` field will reject the new value at load time and every SCS sub-agent command for that ecosystem will fail-closed-deny.
+
 **Homebrew / winget / scoop / chocolatey** for dev tools → existing "Development Tools" provenance path (in the "Scope: Project Dependencies vs. Development Tools" section above). If used to install a dep that ships in the deliverable, treat as Tier B. For macOS `.dylib`/`.pkg` artifacts the download-sandbox + Windows-Defender model doesn't apply — require vendor-published hash verification + Defender-equivalent scan on the dev Mac + manual source review + user approval. Full macOS sandbox workflow is a future extension.
 
 ### Rules (Apply to ALL Agents, No Exceptions)

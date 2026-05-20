@@ -229,7 +229,7 @@ Repeat the following cycle for each task/subtask until the checklist is complete
 5. **Agents do the work**:
    - Worker agents produce their deliverables (code, tests, reviews, etc.)
    - Follow the agent orchestration rules — sequential where required, parallel where allowed
-   - If an agent needs a dependency that wasn't scanned in Step 4, pause work on this task and follow the "Dependency Addition" workflow in `workflows.md` — this runs the two-stage SCS flow (batch Phase 1 across the new dependency and its transitives, then per-package Phase 2–5 on the approved packages). Resume the task after all verdicts are CLEAN.
+   - If an agent needs a dependency that wasn't scanned in Step 4, pause work on this task and follow the "Dependency Addition" workflow in `workflows.md` — this runs the two-stage SCS flow (batch Phase 1 across the new dependency and its transitives, then per-package Phase 2–5 on the approved packages). The Dependency Addition workflow includes the runlock write/delete (see `agent-orchestration.md` "Per-run runlock"); do not invoke SCS outside that workflow. Resume the task after all verdicts are CLEAN.
 
 6. **Quality Gate evaluates, orchestrator routes**:
    - **The orchestrator runs a language-appropriate compile/syntax check before invoking the QG** — this is the orchestrator's check, not the QG's. Use `bash -n` for shell scripts, `cargo check` for Rust, `go build ./...` for Go, `mvn compile` for Java, `python -m py_compile` for Python, etc. The orchestrator passes the result to the QG.

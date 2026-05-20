@@ -23,7 +23,7 @@ import re
 import os
 import ast
 import shlex
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 # ---------------------------------------------------------------------------
@@ -38,6 +38,71 @@ SANDBOX_ROOT = "PLACEHOLDER_PATH/.scs-sandbox/"
 TRUSTED_ROOT = "PLACEHOLDER_PATH/.trusted-artifacts/"
 SANDBOX_STAGING = SANDBOX_ROOT + "staging/"
 SANDBOX_RESULTS = SANDBOX_ROOT + "results/"
+
+
+# ---------------------------------------------------------------------------
+# Runlock invariants (per-run SCS sub-agent enforcement manifest)
+# ---------------------------------------------------------------------------
+_RUNLOCK_SCHEMA_VERSION = 1
+
+_RUNLOCK_NAME_RE    = re.compile(r'^[A-Za-z0-9][A-Za-z0-9+._-]*$')
+_RUNLOCK_VERSION_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9.+:~_-]*$')
+
+# Intersected with manifest allowed_hosts; runlock can only narrow, never widen.
+_RUNLOCK_HOST_CEILING = frozenset({
+    "api.osv.dev",
+    "access.redhat.com",
+    "secdb.alpinelinux.org",
+    "www.virustotal.com",
+})
+
+# Must match `.newProjectWorkflow/policies.md` "Ecosystem enum extended" list.
+# If you change one, change the other in the same commit.
+_RUNLOCK_ECOSYSTEMS = frozenset({
+    "python", "rust", "go", "java",
+    "apt", "dnf", "apk", "pacman", "zypper",
+})
+_RUNLOCK_MODES = frozenset({"batch-phase1", "per-package"})
+_RUNLOCK_TIERS = frozenset({"A", "B"})
+
+_RUNLOCK_TOP_KEYS = frozenset({
+    "schema_version", "run_id", "created_utc", "expires_utc",
+    "ecosystem", "mode", "tier", "work_dir",
+    "allowed_hosts", "packages", "allowed_command_shapes",
+    "artifact", "runtime_derived",
+})
+
+# Shape regexes — anchored on full stripped command. Matched on RAW input
+# (NOT post-backslash-normalization) so JSON escapes in -d "..." bodies survive.
+_SHAPE_CMD20a_OSV = re.compile(
+    r'^curl\s+-s\s+-X\s+POST\s+"https://api\.osv\.dev/v1/query"\s+'
+    r'-H\s+"Content-Type:\s*application/json"\s+'
+    r'-d\s+"(?P<body>\{.*\})"\s+'
+    r'>\s+"(?P<outfile>osv-[A-Za-z0-9][A-Za-z0-9+._-]*\.json)"\s*$'
+)
+_SHAPE_CMD20b_REDHAT = re.compile(
+    r'^curl\s+-s\s+'
+    r'"https://access\.redhat\.com/hydra/rest/securitydata/cve\.json\?package=(?P<pkg>[A-Za-z0-9][A-Za-z0-9+._-]*)"\s+'
+    r'>\s+"(?P<outfile>rh-[A-Za-z0-9][A-Za-z0-9+._-]*\.json)"\s*$'
+)
+_SHAPE_CMD20c_ALPINE = re.compile(
+    r'^curl\s+-s\s+'
+    r'"https://secdb\.alpinelinux\.org/v(?P<branch>\d+(?:\.\d+)?)/main\.json"\s+'
+    r'>\s+"alpine-secdb\.json"\s*$'
+)
+_SHAPE_CMD11_VT_UPLOAD = re.compile(
+    r'^curl\s+-s\s+-H\s+"x-apikey:\s*\$VT_API_KEY"\s+'
+    r'-F\s+"file=@(?P<filepath>[^"]+)"\s+'
+    r'"https://www\.virustotal\.com/api/v3/files"\s*$'
+)
+
+_SCS_SHAPES = (
+    ("CMD20a_osv",      _SHAPE_CMD20a_OSV),
+    ("CMD20b_redhat",   _SHAPE_CMD20b_REDHAT),
+    ("CMD20c_alpine",   _SHAPE_CMD20c_ALPINE),
+    ("CMD11_vt_upload", _SHAPE_CMD11_VT_UPLOAD),
+)
+_RUNLOCK_SHAPE_ENUM = frozenset(name for name, _ in _SCS_SHAPES)
 
 
 # ---------------------------------------------------------------------------
@@ -76,6 +141,227 @@ def log_decision(command, decision, reason):
                 f.write(f"{'':>22s} reason: {reason}\n")
     except OSError:
         pass  # logging failure must never block the hook
+
+
+# ---------------------------------------------------------------------------
+# Runlock helpers (per-run SCS sub-agent enforcement manifest)
+# ---------------------------------------------------------------------------
+def _resolve_runlock_path():
+    """Per-project runlock path, or None if CLAUDE_PROJECT_DIR is unset.
+    No fallback — caller must fail closed when None is returned (a shared-path
+    fallback could let project A's runlock authorize project B)."""
+    project_dir = os.environ.get('CLAUDE_PROJECT_DIR')
+    if not project_dir:
+        return None
+    return os.path.join(project_dir, ".claude", "scs-runlock.json")
+
+
+def _parse_utc_iso(ts):
+    """Strict ISO-8601 UTC parse (`...Z` required, second precision)."""
+    if not isinstance(ts, str) or not ts.endswith('Z'):
+        return None
+    try:
+        return datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return None
+
+
+def load_runlock():
+    """Load and fully validate the per-project runlock manifest.
+
+    Returns (runlock_dict, None) on success, or (None, reason) on any failure.
+    Every error path is fail-closed by design.
+    """
+    path = _resolve_runlock_path()
+    if path is None:
+        return None, "CLAUDE_PROJECT_DIR unset"
+    if not os.path.isfile(path):
+        return None, f"runlock not present at {path}"
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError) as e:
+        return None, f"runlock unreadable or malformed: {e}"
+    if not isinstance(data, dict):
+        return None, "runlock root must be a JSON object"
+
+    keys = set(data.keys())
+    if keys != _RUNLOCK_TOP_KEYS:
+        return None, (f"runlock key mismatch "
+                      f"(extra={sorted(keys - _RUNLOCK_TOP_KEYS)}, "
+                      f"missing={sorted(_RUNLOCK_TOP_KEYS - keys)})")
+    if data["schema_version"] != _RUNLOCK_SCHEMA_VERSION:
+        return None, f"schema_version != {_RUNLOCK_SCHEMA_VERSION}"
+    if not isinstance(data["run_id"], str) or not data["run_id"]:
+        return None, "run_id must be a non-empty string"
+
+    created = _parse_utc_iso(data["created_utc"])
+    expires = _parse_utc_iso(data["expires_utc"])
+    if created is None or expires is None:
+        return None, "created_utc or expires_utc not in ISO-8601 UTC form"
+    if not expires > created:
+        return None, "expires_utc must be after created_utc"
+    if datetime.now(timezone.utc) >= expires:
+        return None, "runlock expired"
+
+    if data["ecosystem"] not in _RUNLOCK_ECOSYSTEMS:
+        return None, f"invalid ecosystem: {data['ecosystem']!r}"
+    if data["mode"] not in _RUNLOCK_MODES:
+        return None, f"invalid mode: {data['mode']!r}"
+    if data["tier"] not in _RUNLOCK_TIERS:
+        return None, f"invalid tier: {data['tier']!r}"
+
+    work_dir = data["work_dir"]
+    if not isinstance(work_dir, str):
+        return None, "work_dir must be a string"
+    norm_work = work_dir.replace("\\", "/")
+    if ".." in norm_work.split("/"):
+        return None, "work_dir contains '..'"
+    if not norm_work.endswith("/"):
+        norm_work = norm_work + "/"
+    if not norm_work.startswith(SANDBOX_ROOT):
+        return None, "work_dir not under SANDBOX_ROOT"
+
+    hosts = data["allowed_hosts"]
+    if (not isinstance(hosts, list) or not hosts
+            or not all(isinstance(h, str) for h in hosts)):
+        return None, "allowed_hosts must be a non-empty list of strings"
+    if not set(hosts).issubset(_RUNLOCK_HOST_CEILING):
+        return None, (f"allowed_hosts contains hosts outside the ceiling: "
+                      f"{sorted(set(hosts) - _RUNLOCK_HOST_CEILING)}")
+
+    pkgs = data["packages"]
+    if not isinstance(pkgs, list) or not pkgs:
+        return None, "packages must be a non-empty list"
+    for i, p in enumerate(pkgs):
+        if not isinstance(p, dict) or set(p.keys()) != {"name", "version"}:
+            return None, f"packages[{i}] must be a dict with exactly name+version"
+        if not isinstance(p["name"], str) or not _RUNLOCK_NAME_RE.match(p["name"]):
+            return None, f"packages[{i}].name fails charset: {p.get('name')!r}"
+        if not isinstance(p["version"], str) or not _RUNLOCK_VERSION_RE.match(p["version"]):
+            return None, f"packages[{i}].version fails charset: {p.get('version')!r}"
+
+    shapes = data["allowed_command_shapes"]
+    if (not isinstance(shapes, list) or not shapes
+            or not all(isinstance(s, str) for s in shapes)):
+        return None, "allowed_command_shapes must be a non-empty list of strings"
+    if not set(shapes).issubset(_RUNLOCK_SHAPE_ENUM):
+        return None, (f"allowed_command_shapes contains unknown shapes: "
+                      f"{sorted(set(shapes) - _RUNLOCK_SHAPE_ENUM)}")
+
+    art = data["artifact"]
+    if not isinstance(art, dict) or set(art.keys()) != {"filename", "download_url", "subfolder", "review_dir"}:
+        return None, "artifact must be a dict with the artifact-key set"
+    for k, v in art.items():
+        if v is not None and not isinstance(v, str):
+            return None, f"artifact.{k} must be None or string"
+
+    rd = data["runtime_derived"]
+    if not isinstance(rd, dict) or set(rd.keys()) != {"allow_hash", "allow_analysis_id"}:
+        return None, "runtime_derived must be a dict with the runtime-derived key set"
+    if not all(isinstance(v, bool) for v in rd.values()):
+        return None, "runtime_derived flags must be booleans"
+
+    data["work_dir"] = norm_work
+    return data, None
+
+
+def classify_scs_shape(command):
+    """Return (shape_id, re.Match) for a recognized SCS template, else (None, None).
+    Operates on the raw command (NOT post-backslash-normalization)."""
+    stripped = command.strip()
+    for shape_id, pat in _SCS_SHAPES:
+        m = pat.match(stripped)
+        if m:
+            return shape_id, m
+    return None, None
+
+
+def runlock_allows(shape_id, shape_match, runlock):
+    """Return (True, reason) if the SCS-shaped command is authorized by the runlock,
+    else (False, reason). Caller has already validated the runlock via load_runlock."""
+    if shape_id not in runlock["allowed_command_shapes"]:
+        return False, f"shape {shape_id!r} not in runlock allowed_command_shapes"
+
+    pkgs = runlock["packages"]
+    work_dir = runlock["work_dir"]
+
+    if shape_id == "CMD20a_osv":
+        body = shape_match.group("body")
+        # Reject second-field smuggling: each top-level field appears exactly once.
+        for field_name in ('name', 'version', 'ecosystem'):
+            pat = r'\\"' + field_name + r'\\"'
+            if len(re.findall(pat, body)) != 1:
+                return False, f"CMD20a body has != 1 \\\"{field_name}\\\" field"
+
+        name_m = re.search(r'\\"name\\"\s*:\s*\\"([^"\\]+)\\"', body)
+        ver_m  = re.search(r'\\"version\\"\s*:\s*\\"([^"\\]+)\\"', body)
+        if not name_m or not ver_m:
+            return False, "CMD20a body missing name/version fields"
+        pkg_name = name_m.group(1)
+        pkg_ver  = ver_m.group(1)
+        if not _RUNLOCK_NAME_RE.match(pkg_name):
+            return False, f"CMD20a name fails charset: {pkg_name!r}"
+        if not _RUNLOCK_VERSION_RE.match(pkg_ver):
+            return False, f"CMD20a version fails charset: {pkg_ver!r}"
+        if not any(p["name"] == pkg_name and p["version"] == pkg_ver for p in pkgs):
+            return False, f"CMD20a {pkg_name}@{pkg_ver} not in runlock packages"
+        if "api.osv.dev" not in runlock["allowed_hosts"]:
+            return False, "CMD20a but api.osv.dev not in runlock allowed_hosts"
+        outfile = shape_match.group("outfile")
+        expected = f"osv-{pkg_name}.json"
+        if outfile != expected:
+            return False, f"CMD20a redirect outfile {outfile!r} != expected {expected!r}"
+        return True, f"CMD20a runlock-allowed: {pkg_name}@{pkg_ver}"
+
+    if shape_id == "CMD20b_redhat":
+        pkg_name = shape_match.group("pkg")
+        if not _RUNLOCK_NAME_RE.match(pkg_name):
+            return False, f"CMD20b pkg fails charset: {pkg_name!r}"
+        if not any(p["name"] == pkg_name for p in pkgs):
+            return False, f"CMD20b package {pkg_name!r} not in runlock packages"
+        if "access.redhat.com" not in runlock["allowed_hosts"]:
+            return False, "CMD20b but access.redhat.com not in runlock allowed_hosts"
+        outfile = shape_match.group("outfile")
+        expected = f"rh-{pkg_name}.json"
+        if outfile != expected:
+            return False, f"CMD20b redirect outfile {outfile!r} != expected {expected!r}"
+        if runlock["ecosystem"] != "dnf":
+            return False, f"CMD20b used but runlock ecosystem != 'dnf' ({runlock['ecosystem']!r})"
+        return True, f"CMD20b runlock-allowed: {pkg_name}"
+
+    if shape_id == "CMD20c_alpine":
+        if runlock["ecosystem"] != "apk":
+            return False, f"CMD20c used but runlock ecosystem != 'apk' ({runlock['ecosystem']!r})"
+        if "secdb.alpinelinux.org" not in runlock["allowed_hosts"]:
+            return False, "CMD20c but secdb.alpinelinux.org not in runlock allowed_hosts"
+        return True, "CMD20c runlock-allowed (alpine-secdb global feed)"
+
+    if shape_id == "CMD11_vt_upload":
+        filepath = shape_match.group("filepath")
+        # Refuse percent-encoded paths (defeats `%2e%2e` traversal).
+        if '%' in filepath:
+            return False, "CMD11 filepath contains '%' (percent-encoding not allowed)"
+        norm_fp = filepath.replace("\\", "/")
+        if ".." in norm_fp.split("/"):
+            return False, "CMD11 filepath contains '..'"
+        # Parent dir must EQUAL work_dir exactly (no nested subdirs).
+        parent = os.path.dirname(norm_fp).rstrip("/") + "/"
+        if parent != work_dir:
+            return False, f"CMD11 filepath parent {parent!r} != runlock work_dir {work_dir!r}"
+        artifact = runlock["artifact"]
+        expected = artifact.get("filename")
+        if not isinstance(expected, str) or not expected:
+            return False, "CMD11 used but runlock artifact.filename is empty/null"
+        if not _RUNLOCK_NAME_RE.match(expected):
+            return False, f"CMD11 artifact.filename fails charset: {expected!r}"
+        if os.path.basename(norm_fp) != expected:
+            return False, f"CMD11 filepath basename {os.path.basename(norm_fp)!r} != artifact.filename {expected!r}"
+        if "www.virustotal.com" not in runlock["allowed_hosts"]:
+            return False, "CMD11 but www.virustotal.com not in runlock allowed_hosts"
+        return True, "CMD11 runlock-allowed"
+
+    return False, f"unknown shape_id: {shape_id!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -502,6 +788,20 @@ def _python_c_imports_archive_module(segment):
 def check_deny_segment(segment):
     """Return a reason string if the segment should be denied, or None."""
     cmd_name = get_command_name(segment)
+
+    # Runlock write-protection runs BEFORE the echo early-return because
+    # a subagent attempting to forge/overwrite the runlock often uses
+    # `echo "{}" > scs-runlock.json` exactly because echo would otherwise
+    # skip the rest of this deny gate. Match the bare basename so the
+    # rule fires for the expanded path, the unexpanded
+    # `$CLAUDE_PROJECT_DIR/.claude/scs-runlock.json` form, and any other
+    # reference. `.claude/scs-validator.log` lives in the same directory
+    # but has a different filename, so this is safely scoped.
+    if 'scs-runlock.json' in segment:
+        if re.search(r'>>?\s*["\']?[^"\']*scs-runlock\.json', segment):
+            return "Bash write/redirect to scs-runlock.json is forbidden"
+        if cmd_name in ('mv', 'cp', 'rm', 'tee', 'ln'):
+            return f"Bash {cmd_name} targeting scs-runlock.json is forbidden"
 
     # Skip deny-list pattern matching for echo commands — quoted text
     # inside echo is not being executed (redirection is caught separately
@@ -1266,6 +1566,13 @@ def validate_command(command):
     return None, None
 
 
+def _emit(payload):
+    """Write a hookSpecificOutput envelope to stdout and exit 0."""
+    result = {"hookSpecificOutput": {"hookEventName": "PreToolUse", **payload}}
+    json.dump(result, sys.stdout)
+    sys.exit(0)
+
+
 def main():
     raw = sys.stdin.read()
     data = json.loads(raw)
@@ -1288,26 +1595,36 @@ def main():
             log_decision(command_clean, "pass-through (orchestrator-override)", reason)
             sys.exit(0)
         log_decision(command_clean, "deny", reason)
-        result = {
-            "hookSpecificOutput": {
-                "hookEventName": "PreToolUse",
-                "permissionDecision": "deny",
-                "permissionDecisionReason": f"SCS VALIDATOR BLOCKED: {reason}"
-            }
-        }
-        json.dump(result, sys.stdout)
-        sys.exit(0)
+        _emit({"permissionDecision": "deny",
+               "permissionDecisionReason": f"SCS VALIDATOR BLOCKED: {reason}"})
+        return
+
+    # Runlock gate: SCS-shaped subagent commands must match the per-project
+    # runlock manifest. Auto-allow on match; hard-deny otherwise. Orchestrator-
+    # attributed commands (no agent_id) are NOT gated here.
+    if is_subagent:
+        shape_id, shape_match = classify_scs_shape(command_clean)
+        if shape_id is not None:
+            runlock, rl_err = load_runlock()
+            if runlock is None:
+                log_decision(command_clean, "deny (no valid runlock)", rl_err)
+                _emit({"permissionDecision": "deny",
+                       "permissionDecisionReason": f"SCS VALIDATOR BLOCKED: no valid runlock ({rl_err})"})
+                return
+            ok, why = runlock_allows(shape_id, shape_match, runlock)
+            if ok:
+                log_decision(command_clean, "allow (runlock)", why)
+                _emit({"permissionDecision": "allow"})
+                return
+            log_decision(command_clean, "deny (runlock)", why)
+            _emit({"permissionDecision": "deny",
+                   "permissionDecisionReason": f"SCS VALIDATOR BLOCKED: runlock mismatch ({why})"})
+            return
 
     if decision == "allow":
         log_decision(command_clean, "allow", reason)
-        result = {
-            "hookSpecificOutput": {
-                "hookEventName": "PreToolUse",
-                "permissionDecision": "allow"
-            }
-        }
-        json.dump(result, sys.stdout)
-        sys.exit(0)
+        _emit({"permissionDecision": "allow"})
+        return
 
     log_decision(command_clean, "pass-through", None)
     sys.exit(0)

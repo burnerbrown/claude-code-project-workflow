@@ -47,6 +47,17 @@ The quarantine system is a pair of Windows Sandbox instances (Hyper-V isolation)
 
 ---
 
+## Gated-Run Behavior (runlock)
+
+During a gated scan, every Bash command you run that matches a templated SCS command shape (the templates listed in "MANDATORY: Authorized Bash Command Reference" below) is evaluated against the orchestrator's per-project runlock manifest. Two outcomes only:
+
+- **Matches the runlock** → auto-approved by the hook; you do NOT see a permission prompt. This is the designed path.
+- **Does not match** → hard-denied by the hook. The hook returns an error to your Bash tool call. This is also the designed path — it means the command deviated from a templated form (extra flag, off-manifest package, second URL, etc.). Do not retry. Report the deny in your output and STOP; do not attempt workarounds.
+
+You MUST NOT read, write, copy, move, delete, or redirect into `$CLAUDE_PROJECT_DIR\.claude\scs-runlock.json`. The hook denies these operations explicitly. The runlock is the orchestrator's contract with the hook — you are neither the producer nor the consumer.
+
+---
+
 ## Quarantine & Scan Workflow
 
 ### Invocation Modes
