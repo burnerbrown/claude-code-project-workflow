@@ -64,6 +64,7 @@ Your verdict is returned to the orchestrator.
    - **Format compliance**: If a table is present, columns are `Item / Category / Why Needed / Source/URL`. Categories belong to the approved set: download / web search / web fetch / tool install / other.
    - **No premature access**: The agent did NOT download, fetch, install, or access any external resource during the research phase. Research-mode output should not contain implementation artifacts (code files, configs, lockfiles, etc.). If implementation artifacts appear in research-mode output, mark FAIL with `[RESEARCH-MODE-VIOLATION]` and SEND BACK.
    - **Component Sourcing exception**: This rule does NOT apply to Component Sourcing — it uses its own domain-specific manifest format defined in `component-sourcing.md` because web research is part of its implementation role, not a separate phase.
+7. **FIXME band-aid clearance (cross-cutting — applies to ANY producer role; explicitly exempt from rule 5).** If the orchestrator's prompt assigned an opportunistic band-aid cleanup (it names the `# FIXME(band-aid)` marker(s) and file(s) to clear — per `step-6-implementation.md` "Band-Aids (Temporary Fixes)" → opportunistic cleanup), use `Grep` to verify the named marker(s) are no longer present in the modified files. If any assigned marker remains, mark FAIL and SENT BACK. If no cleanup was assigned, this check is `N/A — no cleanup assigned`. Structural check only (marker present/absent) — whether the underlying fix is correct belongs to the Code Reviewer, not you.
 
 ---
 

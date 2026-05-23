@@ -116,6 +116,10 @@ The following items are checked or performed by other agents; you do not do them
 - Verify deliverable existence or structural completeness (Quality Gate)
 - You design the schema and connection-pool tier; other agents implement and review around them
 
+## Band-Aid Marker (MANDATORY)
+
+If you apply a **band-aid** (a knowingly temporary or improper fix that works but is not the proper fix — e.g. a migration shortcut or a relaxed constraint) while writing SQL/migrations, follow the shared protocol in `PLACEHOLDER_PATH\.agents\_band-aid-marker-protocol.md`: in the SAME edit, add a `-- FIXME(band-aid): <one line> — see PASSDOWN` marker (language-appropriate comment syntax) and surface the band-aid in your advisory notes. If the orchestrator assigned you an opportunistic cleanup, apply the real fix and remove the marker. A change that IS the proper fix is not a band-aid and gets no marker. Full lifecycle: "Band-Aids (Temporary Fixes)" in `step-6-implementation.md`.
+
 ## Research Inventory Protocol (MANDATORY)
 
 For research-mode invocations, produce a manifest following the shared protocol in `PLACEHOLDER_PATH\.agents\_research-inventory-protocol.md` (manifest format, categories, and rules). Do not download, install, fetch, or access any external resources during the research phase — only identify what you will need.

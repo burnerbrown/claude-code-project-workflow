@@ -308,6 +308,40 @@ Non-trivial or cross-agent routing cases:
 
 **The orchestrator does NOT write tests** — that is the Test Engineer agent's job. The **Test Engineer writes tests**, classifies them (host-safe vs sandbox-required), and provides run instructions. The **orchestrator executes the test commands** (e.g., `cargo test`, `go test`, `pytest`) using the Test Engineer's run instructions, respecting sandbox requirements for integration tests. The orchestrator passes the test results to the QG for evaluation. This division keeps the Test Engineer's tool restrictions clean (no Bash access) while ensuring tests actually get executed. The orchestrator also runs language-appropriate compile/syntax checks (e.g., `bash -n`, `cargo check`, `go build`) as a quick pre-flight sanity check before invoking the QG — these are lightweight verification steps, not full test suites.
 
+### Band-Aids (Temporary Fixes)
+
+**DEFINITION.** Band-aid = a KNOWINGLY temporary/improper fix that works (unblocks progress / passes a test) but is not the proper fix — the real fix is larger or elsewhere (leaves technical debt). A change that IS the proper fix (root cause addressed, robust, matches design) is NOT a band-aid → no FIXME marker, just done. Band-aids are ALLOWED in Step 6 and are NOT fixed in the session applied (forcing the real fix now balloons scope / overloads context). Goal: never lose track of one — not fix on the spot. Every band-aid is documented.
+
+**TWO KINDS** (test: did it write a file?):
+- **Operational band-aid** — transient runtime action on the live/deployed system; writes NO file, does not survive reboot/redeploy (e.g., `sudo mount`, `sudo chvt 7`, restart/kill a service).
+  - Orchestrator MAY apply on the fly — operational command, not a code edit; routing to an agent would needlessly balloon the task.
+  - No FIXME marker (no file to mark).
+  - Vanishes on reboot → triage disposition is normally a `PASSDOWN.md` entry PLUS a new permanent-fix task.
+- **Code/config band-aid** — edits a file (repo source, a script, or persistent config belonging in canonical source).
+  - A worker agent applies it like any change; orchestrator does NOT edit the file itself (see "CRITICAL: The Orchestrator Does Not Write Code").
+  - Applying agent adds, in the SAME edit, a one-line marker: `# FIXME(band-aid): <one line> — see PASSDOWN` (marker + pointer only, NOT the full fix).
+
+**HARD-GUARDRAIL EXCEPTION** (either kind). If it weakens a hard guardrail — disables/relaxes a security control, bypasses validation, defeats a safety check, hardcodes a secret (e.g., `ufw disable`, `chmod 777`, `setenforce 0`) → NOT deferrable. Surface to the user at once; follow existing must-fix/escalation rules (fix before commit, or explicit user acceptance). NEVER ship a dangerous shortcut as "fix later".
+
+**LIFECYCLE:**
+1. **Apply** — orchestrator (operational) or worker agent + FIXME marker (code/config) — when it unblocks progress and the real fix now would derail the task.
+2. **Log** in `decisions/current-task.md` — it is a judgment call (DO-log category, NOT a routine event; see "Orchestrator Decision Authority (Escalate by Exception)"). Record what / where / why; for operational, record whether it survives a reboot.
+3. **Triage** — at "Task-End Triage", orchestrator RECOMMENDS one disposition per band-aid with reasoning; user decides:
+   - *Trivial / low-risk real fix* → one `PASSDOWN.md` "Temporary Modifications / Band-Aids" entry (FIXME marker stays if any); no task; cleaned up opportunistically. (Rarely applies to operational band-aids — they don't persist.)
+   - *Non-trivial real fix* → a `PASSDOWN.md` entry PLUS a new task per "Adding New Tasks Discovered During Step 6". (Default for operational band-aids and anything that won't survive a reboot/redeploy.)
+   - *Weakens a hard guardrail* → NOT deferrable (see HARD-GUARDRAIL EXCEPTION above).
+4. **Promote** — a band-aid promoted to a task runs in a future session with fresh context, never bolted onto the current task.
+
+**OPPORTUNISTIC CLEANUP** (code/config band-aids with FIXME markers only):
+- At task start, orchestrator greps the task's target files (checklist "Target Repo Paths") for `FIXME` markers (read-only, in-boundary).
+- For a trivial band-aid overlapping the task's files, pull that band-aid's `PASSDOWN.md` context (what / why / intended fix) into the worker agent's launch prompt ("while editing this file, also fix this band-aid: <context>"), AND add a clearance line to the acceptance criteria passed to the QG: "FIXME band-aid <location> cleared."
+- Fix detail comes from `PASSDOWN.md` or the task, NEVER the bare comment.
+- **QG verification:** the QG verifies the assigned `# FIXME(band-aid)` marker is gone from the modified files (structural check — the QG's cross-cutting FIXME band-aid clearance check; see `quality-gate.md` "Evaluation Rules"); if it remains, SENT BACK. Whether the underlying fix is correct stays the Code Reviewer's lane.
+- On QG approval, the orchestrator deletes the now-resolved entry from `PASSDOWN.md` at "Task-End Triage" (band-aid fixed; note the removal in the commit message per the existing PASSDOWN-pruning rule).
+- Fold-in vs. defer follows the decide-and-proceed / escalate rules in "Orchestrator Decision Authority (Escalate by Exception)".
+
+**PERMANENT CHANGES (NOT band-aids).** Canonical source tree is the single source of truth. A permanent change goes into source via the normal task path and is committed — never left only on a running/deployed target (device, server, kiosk; e.g., a config edited directly on hardware but not in source). A target carrying changes the repo lacks = drift; the next clean deploy silently reverts it. An operational band-aid is the temporary, documented exception — and its non-persistence is exactly why it needs a permanent-fix task.
+
 ### Agent Roles: Who Does What
 
 Step 6 has four distinct roles. Keeping them separate is what makes the implementation phase work.
@@ -435,7 +469,7 @@ Do this every task, even when N=0 or all entries are routine. Triage is a visibl
 |------------|-----------|
 | Routine workflow events (QG verdicts, test results, compile checks, routine rework routing, agent-internal approach choices, status summaries) | **Delete.** Should not have been logged (see Do-NOT-log rule above). If 3+ such entries appear in one task, note the slip-up to the user as a tightening signal. |
 | Out-of-ordinary judgment calls that left no lingering effect (e.g., a one-off retry decision that worked) | **Delete.** The user watched it live; no future-session value. |
-| Band-aid applied (the fix is in production code right now, marked as temporary; real fix is something else) | → `PASSDOWN.md` "Temporary Modifications / Band-Aids" |
+| Band-aid applied (temporary fix in place; real fix is elsewhere) — see "Band-Aids (Temporary Fixes)" above for the full lifecycle, the operational-vs-code/config split, and the hard-guardrail exception | → `PASSDOWN.md` "Temporary Modifications / Band-Aids" for a trivial fix; a `PASSDOWN.md` entry **PLUS a new task** for a non-trivial or operational band-aid; a guardrail-weakening band-aid is NOT deferrable — surface to the user |
 | Approach tried and abandoned (code or configuration that is NOT in the repo because it didn't work; future-Claude shouldn't repeat the attempt) | → `PASSDOWN.md` "Things Tried That Didn't Work" |
 | Project-specific lesson or environment gotcha (no code involved; pure knowledge about the codebase, environment, or external system that future-Claude needs) | → `PASSDOWN.md` "Lessons Learned / Gotchas" |
 | Open question that wasn't answered this task and isn't currently blocking | → `PASSDOWN.md` "Open Questions" |
