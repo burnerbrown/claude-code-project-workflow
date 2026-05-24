@@ -68,8 +68,17 @@ Use this template:
 ## How to Use This File
 - Read Active Items at session start — these are what could trip future-Claude.
 - Add items during Step 6 task-end triage only. Do NOT write here during a task.
-- When an item is no longer relevant, delete it. Note the deletion in the commit message ("Removed PASSDOWN band-aid — fixed in commit XXX"). Git history is the archive.
-- Entries: date, where, what, why it matters.
+- Every entry carries a disposition line (see below) that tells a future triage when the entry may be removed. This is what keeps the file trimmed automatically.
+- Entries: date, where, what, why it matters, and a disposition line.
+
+**Disposition line (required on every entry).** End each entry with exactly one of:
+- **🗑 KEEP (permanent — <why it never expires>)** — a durable fact with no expiry (e.g. "service runs from /opt, not /home"). The triage sweep never touches it.
+- **🗑 DELETE WHEN <verifiable condition>** — expires on a condition a future session can confirm in ONE concrete step: a specific task is checked `- [x]` (named by its ID), a named string is present/absent in a named file, or a named path exists / is git-ignored. Name the artifact to inspect (good: "DELETE WHEN policies.md contains a section classifying archive.raspberrypi.com packages as Tier A"; too vague: "DELETE WHEN the policy is encoded"). Conditions that need interpretation ("after X is verified", "once X is correct/complete") are NOT verifiable — use REVIEW WHEN for those.
+- **🗑 REVIEW WHEN <event>** — expires on a judgment call a future session cannot mechanically verify (e.g. "if the log churn turns out to be annoying"). The triage sweep never auto-deletes it; it surfaces the entry to the user when the event has plausibly occurred.
+
+**One disposition per entry.** If different parts of a note expire on different conditions, split them into separate entries so each carries a single disposition — do NOT write a compound entry mixing KEEP and DELETE-WHEN parts (the sweep cannot safely auto-delete a mixed entry and will surface it instead). When unsure whether a condition is verifiable, use REVIEW WHEN. When any entry is removed, note the deletion in the commit message ("Removed PASSDOWN band-aid — fixed in commit XXX"). Git history is the archive.
+
+Example disposition lines: `🗑 KEEP (permanent — deploy path; true for the project's life)` · `🗑 DELETE WHEN Task 30 is checked [x] (not ABANDONED) in IMPLEMENTATION-CHECKLIST.md` · `🗑 REVIEW WHEN the first multi-rip session has run`
 
 ## Active Items
 
