@@ -96,6 +96,8 @@ A concrete checklist the Quality Gate uses to verify the task is complete. These
 - [ ] Performance targets verified MET with benchmark evidence (when Performance Add-On = Yes)
 - [ ] Code committed to GitHub
 
+**Deriving the QG checklist from the correct rubric.** Derive each agent's QG checklist items from that agent's rubric in `.agents\quality-gate.md` (e.g. Senior Programmer → P1–P5, DevOps Producer → DO1–DO9, DevOps Observability Review → DO10–DO16); never apply one role's rubric to another's output. The QG is a process gate, not a reviewer: do NOT write items asking it to judge code substance, security vulnerabilities, or architectural correctness — those are the Code Reviewer (CR) and Security Reviewer (SR) lanes, gated separately. If acceptance needs that judgment, route it to CR/SR, not the QG.
+
 ## What to Avoid
 - Don't load all task files at once — process one at a time
 - Don't repeat the Step 5 plan verbatim — add detail, don't copy
@@ -105,6 +107,8 @@ A concrete checklist the Quality Gate uses to verify the task is complete. These
 - Don't make checklists so granular they become a burden — focus on outcomes, not line counts
 - Don't skip the **Conditional Add-On scans** (step 4) — even if a task seems unrelated to performance or observability, run all sub-scans; the Step 3/4 handoffs and the architecture's `## Observability` section may flag triggers the task description doesn't mention
 - Don't skip the **Test Environment** classification for Test Engineer or Performance Optimizer agents — every task that involves tests or benchmarks must specify whether they are host-safe or require a sandbox, and which sandbox type. This prevents unsafe test execution during Step 6
+- Don't emit a bare command as a re-test or commissioning step when a precondition gates it — e.g. "`sudo install.sh` (idempotent)" without saying what must already be true. Declare each step's preconditions (prior state, prerequisite tasks, manual setup) alongside the command, so Step 6 doesn't stall on a condition already known at detailing time
+- Don't assert a dependency is already vetted without checking `.trusted-artifacts/_registry.md` — every SCS-cleared claim must cite its registry entry, never assume transitive cover (e.g. "covered via Task 27"). If it isn't listed, detail it as needing an SCS scan
 
 ## File Structure
 
