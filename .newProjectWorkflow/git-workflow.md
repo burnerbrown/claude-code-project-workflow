@@ -43,7 +43,7 @@ The orchestrator **creates a local commit when the full task is complete** — a
 - **Never commit code that has unresolved must-fix review findings or pending QG rejections**
 - **Never commit files that contain secrets** (.env, credentials, API keys) — warn the user if such files exist
 - If a commit fails (e.g., pre-commit hook), fix the issue and create a new commit — never amend a previous commit unless the user explicitly requests it
-- **One narrow, explicit exception to "never commit code that has unresolved must-fix review findings or pending QG rejections": the labeled `wip(task-N): BLOCKED by …` commit** created by the Blocked Task pause procedure (see `step-6-implementation.md` "Blocked Task — Pause and Resume"). It is permitted ONLY because it is explicitly labeled, recorded in a blocked-handoff file, never the task's completion commit, and forced back through the full Quality Gate on resume before any subtask box is checked. It is never amended, squashed, or rebased. It is strictly safer than the alternative (partial unreviewed code left uncommitted and lost on a crash or `/clear`, or silently swept into another task's commit). This exception applies to nothing else — no other unreviewed code may be committed.
+- **One narrow, explicit exception to "never commit code that has unresolved must-fix review findings or pending QG rejections": the labeled `wip(task-N): BLOCKED …` commit** (either `BLOCKED by Task M` for a prerequisite-task blocker or `BLOCKED on gate — …` for a non-task gate) created by the Blocked Task pause procedure (see `step-6-implementation.md` "Blocked Task — Pause and Resume"). It is permitted ONLY because it is explicitly labeled, recorded in a blocked-handoff file, never the task's completion commit, and forced back through the full Quality Gate on resume before any subtask box is checked. It is never amended, squashed, or rebased. It is strictly safer than the alternative (partial unreviewed code left uncommitted and lost on a crash or `/clear`, or silently swept into another task's commit). This exception applies to nothing else — no other unreviewed code may be committed.
 
 ---
 
@@ -53,7 +53,7 @@ The orchestrator **creates a local commit when the full task is complete** — a
 **When to remind:**
 - After **each task is fully committed** — once the final checklist/index commit for a task is done, suggest pushing to remote
 - Do NOT batch all pushes to workflow completion — a local-only repo is not a backup, and losing many tasks of work to a disk failure or system issue is an unacceptable risk
-- A paused task's `wip(task-N)` commit and its `chore(blocked)` tracking commit are normal local commits — remind the user to push them too, so blocked work is backed up off-machine while it waits for the prerequisite. Backing the partial work up this way is a primary reason the Blocked Task procedure commits it rather than leaving it uncommitted (see `step-6-implementation.md` "Blocked Task — Pause and Resume")
+- A paused task's `wip(task-N)` commit and its `chore(blocked)` tracking commit are normal local commits — remind the user to push them too, so blocked work is backed up off-machine while it waits for the blocker to clear (a prerequisite task or a gate). Backing the partial work up this way is a primary reason the Blocked Task procedure commits it rather than leaving it uncommitted (see `step-6-implementation.md` "Blocked Task — Pause and Resume")
 
 **Push flow:**
 ```
