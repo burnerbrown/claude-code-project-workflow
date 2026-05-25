@@ -84,7 +84,7 @@ Tier depends on the source of every package in the resolved transitive graph, no
 Eligibility (ALL must hold for every package in the graph):
 
 1. **Origin.**
-   - apt: `Origin: Debian`/`Ubuntu`, suite in {`main`, `security`, `restricted`, `universe`, `multiverse`, `<release>-updates`, `<release>-security`}. `<release>-backports` is Tier A if distro-signed; SBOM sets `from_backports: true`.
+   - apt: `Origin: Debian`/`Ubuntu`, suite in {`main`, `security`, `restricted`, `universe`, `multiverse`, `<release>-updates`, `<release>-security`}. `<release>-backports` is Tier A if distro-signed; SBOM sets `from_backports: true`. A platform-vendor repo for the target hardware can also qualify (subject to one-time user approval) — see "Platform-vendor repositories" below.
    - dnf/yum: Red Hat, Fedora Project, Amazon Linux, Rocky, AlmaLinux, or CentOS Stream official repos. GPG fingerprint matches the distro's published key.
    - apk: Alpine `main` or `community`, signed via `alpine-keys`.
 2. **GPG signature valid** AND key fingerprint matches the distro's published fingerprint (not just "some key worked").
@@ -104,6 +104,17 @@ Scan steps (batch-phase1):
 **Tradeoff, not equivalence.** Tier A skips Defender/VT because the threat model differs from PyPI/crates.io: on language registries anyone can publish anything, so signature alone doesn't protect content; distro repos have vetted maintainers + archive-level GPG tying per-file SHA256 to a signed manifest. Neither path catches sophisticated maintainer infiltration pre-disclosure (xz-utils / CVE-2024-3094) — CVE check handles it post-disclosure for both. Attack-surface shape differs: fewer distro maintainers, each with higher leverage per position; PyPI/crates.io has a larger surface with lower individual leverage.
 
 **Whole-graph rule.** apt's version-pinning can silently replace a main-repo transitive with a PPA version when the PPA publishes a higher version number. Example: request `libssl-dev` from Debian main (`3.0.4-1`), but a PPA in sources.list has `libcrypto=3.0.5-1ppa1` → apt pulls the PPA version transitively. Enforcing "entire graph Tier A" closes this without per-preference-file inspection. Same attack for dnf (`protect=1`); weaker for apk.
+
+**Platform-vendor repositories — Tier A (target-hardware OS vendor).** A GPG-signed repository operated by the OS/platform vendor *of the target hardware* is Tier-A-eligible (subject to one-time user approval — see *Scope* below) on the same basis as Debian/Ubuntu: the vendor curates the archive and ties per-file hashes to a signed manifest. **Approved instance: Raspberry Pi Foundation** — packages from `archive.raspberrypi.com`, matched on repo URL + the `+rpt*` / `~bpo12+rpt*` version suffix + a valid Foundation GPG-key signature (user-approved 2026-05-03); the `Origin:`/`o=` value is read from live `apt-cache policy` at scan time, not hard-coded here. Per the user-approved rationale: the Pi Foundation is the platform vendor for the target hardware (analogous to Microsoft for Windows or Apple for macOS), and its Debian-derived rebuilds carry `+deb12u*` security backports inheriting Debian's CVE patches.
+
+Controls follow the standard Debian Tier A path (origin + GPG-key verify, scan step 2; CVE check, scan step 3 / CMD 20a / OSV-DB; no sandbox, Defender, or VirusTotal) — with two rebuild-specific rules:
+
+- **CVE check queries the exact Debian base version.** OSV-DB's Debian advisories list only native Debian versions (no `+rpt`), so a query using a Pi rebuild version is not reliably matched (OSV's range-matching for packaging suffixes is undocumented; its enumerated-version path would miss it outright). CMD 20a MUST query OSV (Debian ecosystem, as it already does for apt) using the **exact** Debian base version embedded in the rebuild string — strip the `+rptN` suffix (`1.22.1-9+deb12u7+rpt1` → `1.22.1-9+deb12u7`); for a `~bpo12+rptN` backport, the embedded `~bpo12` Debian version — **not** the latest/current Debian version of the package (a rebuild may lag its base and remain vulnerable). **Fail-safe:** if the base version cannot be confidently resolved, or OSV returns no usable result for a Debian-derived package, do NOT pass it as CVE-clean — flag it or route that package through the Tier B per-package path. Genuinely Pi-specific packages (firmware, `raspberrypi-*`) have no Debian counterpart and thus no OSV coverage; they rest on the platform-vendor trust basis plus origin/GPG verification.
+- **30-Day Rule:** non-security Pi packages observe the 30-day cooling-off; the vendor's security backports are exempt and install immediately (same basis as Debian `-security` — urgent CVE patches must not be gated).
+
+**Whole-graph interaction:** `archive.raspberrypi.com` is a Tier-A origin, so a graph mixing Debian `main`/`security` and Pi Foundation packages stays Tier A; a genuinely third-party origin (PPA, vendor site, manually-added key) still drops the whole install to Tier B per the Whole-graph rule above.
+
+**Scope:** Tier-A status is per-approved platform vendor, not automatic — another platform vendor's repo requires the same one-time user approval before being treated as Tier A (consistent with the Tier B per-vendor reclassification gate).
 
 **Re-scan triggers (signal-based).** Tier A scan stays valid while ALL hold: (a) `apt-cache policy` / `dnf info` / `apk info -a` shows the scanned version is still the candidate, (b) no new CVE for that version in the per-ecosystem CVE source (OSV-DB for Debian; distro security tracker + OSV-DB for dnf/apk), (c) sources list / configured repos unchanged. Any break → re-run Tier A for affected packages before install. Mid-Step-6: orchestrator pauses affected tasks, runs fresh batch-phase1, surfaces new CVEs or tier changes to user, resumes only after user approval.
 
@@ -125,13 +136,15 @@ Triggers (any of):
 - Repo with a manually-added key (`apt-key add`, `rpm --import`) not matching a distro-published key.
 - Snap (`snap install`) or Flatpak (`flatpak install`) from any remote. Default Tier B (Flathub / Snap Store per-vendor verification ≠ distro-wide curation; classic-confinement snaps are raw binaries). Specific vendor remotes can be case-by-case reclassified if (a) vendor publishes signed manifests, (b) curation process is documented, (c) disclosure history is available — user approves per-vendor reclassification, no automatic decision.
 
+**Approved platform-vendor exception.** A user-approved platform-vendor repo classified Tier A under "Platform-vendor repositories" (e.g. `archive.raspberrypi.com`) is NOT a Tier-B trigger: neither its `/etc/apt/sources.list.d/*` location nor its vendor-published signing key (the platform vendor's own published key, not a manually-added third-party key) drops it to Tier B.
+
 Scan: Full existing per-package Phase 0–5 (download sandbox, Defender, conditional VT, source review, Phase 4 verdict, `.trusted-artifacts/` cache). **Layer 4 source review MUST inspect `postinst`/`prerm`/`postrm` scripts** — postinst can `apt-get install` runtime deps, breaking the offline-install assumption. Network required at install time → escalate to user. Install offline: `dpkg -i <local.deb>`, `rpm -ivh <local.rpm>`, `apk add --no-network --repository <local>`.
 
 #### Interactions with existing rules
 
 **Rule 5 (Install from Local Cache Only).** Tier A isn't file-cacheable (apt/dnf/apk install needs live repo metadata); integrity = pkg-manager signature verify + exact version pin + post-install graph verify. Unpinned commands (`apt install libssl-dev`, no `=<version>`) are rejected at orchestrator review, same as bare `pip install requests`. Tier B `.deb`/`.rpm`/`.apk` IS cached in `.trusted-artifacts/`.
 
-**Rule 6 (30-Day Rule).** Tier A from official stable repos (`-security`, `<release>`, `<release>-updates`): exempt — distro testing pipeline + security-team review provide analogous protection; urgent CVE backports must not be gated. Applies to Debian `unstable`/`experimental`, Ubuntu `proposed`, and `-backports` counted from upload to the backports suite. Tier B: applies as written.
+**Rule 6 (30-Day Rule).** Tier A from official stable repos (`-security`, `<release>`, `<release>-updates`): exempt — distro testing pipeline + security-team review provide analogous protection; urgent CVE backports must not be gated. Applies to Debian `unstable`/`experimental`, Ubuntu `proposed`, and `-backports` counted from upload to the backports suite. Tier B: applies as written. Platform-vendor Tier-A repos have their own 30-day handling — see "Platform-vendor repositories."
 
 **The Pause Rule.** Tier B Phase 4 INCOMPLETE triggers it. Tier A has no Phase 4 → can't produce INCOMPLETE. The existing Pause Rule scope clarification already covers this — no change needed.
 
@@ -221,7 +234,7 @@ Ecosystem enum extended: `python, rust, go, java, apt, dnf, apk, pacman, zypper`
 
    If these conditions are not met, the exception does not apply. When in doubt, wait the 30 days.
 
-   **System packages (apt/dnf/apk) — tier-dependent.** Tier A from official stable repos (`-security`, `<release>`, `<release>-updates`): exempt — distro testing + security-team review provide analogous protection; urgent CVE backports must not be gated. Applies to `-backports` counted from upload to the backports suite. Tier B: applies as written. See "Scope: System Package Managers."
+   **System packages (apt/dnf/apk) — tier-dependent.** Tier A from official stable repos (`-security`, `<release>`, `<release>-updates`): exempt — distro testing + security-team review provide analogous protection; urgent CVE backports must not be gated. Applies to `-backports` counted from upload to the backports suite. Tier B: applies as written. See "Scope: System Package Managers." Platform-vendor Tier-A repos have their own 30-day handling — see "Platform-vendor repositories."
 
 7. **Pre-approved tools** (no scanning or provenance verification needed):
    - Rust compiler, `rustup`, `cargo` (the tool itself, not crates)
