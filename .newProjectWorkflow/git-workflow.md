@@ -33,6 +33,7 @@ The orchestrator **creates a local commit when the full task is complete** — a
 - Commit the updated project-local `CLAUDE.md` (reflects current state for crash recovery)
 - Mark the task as checked (`- [x]`) in the index (`IMPLEMENTATION-CHECKLIST.md`) and commit that too
 - One or two commits per task is typical — keep it clean
+- **No status-only commit.** Never make a commit whose sole change records the task's own commit SHA or push status in `CLAUDE.md` — a commit can't hold its own SHA, and git already tracks push state (`git status`/`git log`). Keep the `CLAUDE.md` current-state note generic ("Task N complete").
 - `decisions/current-task.md` is gitignored and is NOT committed — it gets wiped at the start of the next task
 
 **If you discover triage was skipped after committing:** Do NOT amend the prior commit. Run triage now and commit any resulting changes (new PASSDOWN entries, new tasks, CLAUDE.md updates, etc.) as a follow-up commit titled `chore(triage): post-commit triage for Task N — process slip-up`. Surface the slip-up to the user. Tighten the next task by announcing triage explicitly per the visibility rule in `step-6-implementation.md` "Task-End Triage."
