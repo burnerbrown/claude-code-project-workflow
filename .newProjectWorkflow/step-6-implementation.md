@@ -6,6 +6,12 @@
 
 Both commands trigger the same orchestration loop; the only difference is whether the Pre-Flight Check runs.
 
+**This step is split across companion files** (each kept under the Read token cap). Read each when its situation arises; the section stubs below also point to the right file:
+- `step-6-mid-step-changes.md` -- Adding New Tasks Discovered During Step 6; Mid-Step-6 Add-On Re-evaluation
+- `step-6-task-end-triage.md` -- Band-Aids (Temporary Fixes); Task-End Triage
+- `step-6-task-states.md` -- Handling Failures; Task Abandoned Mid-Flight; Blocked Task — Pause and Resume; Legacy Project Onboarding
+- `step-6-decision-authority.md` -- Orchestrator Decision Authority (Escalate by Exception)
+
 ## Purpose
 Execute the implementation by orchestrating agents through the checklist produced in Step 5.5. The orchestrator (you) manages the loop — launching agents, routing between them, committing approved work, and tracking progress via checklists. Agents do the actual work (reading files, writing code, running tests, reviewing). The orchestrator does not read source files or do agent work — it routes, commits, and manages. Progress is tracked via a lightweight `IMPLEMENTATION-CHECKLIST.md` index file (one checkbox per task) and per-task detail files in `checklists/` (subtask checkboxes, agent instructions, acceptance criteria).
 
@@ -28,6 +34,7 @@ Execute the implementation by orchestrating agents through the checklist produce
 ### Read only when needed (not every session)
 - `PLACEHOLDER_PATH\.newProjectWorkflow\workflows.md` — only if the checklist file doesn't already specify the agent sequence
 - `PLACEHOLDER_PATH\.newProjectWorkflow\policies.md` — only if: a dependency is being added, two agents disagree, or an agent fails
+- The Step 6 companion files (`step-6-mid-step-changes.md`, `step-6-task-end-triage.md`, `step-6-task-states.md`, `step-6-decision-authority.md`) — read each on demand when its situation arises; see the companion-files map near the top of this file, and the section stubs below point to the right file.
 
 ## How to Run This Step
 
@@ -45,141 +52,11 @@ Execute the implementation by orchestrating agents through the checklist produce
 
 ### Adding New Tasks Discovered During Step 6
 
-When new work is discovered after Step 5.5 — bug fixes, deferred-item promotions, scope additions, post-deployment commissioning fixes, or anything else not in the original plan — the orchestrator MUST create a per-task checklist file AND add an entry to `IMPLEMENTATION-CHECKLIST.md` BEFORE launching agents for that work. This applies the Step 5.5 task-detailing convention in miniature, so mid-Step-6 work is tracked the same way as planned-from-Step-5 tasks.
-
-**Corrective re-detailing tasks.** This rule also covers a defect found in an *existing* task's checklist (`checklists/task-NN.md`) or in `IMPLEMENTATION-CHECKLIST.md` itself — a missing step, wrong acceptance criteria, a dead reference, a wrong QG rubric. The substantive content of an existing checklist MUST NOT be silently edited in place to "patch" it; an in-place content patch is a band-aid and is out of policy. Instead create a new corrective task by this same procedure (pick the ID, pick the **Bug Fix** workflow, create `checklists/task-{N}.md` from the Step 5.5 template, scoped to "re-detail and re-validate &lt;the defective task or step&gt;") so the fix passes through the normal Quality Gate / validation and is tracked. A *corrective re-detailing task* is exactly this procedure applied to a defect surfaced during triage — it is not a separate mechanism. (Pure typo or formatting fixes with no behavior change are exempt — those are routine and need no task.)
-
-**Timing — when to apply this rule:**
-
-- **New work discovered between tasks** (current task is complete, no work in flight): Apply this rule before starting the new task.
-- **New work discovered during current-task execution**: Finish the current task first (commit, STOP, `/clear`). Apply this rule in the next session before launching the new task's agents. *Exception:* if the new work is a true blocker on the current task (e.g., a missing prerequisite that must complete first), do NOT abandon the current task — follow the **"Blocked Task — Pause and Resume"** procedure below to preserve the partial work, create and complete the prerequisite as a new task per this rule, then resume the blocked task per that procedure.
-
-**Procedure for a new task:**
-
-1. **Pick the task ID**: Read `IMPLEMENTATION-CHECKLIST.md` to observe the ID convention this project uses. Projects use varied schemes — integers (`Task 1`, `Task 2`), prefixed sequences (`Pre-1`, `H-1`, `HW-1`), and variant suffixes (`Task 9a`, `9b`). The new ID must not collide with any existing one. For most scope additions, the next integer in the main `Task N` sequence is correct — compare numerically, not lexicographically (Task 10 > Task 9). For a follow-up variant of a specific existing task, use a letter suffix (`9a`). For prefixed tracks (hardware, pre-implementation), continue that prefix's numbering. If unsure, ask the user.
-2. **Pick the workflow**: Read `workflows.md` — you would normally skip this in Step 6, but mid-Step-6 task creation requires it because there is no existing checklist with an agent sequence yet. Choose the appropriate pattern. Common mid-Step-6 patterns: **Bug Fix**, **Refactoring**, **DevOps/Infrastructure**, **Performance Investigation**, **Documentation Sprint**, **Embedded/RTOS Feature**, **Firmware-Only Development**. Note: Dependency Addition follows the existing "Dependency Addition" workflow and the pause/scan rule already documented in this file — not this section. The Step 4 hardware-track workflows (Hardware + Firmware Full Development Step 4 track, Prototype to Production Step 4 track, Hardware Revision Step 4 track) do NOT apply mid-Step-6 — only their Step 6 sub-tracks do.
-3. **Create `checklists/task-{N}.md`**: Use the Per-Task Detail Template in `step-5.5-task-detailing.md` (this is the one place mid-Step-6 work needs that file — read only the template section). Populate it with task description, the chosen workflow's agent sequence as subtask checkboxes (`- [ ]` for each agent + each QG step), the specific agent instructions, file paths the agents will need, and acceptance criteria. Use a representative existing checklist file from `checklists/` as a format reference — one with a multi-agent sequence (e.g., Senior Programmer + Test Engineer + reviewers), NOT a trivial "Orchestrator only" task.
-4. **Conditional Add-On scans**: Run all sub-scans per `step-5.5-task-detailing.md` step 3 (Performance Add-On scan, Observability Add-On scan, and any future conditional add-ons). Most bug fixes will not activate any add-on, but run each scan rather than skipping by assumption — the Step 3/4 handoffs and the architecture's `## Observability` section may flag triggers the new task's description doesn't surface. Record each decision in the new checklist file (`Performance Add-On: Yes/No`, `DevOps Observability Review: Yes/No`).
-5. **Add the entry to `IMPLEMENTATION-CHECKLIST.md`**: Append a new task line under the appropriate section with `- [ ]`, a link to the new per-task file, and a `- **Depends On**:` sub-bullet (use `None` if standalone). Match the format of existing entries.
-6. **Then** enter the standard Orchestration Loop below with the new task as the current task.
-
-**Commit timing**: The new index entry and `checklists/task-{N}.md` file are committed as part of the task's normal completion commit (per `git-workflow.md`) — do NOT create a separate pre-task commit for the tracking files. They sit uncommitted on disk while agents work, just like planned-from-Step-5 checklists did during Step 6.
-
-**Do NOT** create a `project-handoffs/handoff-step-5.5-task-{N}-done.md` marker for mid-Step-6 tasks — those are Step 5.5 pacing artifacts and don't apply to additions made during Step 6.
-
-**Retroactive entries** apply when ALL relevant agent work for the new task is already committed (visible in `git log`) before the orchestrator creates the checklist. To capture it after the fact:
-
-- Create `checklists/task-{N}.md` and the index entry the same way as above.
-- Mark the index entry and all subtask boxes as already-checked (`- [x]`), since the work is done and committed.
-- Reconstruct the subtask list from the actual git history (commits, files changed) and include the relevant commit SHAs in the checklist file. Git history doesn't always indicate which agent did the work; if attribution is unclear, label subtasks with the agents that *would have been* assigned per the chosen workflow pattern, and note in the retroactive header that agent attribution is inferred.
-- Add a one-line note at the top of the new checklist file: *"Retroactive entry — work shipped before this convention was followed. Reconstructed from commits {SHAs}. Agent attribution {recorded from history | inferred from workflow pattern}."*
-- Commit the retroactive index entry and checklist file on creation (the underlying work is already committed in earlier commits; the tracking files can be committed standalone).
-- Do NOT re-run agents, re-evaluate via the QG, or re-test. The retroactive entry is documentation of completed work, not a re-execution.
-- Pre-Flight Check note: the Pre-Flight Check only runs on the first Step 6 session. Retroactive entries added in later sessions are not re-validated by Pre-Flight, so confirm the checklist file actually exists on disk before committing the index update.
-
-**Mixed case** (some related work committed, more still pending): Use the normal new-task path. Create the checklist with normal-path formatting (`- [ ]` boxes), then immediately mark already-committed subtasks as `- [x]` with their commit SHAs. Continue normal-path execution for the remaining unchecked subtasks. Do NOT split this into a separate retroactive entry plus a new task.
-
-**Why this matters**: Without this rule, every bug-fix or scope-addition session after Step 5.5 creates the same convention gap — agents launch directly, work commits, no per-task tracking exists, and `IMPLEMENTATION-CHECKLIST.md` becomes an incomplete record. Future maintenance sessions (later bug fixes, audits, handoffs) lose visibility into what was actually built.
+**Moved to `step-6-mid-step-changes.md`.** Read that file when new work surfaces mid-Step-6. (Heading kept here so existing references to *step-6-implementation.md "Adding New Tasks Discovered During Step 6"* still resolve.)
 
 ### Mid-Step-6 Add-On Re-evaluation
 
-Conditional add-ons (Performance Verification Add-On, Observability Verification Add-On, future add-ons) are decided at task-detailing time in Step 5.5 and recorded on the per-task checklist (`Performance Add-On: Yes/No`, `DevOps Observability Review: Yes/No`). However, scope can drift during implementation — a Senior Programmer might add a metric, a hot loop, or a health-check endpoint that the original task description didn't anticipate. When that happens, the add-on flag must be re-evaluated **before the task commits**, not after, so the relevant reviewer (Performance Optimizer for perf, DevOps Engineer Mode B for observability, etc.) actually runs against the new code.
-
-This rule is **generic across all conditional add-ons**. The framework below applies the same way regardless of which add-on is involved.
-
-**Re-evaluation is NOT "new work."** A flag flip on the current task expands the *current task's* review tail; it does not spawn a new task per the "Adding New Tasks Discovered During Step 6" rule. That rule applies when a separate task surfaces, not when the current task's existing scope crosses a missed add-on threshold.
-
-**Compatibility with existing in-flight projects:** If a per-task checklist (created before this rule existed) is missing the `DevOps Observability Review` or `Performance Add-On` line entirely, treat the absent line as `No` for re-evaluation purposes. On the first re-evaluation that flips the flag, also backfill the checklist file with the explicit field so the audit trail is consistent.
-
-#### Two-layer detection
-
-**Layer 1 — Producer self-flag (primary).** The agent that wrote the code (Senior Programmer) is required to self-flag scope drift in their advisory notes. See `senior-programmer.md` "Conditional Add-On Self-Flag (MANDATORY)" for the trigger lists and the advisory-note format. (The same pattern is appropriate for any other producer agent that touches instrumentation or perf-critical code; if a future producer agent gets analogous self-flag rules added to its definition, this section automatically applies.)
-
-**Layer 2 — Orchestrator backstop (defense in depth).** When the orchestrator is about to enter the review tail, and ONLY when the relevant add-on flag is currently `No` (Layer 2 is a no-op when the flag is already `Yes` OR `N/A`), the orchestrator runs a single `Grep` pass over the producer's modified files. Use the closed pattern lists below — these are the patterns to match, no others. False positives are acceptable; false negatives are mitigated by Layer 1.
-
-**N/A skip — required.** If the per-task checklist's `DevOps Observability Review` field starts with `N/A` (e.g., `N/A — project Observability is explicit-N/A`), the entire Observability backstop is skipped — no grep, no flag flip, no Mode B routing. This is the project-level gate from `devops-engineer.md` Operating Modes pre-condition 1. Same rule applies to any future add-on that has a project-level N/A: the explicit `N/A` value short-circuits the backstop.
-
-**Observability backstop — closed pattern list:**
-
-Match any of (case-sensitive unless noted):
-- Import lines: `prometheus_client`, `prometheus/client`, `opentelemetry`, `otel`, `datadog`, `statsd`, `newrelic` (regex on import / use / require statements only — `^\s*(import|use|require|from|#include)\b.*<pattern>`)
-- API calls: `WithLabelValues(`, `\.inc\(`, `\.observe\(`, `\.add\(.*tags`, `meter\.`, `histogram\.`, `counter\.`, `gauge\.`, `tracer\.`, `Span\.`, `start_span`, `start_as_current_span`
-- Path literals: `"/healthz"`, `"/readyz"`, `'/healthz'`, `'/readyz'`, `\`/healthz\``, `\`/readyz\``
-- File path matches in the diff (file added/modified at): `otel-collector*.{yaml,yml}`, `prometheus*.{yaml,yml,conf}`, `logging.{yaml,yml,json,conf}`, `logback.xml`, `log4j2.{xml,yaml}`
-
-Patterns that look broad but are intentionally NOT included (would false-positive too often): bare `slog`, bare `tracing`, bare `metrics`, bare `Counter` / `Histogram` (without the `\.` API-call anchor). If the producer added these without the API-call anchors above, Layer 1 (self-flag) is the path — Layer 2 won't fire.
-
-**Performance backstop — closed pattern list:**
-
-Match any of:
-- New benchmark file additions: file path matches `benches/*.{rs,go,py,ts,js}`, `*_bench.go`, `*.bench.{ts,js}`, or addition of `criterion`/`Benchmark`/`pytest-benchmark` imports
-- New profiling-instrumentation additions: imports of `pprof`, `cProfile`, `criterion`, `flamegraph`
-- New synchronous I/O imports introduced where they weren't before AND the task's checklist references a latency target: `database/sql`, `net/http` client init, `requests`, `urllib`, `reqwest`, `jdbc`
-
-Pattern explicitly NOT used: "tight loops in request-serving / event-loop paths" — this requires call-graph reasoning the orchestrator cannot do reliably from grep. Loops that affect performance are caught by Layer 1 (the SP self-flag includes "Added a tight loop, recursion, or hot-path code in a request-serving / event-loop / real-time-task path that wasn't anticipated") because the producer has the call-graph context.
-
-**Test-path exclusion (applies to both backstops):** Before grepping, exclude files whose paths match `tests/*`, `*_test.go`, `*.test.{ts,tsx,js,jsx}`, files in `#[cfg(test)]` modules (heuristic: file path contains `/tests/` or filename contains `_test`), and files behind explicit test-only build tags. Mode B reviews production code paths only; test-file matches do not flip the flag.
-
-#### Re-evaluation procedure
-
-When the orchestrator is about to enter the review tail for a task:
-
-1. **Read the producer's advisory notes** for any "ADVISORY: Conditional Add-On Threshold Crossed" sections (Layer 1). Check the advisory's "Recommended action" field — it determines the routing path:
-   - `orchestrator should invoke <agent> in <mode>` → flip the corresponding add-on flag and route to that reviewer (see step 3 below).
-   - `orchestrator should open Architect amendment task` → this is an **Architect-only trigger** (see `senior-programmer.md` Conditional Add-On Self-Flag → Architect-only triggers). Do NOT flip the Observability flag. Open a follow-up task using the architecture-amendments mechanism (see "Architecture amendments mid-Step-6" below). The current task's review tail proceeds without Mode B unless other Mode B triggers also fire. This split routing is what separates "code that needs Mode B review" from "code that surfaces an architecture coverage gap" — they are different problems with different fixes.
-   - `orchestrator should escalate to user` → pause and escalate per "Orchestrator Decision Authority (Escalate by Exception)" below.
-2. **Run the backstop greps** for each add-on whose flag is currently `No` (Layer 2). Skip the backstop entirely for add-ons whose flag is already `Yes` (already running) or starts with `N/A` (project-level skip — see N/A skip rule above).
-3. **Evaluate the union** of Layer 1 (Mode B-routed advisories) and Layer 2 (grep matches). If either identifies a missed add-on:
-   - **Flip the flag** in the per-task checklist (`No` → `Yes`) with a one-line note explaining the trigger (cite the SP advisory OR the grep match).
-   - **Route to the add-on's reviewer** as defined in `workflows.md`:
-     - Performance Add-On flipped → run Performance Verification step before the review tail.
-     - Observability Add-On flipped → add DevOps Engineer Mode B to the review tail (parallel with CR / SR).
-   - **Log the re-evaluation** in `decisions/current-task.md` so the audit trail explains why the flag changed.
-4. **Run the (possibly expanded) review tail once.** The backstop runs ONCE at the entry to the parallel reviewer block — not before every reviewer, and not after each within-tail rework round. After a producer rework triggered by reviewer findings, do not re-run the backstop; the flag is already set correctly.
-5. **Continue the workflow** as if the add-on had been flagged `Yes` from the start.
-
-**Handling Mode B `Overlap:` markers.** Mode B's findings table may include findings with an `Overlap: <other-reviewer>` field (e.g., a metric label that's both unbounded AND PII-bearing → `Overlap: Security Reviewer`). When merging reviewer findings before routing fixes to the producer:
-- If the named overlap reviewer has already run for this task and approved: surface the Mode B finding to that reviewer as a re-review item (re-invoke the reviewer fresh with the specific finding for verification). The reviewer may produce additional findings of their own.
-- If the named overlap reviewer is also running in this review tail (e.g., parallel CR/SR/Mode B): annotate the merged-findings package with `[also relevant to <reviewer>]` so the producer's fix accounts for both perspectives.
-- If the named overlap reviewer was skipped for this task (e.g., trivial bug fix tail): treat the overlap finding as Mode B's primary finding (no re-invocation), and the producer fixes per Mode B's suggested fix.
-
-**Architecture-Gap deduplication.** If multiple sources identify the same architecture coverage gap — e.g., an SP advisory ("Architect-only trigger" or Sparse Architecture Gaps), a Mode B Architecture Gaps section, a CR Resilience Implementation Sparse Architecture Gaps `should-fix`, an AD/DB advisory note in the agent's `## Open Issues / Advisory Notes` section, a Performance Optimizer entry in the agent's `## Architect-Routed Concerns` output section, or a TE T12 N/A gap — deduplicate before routing to the Architect: open ONE consolidated architecture-amendment item per gap, citing all contributing sources. Do NOT open two separate items.
-
-**T12 vs CR cross-check.** If Code Reviewer's Resilience Implementation pass did NOT use the short-circuit assertion (i.e., CR produced a substantive Resilience Implementation section, regardless of whether the per-sub-topic findings were "issue" or "no issues found"), Test Engineer's T12 cannot be marked `N/A — task implements no architect-declared resilience pattern`. The orchestrator MUST detect this mismatch in the review tail before commit and route TE for rework — TE missed implementing the resilience tests for code that CR confirmed is resilience-relevant. Conversely, if CR's pass used either short-circuit (*"No resilience-relevant code in this diff"* or *"Architect declared resilience N/A — no resilience review needed"*), T12's matching N/A is consistent and accepted. The "did not short-circuit" trigger is the canonical detection rule — "with findings" is too narrow because a CR that reviewed code and found everything correct is still "resilience-relevant code present."
-
-#### When the orchestrator backstop disagrees with the producer self-flag
-
-If the producer did not self-flag but the orchestrator's grep matches: trust the grep, flip the flag, add a one-line note in `decisions/current-task.md` that the producer missed the self-flag (so future workflow-system passes can review whether SP triggers should be tightened). Do NOT block the task — the audit trail captures the gap.
-
-#### Loop prevention
-
-Re-evaluation only flips a flag from `No` to `Yes`. Two layers of prevention guard against re-triggering:
-- **Layer 1 guard:** The producer's self-flag rule's pre-condition is "the corresponding add-on is currently `No` on the checklist" (see `senior-programmer.md`). Once `Yes`, the rule does not fire again, even if the producer reworks code.
-- **Layer 2 guard:** The orchestrator backstop is explicitly skipped when the relevant flag is already `Yes` (per step 2 above). It is a no-op in that state.
-
-These two guards together ensure the producer → reviewer → producer-rework → producer-re-flag-again cycle cannot occur.
-
-#### Cost
-
-The Layer 2 backstop is a single `Grep` pass over the producer's modified files before the review tail entry. It is intentionally lightweight — pattern matching against a closed list, not semantic analysis. Total cost: one Grep tool call, scoped to the diff's file list.
-
-#### Multiple add-ons on one task
-
-If a task has both flags flipped (or one was `Yes` from Step 5.5 and the other flipped mid-Step-6), the workflow ordering is the same as when both are activated at task-detailing time: **Performance Verification runs first** (after tests, before the review tail), **then Observability review runs in the review tail** alongside CR/SR. See `workflows.md` "Observability Verification Add-On" for the full multi-add-on flow.
-
-#### Architecture amendments mid-Step-6
-
-If the Software Architect amends the architecture's `## Observability` section, `## Resilience Patterns` section, or perf-target sections AFTER a task is approved and committed, the new declarations may apply to already-committed code that was not reviewed under the new constraints. The orchestrator must:
-
-1. **Notification trigger.** The Architect is required to flag amendments to the orchestrator via either (a) an advisory note in their handoff output, or (b) a dedicated `architecture-amendments/{date}.md` file the orchestrator checks at the start of each Step 6 session and at task entry. If the architect makes a silent amendment, the orchestrator has no obligation to detect it — and SHOULD NOT detect it heuristically (no architecture diffing). The contract is on the Architect side.
-2. **Identify affected committed tasks.** Use `git log` and the architecture's amended scope to find committed tasks whose modified files fall under the newly-amended scope. Granularity rule: open **one consolidated follow-up task** that covers all affected files (not one per affected prior task). Use the Bug Fix workflow pattern with the appropriate downstream reviewer:
-   - **`## Observability` amendment** → re-review by DevOps Engineer Mode B (set Observability flag `Yes` on the follow-up task).
-   - **`## Resilience Patterns` amendment** → re-review by Code Reviewer's Resilience Implementation pass; if the amendment changes the project-level form (declared ↔ N/A), update every per-task checklist's `Resilience Patterns:` field accordingly. If the amendment adds a new architect-declared resilience pattern that the committed code does not implement, the follow-up task may also require Senior Programmer rework — not just a review pass.
-   - **Perf-target amendment** → re-review by Performance Optimizer's Performance Verification pass.
-   The follow-up task is a re-review pass against the affected files; it becomes a re-implementation only when the amendment introduces a new requirement the committed code does not satisfy.
-3. **Amendment removes a previously-declared metric / SLO / resilience pattern.** Committed code that implements the now-removed declaration is over-declared but not wrong — the implementation (metric, retry handler, breaker, dedup table) is still valid behavior, just not architecturally required. Open a cleanup follow-up task only if the architect's amendment explicitly states the implementation should be removed; otherwise leave the code as-is and note the change in the architecture's revision history.
-4. **Cascade bound.** Architecture amendments triggered *by* a follow-up re-review pass (Mode B Architecture Gaps, CR Resilience Sparse Architecture Gaps, etc.) do NOT themselves trigger another amendment cycle — gaps surfaced during a re-review pass are logged for the next Architect-driven amendment cycle (or an explicit user-initiated revisit), not auto-cascaded. This bounds the amendment loop at one cycle per architect action.
-5. **Continue normal operation.** Do not block in-flight tasks unless the architecture amendment introduces a hard blocker (e.g., a removed metric the producer was depending on; a newly-declared idempotency-key requirement on an endpoint already in production traffic).
+**Moved to `step-6-mid-step-changes.md`.** Read that file when a producer advisory note or your backstop grep suggests a conditional add-on threshold may have been crossed. (Heading kept here so existing references to *step-6-implementation.md "Mid-Step-6 Add-On Re-evaluation"* still resolve.)
 
 ### The Orchestration Loop
 
@@ -281,17 +158,7 @@ Repeat the following cycle for each task/subtask until the checklist is complete
 
 ### Handling Failures
 
-**Default pattern for most failures:** Route the QG findings to the agent responsible for the failing artifact. Launch a fresh instance of that agent with the QG feedback and file paths to the predecessor's output. After the fix, launch fresh instances of any reviewers whose prior findings are now affected. All re-runs go through the QG gate. See `agent-orchestration.md` section "Agent Lifecycle: Fresh Agent on Rework" for prompt structure and routing guidance.
-
-Non-trivial or cross-agent routing cases:
-
-- **Compliance Reviewer returns SENT BACK**: Route to Senior Programmer for fixes, then invoke a **fresh** Compliance Reviewer to re-assess. If the fix changed significant logic, also re-invoke Security Reviewer and/or Code Reviewer (fresh) before re-running compliance.
-- **API design-level flaws found by reviewers**: If reviewer findings require API spec changes (not just implementation fixes), re-invoke the API Designer (fresh). After the spec is updated, re-invoke the Senior Programmer (fresh) to match.
-- **Performance regression or no improvement**: Re-invoke the Senior Programmer (fresh) with the Performance Optimizer's comparison data. After revision, re-invoke the Performance Optimizer (fresh) for re-verification — pass the original analysis file path so it can compare.
-- **Dependency needed mid-implementation**: Pause dependent work. Follow the "Dependency Addition" workflow in `workflows.md`. For system-package deps, set the right `ecosystem` (apt/dnf/apk/pacman/zypper) in the batch-phase1 `packages` array — Tier A ends at Phase 1; Tier B goes per-package. See `policies.md` "Scope: System Package Managers."
-- **SCS scanning infrastructure fails** (sandbox won't launch, tool crash, bad API key): Report diagnostic info to the user. Do not proceed with the dependency. Do not retry the same scan more than twice.
-- **Quality Gate produces questionable evaluation** (orchestrator suspects the QG missed issues): See `policies.md` section "Orchestrator vs Quality Gate vs Project Manager" for the escalation procedure.
-- **Agent conflict** (two agents disagree): See `policies.md` section "Agent Conflict Resolution" for priority rules. When in doubt, present both perspectives to the user.
+**Moved to `step-6-task-states.md`.** Read that file when an agent or test fails and routing is non-trivial. (Heading kept here so existing references to *step-6-implementation.md "Handling Failures"* still resolve.)
 
 ### CRITICAL: The Orchestrator Does Not Write Code
 
@@ -310,37 +177,7 @@ Non-trivial or cross-agent routing cases:
 
 ### Band-Aids (Temporary Fixes)
 
-**DEFINITION.** Band-aid = a KNOWINGLY temporary/improper fix that works (unblocks progress / passes a test) but is not the proper fix — the real fix is larger or elsewhere (leaves technical debt). A change that IS the proper fix (root cause addressed, robust, matches design) is NOT a band-aid → no FIXME marker, just done. Band-aids are ALLOWED in Step 6 and are NOT fixed in the session applied (forcing the real fix now balloons scope / overloads context). Goal: never lose track of one — not fix on the spot. Every band-aid is documented.
-
-**TWO KINDS** (test: did it write a file?):
-- **Operational band-aid** — transient runtime action on the live/deployed system; writes NO file, does not survive reboot/redeploy (e.g., `sudo mount`, `sudo chvt 7`, restart/kill a service).
-  - Orchestrator MAY apply on the fly — operational command, not a code edit; routing to an agent would needlessly balloon the task.
-  - No FIXME marker (no file to mark).
-  - Vanishes on reboot → triage disposition is normally a `PASSDOWN.md` entry PLUS a new permanent-fix task.
-- **Code/config band-aid** — edits a file (repo source, a script, or persistent config belonging in canonical source).
-  - A worker agent applies it like any change; orchestrator does NOT edit the file itself (see "CRITICAL: The Orchestrator Does Not Write Code").
-  - Applying agent adds, in the SAME edit, a one-line marker: `# FIXME(band-aid): <one line> — see PASSDOWN` (marker + pointer only, NOT the full fix).
-
-**HARD-GUARDRAIL EXCEPTION** (either kind). If it weakens a hard guardrail — disables/relaxes a security control, bypasses validation, defeats a safety check, hardcodes a secret (e.g., `ufw disable`, `chmod 777`, `setenforce 0`) → NOT deferrable. Surface to the user at once; follow existing must-fix/escalation rules (fix before commit, or explicit user acceptance). NEVER ship a dangerous shortcut as "fix later".
-
-**LIFECYCLE:**
-1. **Apply** — orchestrator (operational) or worker agent + FIXME marker (code/config) — when it unblocks progress and the real fix now would derail the task.
-2. **Log** in `decisions/current-task.md` — it is a judgment call (DO-log category, NOT a routine event; see "Orchestrator Decision Authority (Escalate by Exception)"). Record what / where / why; for operational, record whether it survives a reboot.
-3. **Triage** — at "Task-End Triage", orchestrator RECOMMENDS one disposition per band-aid with reasoning; user decides:
-   - *Trivial / low-risk real fix* → one `PASSDOWN.md` "Temporary Modifications / Band-Aids" entry (FIXME marker stays if any); no task; cleaned up opportunistically. (Rarely applies to operational band-aids — they don't persist.)
-   - *Non-trivial real fix* → a `PASSDOWN.md` entry PLUS a new task per "Adding New Tasks Discovered During Step 6". (Default for operational band-aids and anything that won't survive a reboot/redeploy.)
-   - *Weakens a hard guardrail* → NOT deferrable (see HARD-GUARDRAIL EXCEPTION above).
-4. **Promote** — a band-aid promoted to a task runs in a future session with fresh context, never bolted onto the current task.
-
-**OPPORTUNISTIC CLEANUP** (code/config band-aids with FIXME markers only):
-- At task start, orchestrator greps the task's target files (checklist "Target Repo Paths") for `FIXME` markers (read-only, in-boundary).
-- For a trivial band-aid overlapping the task's files, pull that band-aid's `PASSDOWN.md` context (what / why / intended fix) into the worker agent's launch prompt ("while editing this file, also fix this band-aid: <context>"), AND add a clearance line to the acceptance criteria passed to the QG: "FIXME band-aid <location> cleared."
-- Fix detail comes from `PASSDOWN.md` or the task, NEVER the bare comment.
-- **QG verification:** the QG verifies the assigned `# FIXME(band-aid)` marker is gone from the modified files (structural check — the QG's cross-cutting FIXME band-aid clearance check; see `quality-gate.md` "Evaluation Rules"); if it remains, SENT BACK. Whether the underlying fix is correct stays the Code Reviewer's lane.
-- On QG approval, the orchestrator deletes the now-resolved entry from `PASSDOWN.md` at "Task-End Triage" (band-aid fixed; note the removal in the commit message per the disposition sweep under "Task-End Triage").
-- Fold-in vs. defer follows the decide-and-proceed / escalate rules in "Orchestrator Decision Authority (Escalate by Exception)".
-
-**PERMANENT CHANGES (NOT band-aids).** Canonical source tree is the single source of truth. A permanent change goes into source via the normal task path and is committed — never left only on a running/deployed target (device, server, kiosk; e.g., a config edited directly on hardware but not in source). A target carrying changes the repo lacks = drift; the next clean deploy silently reverts it. An operational band-aid is the temporary, documented exception — and its non-persistence is exactly why it needs a permanent-fix task.
+**Moved to `step-6-task-end-triage.md`.** Read that file when a worker applied a knowingly-temporary fix. (Heading kept here so existing references to *step-6-implementation.md "Band-Aids (Temporary Fixes)"* still resolve.)
 
 ### Agent Roles: Who Does What
 
@@ -356,218 +193,23 @@ Step 6 has four distinct roles. Keeping them separate is what makes the implemen
 
 ### Orchestrator Decision Authority (Escalate by Exception)
 
-The orchestrator has standing authority to make routine routing, workaround, and nit-level decisions during Step 6. It does NOT escalate every small choice to the user. Instead, it weighs **security** (does this widen the attack surface or weaken any control?), **completeness** (does this satisfy the acceptance criteria for this task?), and **engineering correctness** (does this match the Step 4 architecture, the project's existing conventions, and the language's standard practice?), commits to a decision, and proceeds.
-
-Apply nits — small, clearly-correct improvements like variable renames or comment wording — without asking. Route the fix to the responsible agent; don't stop to ask the user about something the agent can fix in seconds.
-
-**When in doubt between acting now and deferring, act now.** Deferring should be reserved for items that are genuinely out of scope for the current task. Most advisory notes and SHOULD-FIX items can be routed to the responsible agent and addressed before the task commits — that's how the codebase stays healthy at each commit boundary rather than accumulating stale follow-ups.
-
-**Must escalate to the user** — if ANY of these apply, stop and ask before acting:
-
-1. **The change is user-visible** — UI, runtime behavior, or public APIs. Nits and other internal-only changes (comment wording, private-symbol renames, behavior-preserving refactors of internal code, added tests, internal/contributor documentation) are NOT in this category — apply them per the "nits" rule above. When in doubt whether a change is behavioral, trigger #5 applies.
-2. The change deviates from the Step 3 specification or the Step 4 architecture.
-3. The change adds or removes scope — new feature, dropped feature, or new dependency.
-4. The change touches an existing hard guardrail — SCS verdict, Security Reviewer finding, QG verdict (not the verdict's advisory content — see Orchestration Loop step 6), governance file, or any rule elsewhere in this workflow that says "the user decides" (agent conflicts in `policies.md`, step skip/revisit in `agent-orchestration.md`, SCS verification mismatches, the Pause Rule).
-5. The orchestrator is genuinely uncertain after weighing security, completeness, and engineering correctness, and a wrong choice would be hard to reverse.
-
-**Scope of "decide and proceed."** This rule covers QG advisory-content items (see Orchestration Loop step 6) and the orchestrator's own routing/workaround/nit-level choices. SENT BACK and APPROVED WITH CONDITIONS verdicts follow existing routing rules.
-
-**Decide and proceed (worked examples):**
-
-- *QG advisory note:* "Rename private helper `parseInput` → `parseRequestBody` for clarity." Security: no impact. Completeness: no impact. Engineering correctness: yes, the new name is clearer. User-visibility: no — private function. **Action:** Route the rename to the Senior Programmer and continue.
-- *Bundling reviewer findings:* Code Reviewer returns four small nits on the same file (rename, comment wording, two whitespace fixes). Security: no impact. Completeness: no impact. Engineering correctness: yes — fixes are unambiguous. User-visibility: no. **Action:** Bundle the four findings into a single send-back to the Senior Programmer rather than four sequential ones, log the decision, continue.
-- *Flaky reviewer or test:* A reviewer or test run fails once with what looks like a transient error. **Action:** Re-run once; if it passes, proceed and log the retry. If it fails again, treat as a real failure and route to the responsible agent.
-- *Project convention call:* Senior Programmer used `info!` for a minor internal event ("cache populated"); Code Reviewer notes that similar events elsewhere in the project use `debug!`. Security: no impact. Completeness: no impact. Engineering correctness: matching the project's existing convention is right. User-visibility: no — internal logs only. **Action:** Route the level change to the Senior Programmer and continue.
-
-**Escalate (worked example):**
-
-- Spec says: "after submitting the form, the user lands on a confirmation page." Implementation: redirects to the dashboard instead, because the agent argued the dashboard is more useful. Security: no impact. Completeness: a spec criterion is not met. Engineering correctness: debatable. User-visibility: **yes** — the user will see a different screen than the spec described. **Action:** Present both options to the user and let them decide.
-
-**Decision Log (visibility without interruption).**
-
-Autonomous decisions are logged to `decisions/current-task.md` (gitignored, created at Step 1 scaffolding; created lazily by the orchestrator at task start if the project predates Step 1's `decisions/` creation rule — see Orchestration Loop step 2). The user can open this file at any time during a task to watch decisions accumulate in real time and ask follow-up questions between agent invocations.
-
-- **At the start of each task** (during step 2 of the Orchestration Loop), the orchestrator wipes the file and writes a header with the task ID, name, and start date. On a mid-task resume, the existing log is preserved.
-- **After each autonomous decision**, the orchestrator appends a one-line bullet:
-  `- [HH:MM] [context] decision and brief reason` (24-hour clock)
-  Example: `- [14:32] [QG advisory] Renamed parser.rs → parsers/parser.rs to match Step 4 layout.`
-- **Routine routing is NOT logged** — only the orchestrator's own judgment calls belong in the log. This rule is enforced strictly: routine workflow events that follow from the checklist or rubric do NOT belong here, even when the orchestrator "did" something.
-
-  **Do NOT log** (closed list of routine event categories — none of these are judgment calls):
-  - QG verdicts (any agent, any outcome) — already captured in the QG report file
-  - Test pass/fail results — already captured in test output
-  - Compile/syntax check results — already captured in their own output
-  - Routine rework routing ("CR found a bug, sending to SP") — pre-scripted by the workflow
-  - Decisions to allow another rework cycle — the rework loop is workflow-prescribed; if you're approaching an escalation trigger, escalate, don't log the deliberation
-  - Agent-internal approach choices ("TE chose Approach 1") — that is the agent's decision, not the orchestrator's
-  - Research-Inventory auto-continues for empty manifests
-  - Status summaries ("code/test/review phase COMPLETE")
-  - Commits, pushes, checklist box updates, file creation/edit reports from agents
-  - Pre-flight checks that pass (line-number drift checks, head pin, etc.)
-
-  **Anti-examples** — actual entries observed in production that violated this rule. Do not produce entries in any of these shapes:
-  - `[QG verdict — DevOps] APPROVED. All P1-P5 PASS...`
-  - `[pytest re-run — 8/8 PASS]`
-  - `[syntax checks PASS] bash -n clean for install.sh...`
-  - `[Research Inventory skip — SP]`
-  - `[code/test/review phase COMPLETE]`
-  - `[TE rework — APPROACH 1 chosen]`
-  - `[pytest result — 1 FAILED post-QG] ... routing fresh TE for regex tweak.` (the bare failure + routine routing is noise; the diagnosis "test bug not impl bug" IS a judgment call and earns ONE entry on its own)
-  - `[Canonical HEAD pinned: <sha>]` and `[Line-number drift check ... No drift.]` (pre-flight bookkeeping)
-
-  **DO log** the orchestrator's judgment calls — the specific cases where it chose between two reasonable options:
-  - Scope expansion accepted or rejected
-  - Advisory finding accepted, deferred, or escalated
-  - Reviewer-finding bundling (multiple nits → one send-back)
-  - Flaky retry decisions — distinct from real-failure rework; this is "looked transient, retried once, passed"
-  - Defer vs. act-now decisions on advisory items
-  - Routing rework when QG's send-back didn't specify the target agent
-  - New-task creation (mid-Step-6 task additions)
-  - Project-convention calls (which of two acceptable patterns to use)
-  - User-input pivots captured into the record
-  - Diagnoses that distinguish "test bug" from "implementation bug" (or similar root-cause judgments)
-
-  When unsure whether an event qualifies, ask: "Did I choose between two reasonable options, or did the checklist tell me what to do?" If the latter, do not log.
-- **The log is per-task only.** It is overwritten at the start of the next task; historical decisions are not retained on disk.
-- **Mid-task log immutability.** During a task, the orchestrator may APPEND to `decisions/current-task.md` but MUST NOT edit or delete prior entries. The user is watching live and prior entries are part of the audit trail. If you logged something that should not have been logged, leave it — surface the over-logging during task-end triage (it counts as a tightening signal).
-- **On mid-task resume**, treat prior log entries as historical context — they describe decisions that informed already-committed work. If a prior decision looks wrong on review, escalate to the user; do not attempt to revert silently.
-- **If the user reads a logged decision and asks to revert it after the fact**, treat the request as a new task or send-back per normal workflow — route the change through the responsible agent and follow normal commit rules; do not edit committed work directly.
-
-**Why:**
-
-Asking the user about every small choice produces friction without better outcomes. The user is closer to the project's intent; the orchestrator is closer to the immediate routing context. The rule "decide unless a trigger fires" means the user pays attention when the project changes shape, not when the orchestrator picks between two equivalent next steps. The triggers are deliberately narrow — they catch cases where silent decisions would surprise the user later. The decision log preserves visibility without forcing interruption.
-
-**Interaction with the No Guessing Policy.**
-
-The No Guessing Policy still applies in full. "Decide and proceed" applies to **judgment calls between known options** — whether to act on a QG advisory note now or defer it, whether to accept a Code Reviewer's should-fix or waive it with a note, whether to retry a flaky test once before treating it as a real failure, whether to bundle multiple reviewer findings into one send-back or split them. It does NOT apply to **factual unknowns** — if the orchestrator doesn't know a library API, a spec detail, a project convention, or anything else factual, it must say so per the No Guessing Policy and ask the user, even if it could "pick something" to keep moving. Genuine factual uncertainty escalates per trigger #5.
-
-**This rule does NOT relax existing hard guardrails** — see "CRITICAL: The Orchestrator Does Not Write Code" above and "What to Avoid" below.
+**Moved to `step-6-decision-authority.md`.** Read that file when you face a judgment call and must decide whether to act-and-proceed or escalate. (Heading kept here so existing references to *step-6-implementation.md "Orchestrator Decision Authority (Escalate by Exception)"* still resolve.)
 
 ### Task-End Triage
 
-When a task is complete (all subtasks checked, all reviewers approved), the orchestrator MUST process `decisions/current-task.md` BEFORE committing. This is the ONLY moment entries leave the scratch space and land in their persistent destinations. Skipping triage means PASSDOWN entries are lost, deferred work is forgotten, and the next task starts with stale context.
+**Moved to `step-6-task-end-triage.md`.** Read that file before every commit, when a task is complete (Orchestration Loop step 8). (Heading kept here so existing references to *step-6-implementation.md "Task-End Triage"* still resolve.)
 
-**Announce triage explicitly.** Before routing anything, tell the user:
+### Task Abandoned Mid-Flight
 
-> "Running task-end triage on N entries in `decisions/current-task.md`."
-
-Do this every task, even when N=0 or all entries are routine. Triage is a visible step, not a silent check. If routine entries were logged that shouldn't have been (per the Do-NOT-log rule above), also report the count as a tightening signal — e.g., "3 routine entries were logged that shouldn't have been; reviewing what to tighten."
-
-**Procedure:**
-
-1. State the announcement above.
-2. Read `decisions/current-task.md` top to bottom.
-3. For each entry, name the destination explicitly in your triage output (e.g., "Entry 1 → PASSDOWN Band-Aids; Entry 2 → new task Pre-7; Entry 3 → user escalation"). The destinations are listed in the routing table below — do not invent new destinations.
-4. After routing each entry, delete it from `decisions/current-task.md`. (The file is wiped at the next task's start regardless, but deleting as you go prevents double-routing and makes the file's post-triage state diagnostic — empty = clean exit.)
-5. Surface any "escalate to user" items before commit — the user decides; the orchestrator does NOT auto-handle these. Wait for the user's answer before continuing.
-6. Do NOT commit while triage items remain unresolved.
-7. **Surface workflow recommendations in a dedicated `## Workflow Recommendations` block** at the end of your triage output (separate from band-aids and lessons), AND append each recommendation to `_ClaudeProjects\workflow-recommendations.md` so it survives past the chat session. Each recommendation uses the format `- [YYYY-MM-DD] [project: <project name>] [task: <task-id>]` followed by indented `**Affected:**` / `**Gap:**` / `**Suggested change:**` sub-bullets (see the format block at the top of `workflow-recommendations.md`). Claude may APPEND only — do NOT edit or remove existing entries in that file (the user maintains it directly). The user acknowledges each recommendation in the chat-triage block before commit (typically with "noted" or "will address") — Claude does NOT edit workflow files. **Append only findings whose durable fix lands in a governance file** (per the "Apparent workflow-system issue" row and its mandatory recurrence test below). A finding whose durable fix lands in a project-produced artifact is deferred project work and routes to a new task instead — not this file; a finding needing both gets both.
-
-**Routing table:**
-
-| Entry type | Routes to |
-|------------|-----------|
-| Routine workflow events (QG verdicts, test results, compile checks, routine rework routing, agent-internal approach choices, status summaries) | **Delete.** Should not have been logged (see Do-NOT-log rule above). If 3+ such entries appear in one task, note the slip-up to the user as a tightening signal. |
-| Out-of-ordinary judgment calls that left no lingering effect (e.g., a one-off retry decision that worked) | **Delete.** The user watched it live; no future-session value. |
-| Band-aid applied (temporary fix in place; real fix is elsewhere) — see "Band-Aids (Temporary Fixes)" above for the full lifecycle, the operational-vs-code/config split, and the hard-guardrail exception | → `PASSDOWN.md` "Temporary Modifications / Band-Aids" for a trivial fix; a `PASSDOWN.md` entry **PLUS a new task** for a non-trivial or operational band-aid; a guardrail-weakening band-aid is NOT deferrable — surface to the user |
-| Approach tried and abandoned (code or configuration that is NOT in the repo because it didn't work; future-Claude shouldn't repeat the attempt) | → `PASSDOWN.md` "Things Tried That Didn't Work" |
-| Project-specific lesson or environment gotcha (no code involved; pure knowledge about the codebase, environment, or external system that future-Claude needs) | → `PASSDOWN.md` "Lessons Learned / Gotchas" |
-| Open question that wasn't answered this task and isn't currently blocking | → `PASSDOWN.md` "Open Questions" |
-| Thing that should be done later (any deferred work) — **including a defect or missing step found in a project's own `checklists/task-NN.md`, `IMPLEMENTATION-CHECKLIST.md`, or project source/tests/docs** (e.g., a checklist whose procedure is incomplete or cites a dead reference) | → **Create a new task** in `IMPLEMENTATION-CHECKLIST.md` per "Adding New Tasks Discovered During Step 6" above. For a defective existing checklist/task file this is a **corrective re-detailing task** (defined in that section) that fixes the project artifact through the normal task path with its own QG/validation — it is NOT a `workflow-recommendations.md` entry and NOT a silent in-place edit. Do NOT add to PASSDOWN.md as a deferred list. |
-| Question for the user that requires an answer before commit | → **Surface to user before commit.** Do not auto-decide. |
-| Apparent workflow-system issue **whose durable fix lands in a governance file** — a file in the user-only list in `agent-orchestration.md` "Self-Modification Boundary": anything under `.newProjectWorkflow/`, `.agents/`, or `.claude/hooks/`; the workflow-system `_ClaudeProjects\CLAUDE.md` or `~/.claude/CLAUDE.md` (**NOT** a project-local `CLAUDE.md`); or `_ClaudeProjects\.claude\settings.json` / `settings.local.json` (**NOT** a project-level `.claude/settings.json`) — i.e. rule unclear, gap in coverage, or contradiction between governance files | → **Surface to user in the `## Workflow Recommendations` block** of the triage output AND **append the entry to `_ClaudeProjects\workflow-recommendations.md`** (persistent inbox — the user maintains it directly). Claude does NOT edit workflow files. The user applies the edit offline (per "Self-Modification Boundary" in `agent-orchestration.md`). **Recurrence test (mandatory — state the answer in the triage output):** before routing, answer in writing — *"Would this same defect recur on a future task or project if only the observed instance were fixed?"* If the only durable fix is editing a project-produced artifact AND the defect would NOT recur system-wide, this is NOT a workflow-system issue — route via the deferred-work row instead. If the defect WOULD recur because a governance/Step-5.5 gap let it through, route to **both** rows (file the workflow recommendation **and** create the project corrective task). If you cannot determine from the observed instance alone whether the defect would recur system-wide, do NOT guess the answer — route this entry to the "two or more destinations" row below and surface both routings (deferred-work-only vs. both) to the user; the user is the tiebreaker. A symptom observed in a project file does not by itself make this row apply — route by where the durable fix lands, not where the symptom appeared. |
-| Possible user-memory candidate (durable cross-project fact) | → **Surface to user during triage.** Do NOT auto-save memory (per `~/.claude/CLAUDE.md` "Memory Policy"). |
-| Memory file appears stale or conflicts with current project state | → **Surface to user during triage.** Claude does NOT silently edit memory files. User decides whether to delete, update, or keep. |
-| Entry that has plausible routings to two or more different destinations | → **Surface to user with both options.** Do NOT decide internally and document later — the user is the tiebreaker on ambiguous routing. |
-
-**The destinations above are a closed list.** If an entry doesn't fit any row, re-check the table — most "doesn't fit" cases are actually "should escalate to user." Do NOT invent a new destination or add a new section to PASSDOWN.md to absorb the entry.
-
-**Workflow-recommendation vs. project-deferred-work — route by where the *durable* fix lands, then apply the recurrence test.** A finding that "a rule or file is wrong" is NOT automatically a workflow-system issue, and a defect observed *in* a project file is NOT automatically project-only. Decide as follows: (a) the durable fix is an edit to a **governance file** (the user-only list in `agent-orchestration.md` "Self-Modification Boundary") → workflow recommendation; (b) the durable fix is an edit to a **project-produced artifact** (`checklists/task-NN.md`, `IMPLEMENTATION-CHECKLIST.md`, project source/tests/docs, project-local `CLAUDE.md`/`PASSDOWN.md`/handoffs — the "NOT governance files" list) and the defect would NOT recur system-wide → deferred project work → a new task per "Adding New Tasks Discovered During Step 6" (NOT `workflow-recommendations.md`); e.g., a project's `checklists/task-33.md` is missing a required step → open a corrective re-detailing task for task-33, do not log a workflow recommendation; (c) the defect appears in a project artifact **but** a governance/Step-5.5 gap let it through and would recur on other tasks/projects → route to **both** (corrective project task **and** workflow recommendation). If recurrence is genuinely undeterminable from the single instance, do NOT guess — surface both routings to the user via the "two or more destinations" row (the user is the tiebreaker). **Exception:** a project `PASSDOWN.md` entry whose content is itself a cross-project or workflow rule that belongs in a governance file routes as a workflow recommendation (promotion), not project-only. `workflow-recommendations.md` is exclusively for changes to the workflow system itself.
-
-**Every new PASSDOWN entry gets a disposition.** When triage routes an entry into `PASSDOWN.md` (any of the four sections), write it with exactly one disposition line per the Step 1 template ("How to Use This File"): `🗑 KEEP (permanent — <why>)`, `🗑 DELETE WHEN <verifiable condition>`, or `🗑 REVIEW WHEN <event>`. A DELETE WHEN must be a single concrete check (a task checked `- [x]` by its ID; a named string present/absent in a named file; a named path present/git-ignored); if the honest expiry needs judgment, use REVIEW WHEN. One disposition per entry — split a note whose parts expire differently rather than writing a mixed entry. When unsure, use REVIEW WHEN.
-
-**Disposition sweep (runs every triage).** After routing new entries, scan ALL existing `PASSDOWN.md` Active Items and act on each by its disposition:
-- KEEP → skip; never auto-touched.
-- DELETE WHEN <condition> → perform the named check now, resolving any task by its ID in `IMPLEMENTATION-CHECKLIST.md` (not a loose search for the task number elsewhere). If the observation CONFIRMS the condition → delete the entry and note it in the commit message ("Removed PASSDOWN entry — <condition> met in commit XXX"). If it confirms NOT satisfied → leave it. If the check cannot be performed cleanly or the wording is ambiguous → do NOT auto-delete; surface to the user (treat as REVIEW WHEN).
-- REVIEW WHEN <event> → if the event has plausibly occurred, surface the entry to the user for a keep/delete decision; otherwise leave it. Never auto-delete.
-- No disposition (legacy entry predating this convention) → do NOT auto-delete; surface to the user once to assign a disposition (or confirm deletion if obsolete).
-
-**Auto-delete guardrails (a wrong deletion of durable knowledge is worse than an over-full file):**
-- A task counts as "closed" only when its index box is `- [x]` WITHOUT an `ABANDONED` suffix. An abandoned task (`- [x] … ABANDONED`, per "Task abandoned mid-flight") does NOT satisfy a DELETE WHEN — the band-aid or lesson the entry records usually still applies. Surface such entries instead of deleting.
-- Never auto-delete an entry that contains a `KEEP` marker, or a compound/mixed entry whose disposition cannot be applied to the whole entry (e.g. a legacy note with different per-bullet triggers) → surface it to the user.
-- Bias to surface: auto-delete ONLY on a confirmed, unambiguous, single-step check. Any uncertainty → bring it to the user; do NOT auto-delete on a guess.
-
-This keeps `PASSDOWN.md` trimmed continuously: each entry self-expires when its verifiable condition fires, and every judgment call or doubtful case reaches the user. `PASSDOWN.md` keeps only currently-active items; git history is the archive.
-
-**Periodic PASSDOWN review (backstop).** The disposition sweep above does the continuous trimming, so monotonic growth is prevented by construction. A dedicated full review is a rare backstop for the residue the sweep cannot resolve on its own: legacy entries with no disposition, and `REVIEW WHEN` entries the user has repeatedly deferred. At task-end triage, if `PASSDOWN.md` Active Items exceeds 30 lines AND that excess is driven by such unresolved residue (not by live, correctly-disposed entries that simply haven't expired yet), surface a recommendation to the user for a dedicated full-PASSDOWN review — do NOT auto-create the task and do NOT auto-decide dispositions, consistent with the surface-don't-auto-handle posture of the routing table above. If the user approves, run it as a review task (insert the entry **immediately after the current task's entry** in `IMPLEMENTATION-CHECKLIST.md` so the standard "first unchecked" search picks it up as the next task to run); the task assigns a disposition to every entry lacking one and resolves the deferred `REVIEW WHEN` items with the user, deleting what is obsolete (note each deletion in the commit message).
-
-**Loop prevention:** Triage runs ONCE per task, at the end. It does not run during the task, between agents, or after individual QG approvals.
-
-**Task abandoned mid-flight.** A task can be abandoned before completion when the current approach is determined to be wrong.
-
-**Trigger:**
-- **Orchestrator-proposed (most common path).** If you notice signs that the current task is on the wrong path — multiple rework cycles on the same subtask without convergence, an architectural constraint discovered mid-task that invalidates the approach, discovered scope much larger than planned, or a reviewer finding that suggests the task's premise is wrong — propose abandoning to the user with the specific reason and what you'd suggest doing instead. The user must confirm before this procedure runs. Do NOT abandon unilaterally.
-- **User-initiated (rare).** The user explicitly says to abandon, drop, or scrap. If their language is ambiguous ("hold off," "pause"), ask which of three they mean: **abandon** (this procedure — discards the work), **pause for a blocker** (the "Blocked Task — Pause and Resume" procedure below — preserves the work in a WIP commit and runs triage; the blocker is either a prerequisite task or a non-task gate such as a manual re-test), or **just stop for now** (no triage, no WIP commit; treat as ordinary crash-recovery on next resume).
-
-**Procedure (only after confirmation):**
-
-1. **Run the standard Task-End Triage procedure** with a relaxed precondition: do NOT require all subtasks checked.
-2. **Create a handoff file** at `project-handoffs/handoff-step-6-task-{N}.md` noting `Status: ABANDONED — <one-line reason>` at the top.
-3. **Truncate the per-task checklist** (`checklists/task-{N}.md`): change every unchecked subtask from `- [ ]` to `- [x] (ABANDONED — task not pursued)`.
-4. **Update the index** (`IMPLEMENTATION-CHECKLIST.md`): mark the task entry as `- [x]` with an `ABANDONED — see handoff-step-6-task-{N}.md` suffix.
-5. **Commit as one atomic commit** titled `chore(abandon): Task {N} abandoned — <one-line reason>`. Include: the handoff file, the truncated per-task checklist, the index update, and any PASSDOWN delta. No source code commits.
-6. **Proceed** to the next iteration of the Orchestration Loop.
-
-**Recovery if triage is skipped:** If you discover after committing that triage was not run, do NOT amend the prior commit. Run triage now, surface the slip-up to the user, and commit any resulting changes (new PASSDOWN entries, new tasks, etc.) as a follow-up commit titled `chore(triage): post-commit triage for Task N — process slip-up`. Tighten the next task by announcing triage explicitly per the visibility rule above.
+**Moved to `step-6-task-states.md`.** Read that file when a task must be abandoned because the approach is wrong. (Heading kept here so existing references to *step-6-implementation.md "Task Abandoned Mid-Flight"* still resolve.)
 
 ### Blocked Task — Pause and Resume
 
-A task may be **paused** (not abandoned) when it is partially coded, the code so far is sound, but the task cannot finish until a blocker clears — either a **prerequisite task** completes, or a **non-task gate** (a manual-verification or external event, e.g. a hardware re-test) is satisfied. **Abandon discards code; pause preserves it.** Use pause ONLY for a true blocker of one of those two kinds — not a wrong approach (use "Task abandoned mid-flight" above) and not ambiguous user "hold off" language (ask which they mean, exactly as the abandon trigger requires).
-
-This is the only sanctioned path in the entire workflow that commits QG-unapproved code. It is constrained so that such code is always explicitly labeled, recorded in a handoff file, never the task's completion commit, and forced back through the normal Quality Gate before the task can complete. Without this procedure, partial work on a blocked task is either left uncommitted (lost on a crash or `/clear`, since context is cleared between tasks) or silently swept into the prerequisite task's commit with no record that it is unreviewed — both are worse than a labeled WIP commit.
-
-**Pause procedure (only after confirming a true blocker).** The step order matters — the prerequisite task is created and committed *before* the blocked tag is written, so a crash can never leave a `BLOCKED by Task M` tag pointing at a task that does not exist.
-
-1. Stop launching agents on the current task (Task N). Identify the prerequisite that must complete first; it will be a new task — call it Task M. Log the pause decision and the blocker reason as a one-line entry in `decisions/current-task.md` (this is a judgment call, not routine routing).
-2. **Run the language-appropriate compile/syntax check** on Task N's partial work (the same check the orchestrator runs before a QG — `bash -n`, `cargo check`, `python -m py_compile`, etc.). Record the result; it goes in the blocked-handoff file (step 5). A non-compiling WIP is still permitted, but the resume session must be told the baseline may not build.
-3. **Create the prerequisite Task M now**, per "Adding New Tasks Discovered During Step 6" above (pick the ID, pick the workflow, create `checklists/task-{M}.md`, add its `- [ ]` index entry with `Depends On`). Do this BEFORE marking Task N blocked so the `BLOCKED by Task M` reference always points at a task that exists. **Idempotency:** if a `checklists/task-{M}.md` and/or index entry for the prerequisite already exists on disk from an interrupted prior pause attempt (uncommitted, since step 8 commits it), reuse it — do NOT create a duplicate or pick a new ID for the same prerequisite.
-4. **Create one WIP commit** of Task N's partial work. **Stage only the source/test/config files the producer agent(s) reported creating or modifying for Task N** — the orchestrator has this list from each worker's end-of-run report (see "Agent Roles: Who Does What"; workers report which files they created/modified). Do NOT stage `checklists/`, `IMPLEMENTATION-CHECKLIST.md`, `project-handoffs/`, or `decisions/` in this commit — those are tracking files committed separately in step 8. Commit message: `wip(task-N): BLOCKED by Task M — <one line: what is still missing>`. This is the ONLY commit of QG-unapproved code the workflow permits (see the carve-out in `git-workflow.md` "Commit rules"). It MUST NOT be the task's completion commit, and it is never amended, squashed, or rebased — consistent with the "never amend a previous commit" rule in `git-workflow.md`.
-5. **Create a blocked-handoff file** `project-handoffs/handoff-step-6-task-{N}-blocked.md` containing: a `Blocked-on:` field that is EITHER `Task M` (a prerequisite task) OR `gate: <description of the manual-verification / external event, and the exact condition that clears it>`; the `wip(task-N)` commit SHA; the compile/syntax check result from step 2; for each subtask, whether its producer work is **complete-but-unreviewed** or **partial/incomplete** (this drives the resume decision in resume step 4); the exact list of files in the WIP commit (the producer's reported file list); which agents still need to run; the acceptance criteria not yet satisfied; and the exact resume entry point.
-6. In `checklists/task-{N}.md`, change each subtask whose work is in the WIP commit to `- [ ] **WIP (blocked):** <agent> output committed in <SHA>, not QG-finalized`. Leave not-started subtasks as `- [ ]`. Do NOT check any box — WIP code is preserved, not approved.
-7. In `IMPLEMENTATION-CHECKLIST.md`, change Task N's box to `- [ ] **BLOCKED by Task M** — see project-handoffs/handoff-step-6-task-{N}-blocked.md`. It stays unchecked (the task is not done).
-8. Run the standard Task-End Triage procedure with a relaxed precondition (do NOT require all subtasks checked), then commit, as one tracking commit titled `chore(blocked): Task N paused pending Task M`: the blocked-handoff file, the updated `checklists/task-{N}.md`, the index change (BOTH Task N's blocked tag AND Task M's new entry), and the new `checklists/task-{M}.md`. (Two commits total for the pause: the `wip(...)` code commit from step 4, then this `chore(blocked)` tracking commit. This is the one place a new task's index entry and checklist are committed before that task runs — a deliberate exception to the "do NOT create a separate pre-task commit for the tracking files" note in "Adding New Tasks", required so the `BLOCKED` reference is always valid.)
-9. **STOP and `/clear`** per Orchestration Loop step 10. Do not start Task M in this session. On the next session the Orchestration Loop reaches Task N's blocked line and the resume procedure routes work to Task M.
-
-**Variant — blocked on a non-task gate.** When the blocker is a manual-verification or external event (e.g., a hardware re-test) rather than a prerequisite task, run the same pause procedure with these deltas: in **step 1**, the blocker you identify is the gate (the manual/external event and the condition that clears it), not a new Task M; **skip step 3 entirely** (there is no Task M to create); in **step 4** the WIP commit subject is `wip(task-N): BLOCKED on gate — <one line: what the gate is>`; in **step 5** the handoff's `Blocked-on:` field reads `gate: <description + clearance condition>`; in **step 7** the index tag reads `- [ ] **BLOCKED on gate: <short desc>** — see project-handoffs/handoff-step-6-task-{N}-blocked.md`; in **step 8** there is no Task M index entry or `checklists/task-{M}.md` to stage, and the tracking-commit title is `chore(blocked): Task N paused on gate — <one line>` (it carries only the blocked-handoff file, the updated `checklists/task-{N}.md`, and Task N's index tag). Steps 2, 6, and 9 are unchanged. (No dangling-task-reference window exists here — no prerequisite task is created — so the step 3/8 ordering guarantee in "Crash safety" below is moot; the only crash window is the same `wip(...)`-commit-to-`chore(blocked)`-commit gap, recovered as described in "Crash safety" below.)
-
-**Resume procedure (triggered when a `- [ ] **BLOCKED by Task M**` or `- [ ] **BLOCKED on gate: …**` line is the first unchecked match in the index — see Orchestration Loop step 1):**
-
-1. **Read the blocked-handoff file** `project-handoffs/handoff-step-6-task-{N}-blocked.md` — its `Blocked-on:` field names either a prerequisite Task M or a gate, plus the `wip(task-N)` SHA, the WIP file list, and per-subtask completeness. If this file is missing (a crash before step 5/8 of the pause), reconstruct the minimum from the WIP commit subject in `git log --oneline`: a `wip(task-N): BLOCKED by Task M …` subject reconstructs Task M; a `wip(task-N): BLOCKED on gate — …` subject reconstructs the gate description and routes to the gate branch in step 2 (no Task M to resolve).
-2. **Clear the blocker, by type.** Read the `Blocked-on:` field (reconstructed in step 1 if the handoff was missing).
-   - **Blocked-on is a gate** (manual-verification / external event): resolve clearance with the user, NOT by checkbox. Echo the gate's clearance condition (from the handoff `Blocked-on:` field, or the WIP one-liner if the handoff was lost to a crash) and ask the user verbatim: *"Task N is blocked on `<condition>` — has this been satisfied? (yes / not yet)"*. On an unambiguous **yes** → log the clearance (today's date + exactly what the user confirmed) as a one-line entry in `decisions/current-task.md`, then proceed to step 3. On **"not yet" or any ambiguous answer** → STOP and `/clear`; the task stays `BLOCKED on gate`. Clearance is session-scoped — the logged entry is audit-only, never authorization to resume; re-confirm on every resume.
-   - **Blocked-on is a prerequisite Task M:** **resolve Task M by ID** (do NOT linear-scan for "the next unchecked task" — Task M is normally appended at the end of the index, so a linear scan would land on the wrong task). `Grep` the index for Task M's entry by its ID:
-     - **Task M's entry does not exist** (crash interrupted the pause before step 3/8): create Task M now per "Adding New Tasks Discovered During Step 6", using the blocker description from the blocked-handoff file (or the WIP commit subject). Then STOP/`/clear`; Task M runs next session.
-     - **Task M exists but is NOT `- [x]`:** the prerequisite is unfinished. Load `checklists/task-{M}.md` and work **Task M** as the current task now (fresh start or mid-task resume per its boxes). Do not touch Task N this session.
-     - **Task M IS `- [x]`:** the blocker is cleared — proceed to step 3 to resume Task N.
-3. **Verify the WIP code is present.** Run `git log --oneline` and confirm the `wip(task-N)` commit is reachable from HEAD (an ancestor of the current branch tip — e.g., it appears in `git log` on the current branch). If it is NOT reachable (e.g., Task M was completed on a divergent branch and never merged), STOP and escalate to the user — do not resume against a working tree that is missing the partial work. Do NOT revert, amend, squash, or rebase the WIP commit.
-4. **Resume each `- [ ] **WIP (blocked):**` subtask through the normal Quality Gate.** This code is committed but NOT QG-approved. Per the blocked-handoff's per-subtask field:
-   - **partial/incomplete:** re-invoke the subtask's producer agent fresh, pointing it at the WIP file list as its starting point plus the original checklist instructions, to finish the work; then run the normal compile/syntax check → QG flow.
-   - **complete-but-unreviewed:** run the compile/syntax check, then the QG, against the WIP-committed output (the orchestrator builds the QG input package from the blocked-handoff's file list and acceptance criteria, since the original producing agent's context is gone).
-   - **When the field is unclear or absent: default to re-invoking the producer agent.** Never QG-bless code of unknown completeness.
-   The box flips to `- [x]` only after that subtask passes QG — never on the strength of the WIP commit alone. Then continue from the first `- [ ]` not-started subtask as normal.
-5. **Complete normally.** When all subtasks are QG-approved, run Task-End Triage and commit per `git-workflow.md`. Remove the blocked tag (`**BLOCKED by Task M**` or `**BLOCKED on gate: …**`) from the index when the task's box is finally checked, and delete the blocked-handoff file in that completion commit. The `wip(task-N)` commit remains in history as the audit trail — it is never rewritten.
-
-**Crash safety.** Because Task M is created and committed (steps 3 and 8) together with Task N's blocked tag, there is no committed state in which `BLOCKED by Task M` points at a missing task. The remaining window is a crash between the `wip(...)` commit (step 4) and the `chore(blocked)` tracking commit (step 8): the index has no committed BLOCKED tag yet, so the Orchestration Loop sees Task N as a normal `- [ ]`, enters mid-task resume, and the `wip(` exception in step 2 of the loop (sub-bullet 4) catches the `wip(task-N)` commit and routes here. Resume step 1's "handoff missing → reconstruct from the commit subject" and step 2's "Task M entry does not exist → create it" branches make even that window recoverable from `git log` alone.
+**Moved to `step-6-task-states.md`.** Read that file when a task is partially coded but blocked on a prerequisite or a gate. (Heading kept here so existing references to *step-6-implementation.md "Blocked Task — Pause and Resume"* still resolve.)
 
 ### Legacy Project Onboarding
 
-If a project predates this design (its `CLAUDE.md` contains a "Deferred Items" section or other prohibited content, or `PASSDOWN.md` does not exist in the project root), do NOT auto-migrate during normal Step 6 work. At session start, surface the legacy state to the user:
-
-> "This project predates the [date] governance update. CLAUDE.md has a [Deferred Items/etc.] section that should migrate; PASSDOWN.md is missing. Want to schedule a migration task, or work around the legacy state for now?"
-
-If the user approves a migration task, run it via the Bug Fix workflow pattern. The migration task's scope: (a) convert each existing "Deferred Items" entry to either a new task in `IMPLEMENTATION-CHECKLIST.md` (if action is owed) or delete it (if obsolete — git history retains it); (b) create `PASSDOWN.md` from the Step 1 template, seeded with any band-aids / lessons / gotchas extracted from the legacy CLAUDE.md; (c) shrink `CLAUDE.md` to the three-section scope; (d) commit as one or two atomic commits with clear messages.
-
-The missing `decisions/` folder is handled lazily at task start per Orchestration Loop step 2 and does NOT need a migration task.
+**Moved to `step-6-task-states.md`.** Read that file when onboarding a project that predates this design. (Heading kept here so existing references to *step-6-implementation.md "Legacy Project Onboarding"* still resolve.)
 
 ### Test Sandboxing Policy
 

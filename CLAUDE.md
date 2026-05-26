@@ -28,7 +28,7 @@ Paths in the table are relative to the current project root (e.g., `_MyMediaPlay
 | User identity, role, hard cross-project preferences | `~/.claude/CLAUDE.md` (global) |
 | Cross-project references to external systems | `~/.claude/CLAUDE.md` (global) |
 
-This is the high-level conceptual table. The operational per-entry triage routing (including "routine workflow events → delete," etc.) lives in `.newProjectWorkflow\step-6-implementation.md` "Task-End Triage Routing Table" — that's the authoritative table for triage execution. When this table and the Step 6 table conflict, the Step 6 table wins. When editing either, check the other.
+This is the high-level conceptual table. The operational per-entry triage routing (including "routine workflow events → delete," etc.) lives in `.newProjectWorkflow\step-6-task-end-triage.md` "Task-End Triage" (the **Routing table**) — that's the authoritative table for triage execution. When this table and the Step 6 table conflict, the Step 6 table wins. When editing either, check the other.
 
 ## Editing workflow / governance files
 
