@@ -106,4 +106,4 @@ Repeat until user approves the push
 ---
 
 ## Commit Message Standards
-Conventional commits: `type(scope): description`. Types: `feat`, `fix`, `refactor`, `test`, `docs`, `build`, `ci`, `perf`, `security`. Include why the change was made, reference issue numbers when applicable, and reference QG approval where relevant (e.g., "QG approved criteria P1-P10").
+Conventional commits: `type(scope): description`. Types: `feat`, `fix`, `refactor`, `test`, `docs`, `build`, `ci`, `perf`, `security`. Include why the change was made, reference issue numbers when applicable, and reference QG approval where relevant (e.g., "QG approved criteria P1-P5").

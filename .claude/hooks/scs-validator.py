@@ -2,7 +2,7 @@
 """SCS Command Validator Hook for Claude Code.
 
 PreToolUse hook that validates Bash commands against the authorized
-SCS command table (supply-chain-security.md, CMD 1-17, L4-1 through L4-6).
+SCS command table (supply-chain-security.md, CMD 1-20 incl. sub-lettered 18a-d/19a-c/20a-c, L4-1 through L4-6).
 
 Three zones:
   DENY  - Known-dangerous patterns -> auto-blocked

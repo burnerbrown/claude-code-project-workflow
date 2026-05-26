@@ -67,7 +67,7 @@ Make the key technical decisions: language, components, data flow, interfaces, a
 - When a formal STRIDE threat model is warranted
 - When the design involves unfamiliar technology domains
 - For simpler projects, this step can be done conversationally without the agent
-- When the Architect agent IS used: invoke it for substeps 4-8 above (technology choices through security design), then route its output through the Quality Gate (evaluate against A1-A11) before proceeding to the SCS scan (substep 9). No Project Manager needed in Step 4. The Architect's output includes the dependency list that SCS will scan.
+- When the Architect agent IS used: invoke it for substeps 4-8 above (technology choices through security design), then route its output through the Quality Gate (evaluate against A1-A13) before proceeding to the SCS scan (substep 9). No Project Manager needed in Step 4. The Architect's output includes the dependency list that SCS will scan.
 
 ## When to Use Hardware Design Agents (Hardware Projects)
 If the project involves circuit board design (custom PCB), invoke additional agents during this step. See `workflows.md` section "Hardware + Firmware Full Development" (and related: "Hardware Revision", "Prototype to Production") for the full per-agent sequence, inputs/outputs per agent, and the Step 4 vs. Step 6 split (high-level architecture here, per-subsystem detail and consolidation in Step 6).

@@ -168,7 +168,7 @@ Worker's deliverable summary: {what files the agent claims to have produced and 
 Files to verify (existence and structure only — do not judge content): {file paths the QG may Read for verification}
 Compile/syntax check result: {pass | fail with errors | N/A}
 Acceptance criteria: {from the checklist}
-QG criteria to evaluate: {role-appropriate criteria block — from quality-gate.md, e.g., P1-P5 for Senior Programmer, T1-T11 for Test Engineer}
+QG criteria to evaluate: {role-appropriate criteria block — from quality-gate.md, e.g., P1-P5 for Senior Programmer, T1-T12 for Test Engineer}
 
 Produce your evaluation with PASS/FAIL/PARTIAL for each criterion and your overall verdict.
 ```
