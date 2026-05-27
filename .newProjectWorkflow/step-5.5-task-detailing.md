@@ -96,7 +96,7 @@ A concrete checklist the Quality Gate uses to verify the task is complete. These
 - [ ] Performance targets verified MET with benchmark evidence (when Performance Add-On = Yes)
 - [ ] Code committed to GitHub
 
-**Deriving the QG checklist from the correct rubric.** Derive each agent's QG checklist items from that agent's rubric in `.agents\quality-gate.md` (e.g. Senior Programmer → P1–P5, DevOps Producer → DO1–DO9, DevOps Observability Review → DO10–DO16); never apply one role's rubric to another's output. The QG is a process gate, not a reviewer: do NOT write items asking it to judge code substance, security vulnerabilities, or architectural correctness — those are the Code Reviewer (CR) and Security Reviewer (SR) lanes, gated separately. If acceptance needs that judgment, route it to CR/SR, not the QG.
+**Deriving the QG checklist from the correct rubric.** Derive each agent's QG checklist items from that agent's rubric — look the role up in the role-to-file index in `.agents\quality-gate.md`, which routes to the per-role `_qg-criteria-*.md` companion file (e.g. Senior Programmer → P1–P5, DevOps Producer → DO1–DO9, DevOps Observability Review → DO10–DO16); never apply one role's rubric to another's output. The QG is a process gate, not a reviewer: do NOT write items asking it to judge code substance, security vulnerabilities, or architectural correctness — those are the Code Reviewer (CR) and Security Reviewer (SR) lanes, gated separately. If acceptance needs that judgment, route it to CR/SR, not the QG.
 
 ## What to Avoid
 - Don't load all task files at once — process one at a time
