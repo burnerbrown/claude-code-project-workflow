@@ -126,7 +126,7 @@ When launching agents, **pass file paths and instructions — not file contents.
 - Tell agents which files to read and what to do — they will read the files themselves
 - Include the specific instructions and acceptance criteria from the checklist in the agent's prompt
 - For handoffs between agents, tell the next agent which files were created/modified by the previous agent
-- **Exception:** Small, focused context is OK to include directly (e.g., a short code snippet from a QG verdict, specific review findings). If it's more than ~20 lines, pass the file path instead.
+- **Exception:** Small, focused context is OK to include directly (e.g., a short code snippet from a reviewer's findings, or a QG verdict's specific feedback). If it's more than ~20 lines, pass the file path instead.
 - Supply Chain Security: always check `.trusted-artifacts/_registry.md` before invoking the SCS agent — a cache hit means no new scan is needed
 
 **Project-level context fields on the per-task checklist.** Beyond per-task add-on flags (`Performance Add-On`, `DevOps Observability Review`), the per-task checklist (see `step-5.5-task-detailing.md`) carries a project-level constant field consumed by multiple agents:
@@ -331,7 +331,7 @@ If the user directly asks the top-level Claude assistant in conversation to upda
 | UX/UI Designer | `ux-ui-designer.md` | Designing user interfaces — layout specs, component hierarchies, design tokens, interaction states, accessibility, and Claude Design prompts. Used in the UI Feature Development workflow (Step 6). |
 | Supply Chain Security | `supply-chain-security.md` | **Step 4**: Full 5-phase scan of all external dependencies. In Step 6, only used if a new dependency is discovered mid-implementation (emergency workflow). **Always check `.trusted-artifacts/_registry.md` before invoking — if the dependency is cached and hash-verified, skip the scan entirely.** Must run synchronously — do NOT use `run_in_background: true`. **First-time use:** the sandbox infrastructure must be installed once per machine — see `.newProjectWorkflow/scs-sandbox-setup.md`. If a sandbox launch fails, direct the user to that doc. |
 | Compliance Reviewer | `compliance-reviewer.md` | Final-gate NIST/CISA/OWASP compliance assessment |
-| Quality Gate | `quality-gate.md` | **Evaluates every agent's output against acceptance criteria** — produces APPROVED/SENT BACK/APPROVED WITH CONDITIONS verdicts with specific feedback and code snippets. |
+| Quality Gate | `quality-gate.md` | **Evaluates every agent's output against acceptance criteria** — produces APPROVED/SENT BACK/APPROVED WITH CONDITIONS verdicts with specific feedback referencing criteria IDs (structural evidence only — not code snippets; code-substance evidence is owned by the dedicated reviewer agents). |
 | Project Manager | `project-manager.md` | **Optional project coordinator** — only invoked for multi-module projects with cross-module dependencies, complex send-back routing, agent conflicts, or user-requested progress reports. Tracks cross-module blockers and status via `PROJECT_STATUS.md`. (Deferred work becomes new tasks in `IMPLEMENTATION-CHECKLIST.md` per Step 6 "Adding New Tasks Discovered During Step 6" — not tracked in `PROJECT_STATUS.md`.) See `workflows.md` "When to Invoke the Project Manager Agent" for criteria. Most single-module projects skip the PM entirely. |
 
 All agent files are located in: `PLACEHOLDER_PATH\.agents\`

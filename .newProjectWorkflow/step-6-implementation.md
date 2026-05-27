@@ -99,7 +99,7 @@ Repeat the following cycle for each task/subtask until the checklist is complete
    - Launch the worker agent(s) assigned to the current subtask (Senior Programmer, Test Engineer, Database Specialist, etc.)
    - Follow the agent sequence and parallel execution rules from the detailed workflow
    - **In the agent's prompt, tell the agent which files to read and what to do.** Include file paths and the specific instructions from the checklist. Do NOT read source files, architecture docs, or spec docs into orchestrator context just to paste them into the agent prompt — the agent can read files itself.
-   - **Exception:** Small, focused context is OK to include directly (e.g., a 5-line function body from a QG verdict, specific review findings). Use judgment — if it's more than ~20 lines, pass the file path instead.
+   - **Exception:** Small, focused context is OK to include directly (e.g., a 5-line function body from a reviewer's findings, or a QG verdict's specific feedback). Use judgment — if it's more than ~20 lines, pass the file path instead.
    - For handoffs between agents (e.g., Test Engineer needs to know what the Programmer produced), tell the next agent which files were created/modified and let it read them.
    - **Always launch fresh agents for rework:** When the QG sends work back to a previously-invoked agent, always launch a fresh instance of that agent — do NOT use `SendMessage` to resume prior agents. See `agent-orchestration.md` "Agent Lifecycle: Fresh Agent on Rework" for prompt structure, foreground/background rules, and routing guidance.
 
