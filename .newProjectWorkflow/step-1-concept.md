@@ -107,6 +107,13 @@ Also create the following at Step 1 so Step 6 doesn't fall into a "predates this
    decisions/
    ```
    The decisions log is per-session scratch; it is never committed.
+3. **Create `.gitattributes`** in the project root with these three lines:
+   ```
+   * text=auto eol=lf
+   *.bat text eol=crlf
+   *.cmd text eol=crlf
+   ```
+   Forces LF line endings for all committed text, overriding any host `core.autocrlf`. Must exist in the working tree before the first `git add` (Step 3 repo creation) so nothing is ever committed with CRLF. The `*.bat`/`*.cmd` lines keep Windows batch scripts on CRLF (harmless no-op when a project has none). Do not delete: CRLF-intolerant deploy-time parsers (e.g. `nft`) have failed on CRLF-corrupted configs.
 
 If the project later acquires research inventories during Step 6 (per `step-6-implementation.md` Orchestration Loop step 3), Step 6 will create `research-inventories/` lazily — that one is not pre-created at Step 1.
 

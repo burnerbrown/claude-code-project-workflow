@@ -47,8 +47,9 @@ Before creating the handoff, update the project-local `CLAUDE.md` to reflect the
 ## GitHub Repository
 After the user approves the specification, this is where we create the project's GitHub repository:
 1. **Ask the user** whether the repo should be **Public** or **Private**
-2. Initialize the repo with a `project-handoffs/` folder and create an initial commit containing `project-handoffs/handoff-step-1.md`, `project-handoffs/handoff-step-2.md`, and `project-handoffs/handoff-step-3.md`
-3. Push to GitHub
+2. **Ensure `.gitattributes` exists** in the project root before any `git add` — it is created at Step 1 scaffolding; if a legacy project lacks it, create it now with the three lines listed in Step 1 scaffolding.
+3. Initialize the repo with a `project-handoffs/` folder and create an initial commit that includes `.gitattributes`, `project-handoffs/handoff-step-1.md`, `project-handoffs/handoff-step-2.md`, and `project-handoffs/handoff-step-3.md`
+4. Push to GitHub
 
 **Note:** The full project folder structure (src/, lib/, .gitignore, etc.) is NOT created here — that happens in Step 4 after architecture decisions are made and the language/framework are chosen.
 
