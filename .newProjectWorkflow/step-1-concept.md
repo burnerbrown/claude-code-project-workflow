@@ -45,12 +45,14 @@ After the user confirms the concept, create `CLAUDE.md` in the project root. It 
 
 ## Key References
 - `PASSDOWN.md` — band-aids, lessons, dead-ends, open questions for this project
-- [Handoff files added as they are created in later steps]
+- [Handoff files added as created — dated HISTORICAL archives, not the next-action source]
 ```
 
-Update this file at the end of every step and after each task completion during Step 6. Also update it after each agent phase within a Step 6 task — this is the crash-recovery anchor.
+This file is the project's living status board, auto-loaded at session start. Each workflow step file says when to update it; the rules below define what to write.
 
 **Current State is REPLACED on every update, not appended to.** Two to four bullets max: current step/task, what was last completed, resume command. If you find yourself adding a fifth bullet, you're drifting — trim. If `CLAUDE.md` exceeds 25 lines, trim before committing — no exceptions.
+
+The "next action" bullet is not always the first unchecked checklist box — a `**BLOCKED**`-routed prerequisite or later task is recorded here too, named by task ID so it matches the checklist. Never point "next action" at a superseded handoff file; those go stale once a later task closes. List old handoffs in Key References as dated HISTORICAL archives instead (the current step's handoff still drives the next step as usual).
 
 ## Project Passdown File (`PASSDOWN.md`)
 
@@ -114,8 +116,6 @@ Also create the following at Step 1 so Step 6 doesn't fall into a "predates this
    *.cmd text eol=crlf
    ```
    Forces LF line endings for all committed text, overriding any host `core.autocrlf`. Must exist in the working tree before the first `git add` (Step 3 repo creation) so nothing is ever committed with CRLF. The `*.bat`/`*.cmd` lines keep Windows batch scripts on CRLF (harmless no-op when a project has none). Do not delete: CRLF-intolerant deploy-time parsers (e.g. `nft`) have failed on CRLF-corrupted configs.
-
-If the project later acquires research inventories during Step 6 (per `step-6-implementation.md` Orchestration Loop step 3), Step 6 will create `research-inventories/` lazily — that one is not pre-created at Step 1.
 
 ## Handoff Output
 When the user confirms you've captured the concept correctly, create a handoff file in the `project-handoffs/` subfolder. Create the subfolder if it doesn't exist yet.
