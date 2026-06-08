@@ -26,7 +26,7 @@ The orchestrator **creates a local commit when the full task is complete** — a
 - If the session crashes mid-task, the on-disk checklist and source files show the current state. On resume, the orchestrator reads the checklist to find the first unchecked subtask and continues from there
 
 **Commit point (triggered when ALL subtasks in the task are QG-approved):**
-- **Precondition:** Task-End Triage MUST be complete (see `step-6-implementation.md` "Task-End Triage"). Do NOT commit while triage items remain unresolved — surface them to the user first.
+- **Precondition:** Task-End Triage MUST be complete (see `step-6-implementation.md` "Task-End Triage"), including the disposition sweep — `passdown-sweep.py` must exit 0. Do NOT commit while triage items remain unresolved or while the sweep exits non-zero — surface them to the user first.
 - Commit all QG-approved work products (code, tests, configuration, documentation) produced during the task
 - Commit the fully-checked per-task checklist file
 - Commit `PASSDOWN.md` if triage added or removed entries
