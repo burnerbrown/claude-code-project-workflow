@@ -65,6 +65,7 @@ Repeat the following cycle for each task/subtask until the checklist is complete
 1. **Find the next task** (context-efficient approach):
    - Use `Grep` to search `IMPLEMENTATION-CHECKLIST.md` for `- \[ \]` — this returns only the unchecked task lines without loading the entire file into context
    - The first match is the next task to work on
+   - The index's unchecked lines are maintained in **execution order** (new tasks placed at their execution position per `step-6-mid-step-changes.md` "Adding New Tasks Discovered During Step 6"), so on a normalized index the first `- [ ]` is authoritative. **Confirm normalized:** `grep -F 'Execution-ordered: yes'` on the "How to Use This File" header matches AND the header carries no line asserting an external ordering authority. If so, do **NOT** consult `CLAUDE.md` "Current State" to choose the next task — Current State is a derived mirror of this index (`step-1-concept.md`; see step 8), not a routing authority. (The first `- [ ]` may still carry a `**BLOCKED…**` tag — a paused task; follow the BLOCKED-handling bullet below. The index tag, not Current State, drives that routing.) **If the assertion is absent or the header points ordering elsewhere** (a legacy theme-grouped index), the index is NOT normalized — do not trust first-unchecked; follow `step-6-mid-step-changes.md` "Index normalization".
    - Note the task ID from the match (e.g., `Pre-1`, `Task 1`) to identify the per-task file
    - **If the first match carries a `**BLOCKED …**` tag** (either `**BLOCKED by Task M**` for a prerequisite task, or `**BLOCKED on gate: …**` for a manual-verification / external-event gate): it is a paused task, not a fresh start. Do NOT start it as a new task. Follow the "Blocked Task — Pause and Resume" → resume procedure below. For `BLOCKED by Task M` it tells you whether to resume this task (if Task M is now complete) or to go work the still-unfinished prerequisite Task M directly (by its ID, not by linear scan). For `BLOCKED on gate:` it routes to the gate-clearance branch (resume step 2), which determines with the user whether the gate has cleared.
 
@@ -137,12 +138,12 @@ Repeat the following cycle for each task/subtask until the checklist is complete
 
    **When the full task is complete (all subtasks checked):**
    - **Task-End Triage MUST run first** — before any `git add`, before any commit. See "Task-End Triage" section below for procedure and routing table. If you've already staged anything before reading `decisions/current-task.md`, you are out of order; un-stage and run triage.
+   - **Update the project-local `CLAUDE.md` "Current State":** Re-read the whole block and de-stale every line — drop superseded state and dead "read X first" pointers. The section is replaced, not appended. State: current step/task, what was just completed, and the real next action. The next action is NOT always the first unchecked checklist box — if a `**BLOCKED**` tag routed you to a prerequisite or later task, name that task by ID so it matches the checklist's routing. If the next action needs specific files (a log, a `decisions/` note, an artifact), name them inline in that bullet — no bullet-per-file. Keep the three-section / 2-4-bullet / under-25-line limits. Loads on session start, so crash recovery must be able to trust it.
    - Commit all QG-approved work products (code, tests, configuration, documentation) to the local repository
    - Commit the fully-checked per-task checklist file
    - Commit `PASSDOWN.md` if triage added or removed entries
    - Mark the task as checked (`- [x]`) in the index (`IMPLEMENTATION-CHECKLIST.md`) and commit
    - **Remind the user to push** — after each task workflow, suggest pushing to remote. The user decides when to push; do not push without being asked
-   - **Update the project-local `CLAUDE.md` "Current State":** Re-read the whole block and de-stale every line — drop superseded state and dead "read X first" pointers. The section is replaced, not appended. State: current step/task, what was just completed, and the real next action. The next action is NOT always the first unchecked checklist box — if a `**BLOCKED**` tag routed you to a prerequisite or later task, name that task by ID so it matches the checklist's routing. If the next action needs specific files (a log, a `decisions/` note, an artifact), name them inline in that bullet — no bullet-per-file. Keep the three-section / 2-4-bullet / under-25-line limits. Loads on session start, so crash recovery must be able to trust it.
    - **GitHub issues (if used):** If the project uses GitHub issues, close or update any issues this task addressed. (Deferred-item lists in `CLAUDE.md`, `TODO.md`, etc. are no longer maintained — deferred work becomes new tasks in `IMPLEMENTATION-CHECKLIST.md` per "Adding New Tasks Discovered During Step 6" above.)
 
 9. **Check for review checkpoints**:
@@ -257,7 +258,7 @@ Tests fall into two categories with different safety requirements:
 ## What to Avoid
 - Don't skip the Quality Gate evaluation — every task must be evaluated before marking complete
 - Don't mark checklist items complete if they haven't been verified
-- Don't reorder tasks without discussing with the user (dependency graph matters)
+- Don't reorder an existing task, or place a new task earlier than the append position, **when the correct order is unclear** — discuss with the user (dependency graph matters). Placing a *new* task at an **obvious** execution position (forced by external written evidence) is sanctioned without pre-approval; any ambiguous placement, or **relocating an existing task**, must be confirmed with the user (Escalate-by-Exception, `step-6-decision-authority.md`). See `step-6-mid-step-changes.md` "Adding New Tasks Discovered During Step 6" and "Reprioritizing an existing unchecked task".
 - Don't add features that aren't in the checklist — if something new comes up, discuss it first
 - Don't commit code without the QG confirming it meets acceptance criteria
 - Don't proceed past review checkpoints without user approval

@@ -125,6 +125,7 @@ This is the progress tracker. It contains **one checkbox per task** — no detai
 [Name]
 
 ## How to Use This File
+- **`Execution-ordered: yes`** — the unchecked `- [ ]` lines are kept in execution order, so the first unchecked task is the next one to run. New tasks are placed at their execution position (Step 6 "Adding New Tasks Discovered During Step 6"). This index — not `CLAUDE.md` — is the next-task authority. (A fresh session trusts "first unchecked = next" only when this line is present; detect with `grep -F 'Execution-ordered: yes'`. Defined in Step 6 "Index normalization.")
 - Read this index to find the next unchecked (`- [ ]`) task
 - Read the linked `checklists/task-{id}.md` file for full task details and subtask checkboxes
 - After completing a task, mark it `[x]` here AND update subtask checkboxes in the per-task file
@@ -219,6 +220,8 @@ After the last task iteration, perform this active verification — do NOT skip 
    - **Performance Add-On**: Every task whose scope covers a non-"no requirement" performance target from the Step 3 handoff must have `Performance Add-On: Yes` in its checklist file.
    - **Observability Add-On**: If the architecture's `## Observability` section is in the declared form, every task whose scope touches a component for which the architecture declared observability requirements must have `DevOps Observability Review: Yes` in its checklist file. If the architecture is explicit-N/A, every task must have `DevOps Observability Review: N/A — project Observability is explicit-N/A` (the explicit `N/A` value, not `No`; this is what the Step 6 backstop and SP self-flag check to skip themselves).
    - **Resilience Patterns** (project-level field, not an add-on — but verified here because consuming agents key off it): Every task's checklist must have the `Resilience Patterns:` field set to either `declared` or `N/A — project Resilience Patterns is explicit-N/A`. The value must match the form of the architecture's `## Resilience Patterns` section (per QG criterion A13). All tasks in the same project receive the same value.
+
+4b. **Execution-order stamp**: Confirm `IMPLEMENTATION-CHECKLIST.md`'s "How to Use This File" header carries the `Execution-ordered: yes` assertion — `grep -F 'Execution-ordered: yes'` must match. A project created under this rule is execution-ordered by construction, and Step 6 trusts "first unchecked = next" only when this stamp is present (see Step 6 "Index normalization"). If absent, add it before declaring Step 5.5 complete.
 
 5. **Create the Step 5.5 handoff file** (serves as the gate signal for Step 6 — its existence confirms all tasks were detailed and verified): Only after all verifications pass, create `project-handoffs/handoff-step-5.5.md` with:
    - Total number of tasks detailed
