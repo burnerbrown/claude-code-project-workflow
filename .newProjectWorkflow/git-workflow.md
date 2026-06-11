@@ -7,7 +7,7 @@ This file defines how and when to commit, push, and manage branches during agent
 **When to read this file:**
 - When it's time to commit code (after a QG approval milestone)
 - When the workflow is complete and it's time to push to remote
-- When the user declines a push and you need the Push Resolution flow
+- When the user declines a push
 - When setting up a new branch for a feature or fix
 
 **When you do NOT need this file:**
@@ -20,21 +20,15 @@ This file defines how and when to commit, push, and manage branches during agent
 ## Local Commits (Once Per Completed Task)
 The orchestrator **creates a local commit when the full task is complete** — all subtask boxes checked, all agents QG-approved. No user approval is needed for local commits — they are low-risk, easily reversible, and serve as progress checkpoints.
 
-**During the task (before commit):**
-- Agents write code, tests, and config files to disk as they work — these are on disk but NOT committed yet
-- The orchestrator updates the per-task checklist file (`checklists/task-{id}.md`) on disk after each QG approval — checking boxes, marking `**REWORK:**` for send-backs, etc. This keeps the checklist accurate for crash recovery even though nothing is committed yet
-- If the session crashes mid-task, the on-disk checklist and source files show the current state. On resume, the orchestrator reads the checklist to find the first unchecked subtask and continues from there
-
 **Commit point (triggered when ALL subtasks in the task are QG-approved):**
-- **Precondition:** Task-End Triage MUST be complete (see `step-6-implementation.md` "Task-End Triage"), including the disposition sweep — `passdown-sweep.py` must exit 0. Do NOT commit while triage items remain unresolved or while the sweep exits non-zero — surface them to the user first.
-- Commit all QG-approved work products (code, tests, configuration, documentation) produced during the task
-- Commit the fully-checked per-task checklist file
-- Commit `PASSDOWN.md` if triage added or removed entries
-- Commit the updated project-local `CLAUDE.md` (reflects current state for crash recovery)
-- Mark the task as checked (`- [x]`) in the index (`IMPLEMENTATION-CHECKLIST.md`) and commit that too
-- One or two commits per task is typical — keep it clean
-- **No status-only commit.** Never make a commit whose sole change records the task's own commit SHA or push status in `CLAUDE.md` — a commit can't hold its own SHA, and git already tracks push state (`git status`/`git log`). Keep the `CLAUDE.md` current-state note generic ("Task N complete").
-- `decisions/current-task.md` is gitignored and is NOT committed — it gets wiped at the start of the next task
+
+**NOTE:** one or two commits per task is typical — keep it clean; and never make a status-only commit (one whose sole change records the task's own commit SHA or push status in `CLAUDE.md` — git already tracks push state via `git status`/`git log`; keep the `CLAUDE.md` note generic, e.g. "Task N complete").
+
+Do these in order:
+1. **Precondition — Task-End Triage complete:** including the disposition sweep — `passdown-sweep.py` must exit 0. Do NOT commit while triage items remain unresolved or while the sweep exits non-zero — surface them to the user first.
+2. **Index box must be `- [x]`:** marked on disk in `step-6-implementation.md` step 8 before staging; before committing, confirm this task's `- [x]` line is staged (`git diff --cached` shows it) — the completion commit must contain the checked box, not a separate trailing one.
+3. **Commit contents:** include the QG-approved work products (code, tests, configuration, documentation), the fully-checked per-task checklist file, the index (`IMPLEMENTATION-CHECKLIST.md`, box now `- [x]`), and the updated project-local `CLAUDE.md`; plus `PASSDOWN.md` if triage added or removed entries. (`decisions/current-task.md` is gitignored — NOT committed; it is wiped at the start of the next task.)
+4. **GitHub issues (if used):** after committing, close or update any issues this task addressed.
 
 **If you discover triage was skipped after committing:** Do NOT amend the prior commit. Run triage now and commit any resulting changes (new PASSDOWN entries, new tasks, CLAUDE.md updates, etc.) as a follow-up commit titled `chore(triage): post-commit triage for Task N — process slip-up`. Surface the slip-up to the user. Tighten the next task by announcing triage explicitly per the visibility rule in `step-6-implementation.md` "Task-End Triage."
 
@@ -67,32 +61,7 @@ If user approves → push to remote
 If push fails → report the error to the user and troubleshoot
 ```
 
-**Push Resolution flow (when user declines a push):**
-When the user declines a push, the orchestrator does NOT simply wait — it actively helps resolve the issue:
-
-```
-User declines push
-    ↓
-Orchestrator asks the user what concerns they have or what looks wrong
-    ↓
-Orchestrator and user identify the specific issues together
-    ↓
-Orchestrator determines which agent(s) need to redo work
-    ↓
-Orchestrator sends the work back to the appropriate worker agent(s) with:
-  - The user's feedback describing what needs to change
-  - The QG's original approval context (so the agent knows what was already accepted)
-    ↓
-Worker agent(s) produce revised output
-    ↓
-QG re-evaluates the revised output against acceptance criteria
-    ↓
-If QG approves → new local commit with the fixes
-    ↓
-Orchestrator asks user again: "Fixes are committed. Ready to push to remote?"
-    ↓
-Repeat until user approves the push
-```
+**If the user declines a push:** ask what the concern is and route any needed rework through the normal path (`step-6-implementation.md` "Handling Failures"); re-offer the push once the fixes are committed.
 
 **Push safety rules:**
 - Never push to `main`/`master` without explicit user instruction

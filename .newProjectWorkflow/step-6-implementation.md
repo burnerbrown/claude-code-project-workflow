@@ -136,15 +136,12 @@ Repeat the following cycle for each task/subtask until the checklist is complete
 
    **On send-back (rework):** If a reviewer sends work back to an earlier agent and the fix changes previously-approved output, replace the affected subtask's checked box with `- [ ] **REWORK:** [reason from QG feedback]`. This distinguishes "never started" (`- [ ]`) from "was done but needs rework" (`- [ ] **REWORK:** ...`) using standard Markdown that renders correctly on GitHub and is unambiguous even if context is lost between sessions. After the fix is re-approved, change the rework item back to `- [x]` with the original description.
 
-   **When the full task is complete (all subtasks checked):**
-   - **Task-End Triage MUST run first** — before any `git add`, before any commit. See "Task-End Triage" section below for procedure and routing table. If you've already staged anything before reading `decisions/current-task.md`, you are out of order; un-stage and run triage.
-   - **Update the project-local `CLAUDE.md` "Current State":** Re-read the whole block and de-stale every line — drop superseded state and dead "read X first" pointers. The section is replaced, not appended. State: current step/task, what was just completed, and the real next action. The next action is NOT always the first unchecked checklist box — if a `**BLOCKED**` tag routed you to a prerequisite or later task, name that task by ID so it matches the checklist's routing. If the next action needs specific files (a log, a `decisions/` note, an artifact), name them inline in that bullet — no bullet-per-file. Keep the three-section / 2-4-bullet / under-25-line limits. Loads on session start, so crash recovery must be able to trust it.
-   - Commit all QG-approved work products (code, tests, configuration, documentation) to the local repository
-   - Commit the fully-checked per-task checklist file
-   - Commit `PASSDOWN.md` if triage added or removed entries
-   - Mark the task as checked (`- [x]`) in the index (`IMPLEMENTATION-CHECKLIST.md`) and commit
-   - **Remind the user to push** — after each task workflow, suggest pushing to remote. The user decides when to push; do not push without being asked
-   - **GitHub issues (if used):** If the project uses GitHub issues, close or update any issues this task addressed. (Deferred-item lists in `CLAUDE.md`, `TODO.md`, etc. are no longer maintained — deferred work becomes new tasks in `IMPLEMENTATION-CHECKLIST.md` per "Adding New Tasks Discovered During Step 6" above.)
+   **When the full task is complete (all subtasks checked):** do all four steps **in order** — the commit (4) is last, so 1–3 land on disk first.
+
+   1. **Task-End Triage MUST run first** — before any `git add`, before any commit. See "Task-End Triage" section below for procedure and routing table. If you've already staged anything before reading `decisions/current-task.md`, you are out of order; un-stage and run triage.
+   2. **Update the project-local `CLAUDE.md` "Current State":** Re-read the whole block and de-stale every line — drop superseded state and dead "read X first" pointers. The section is replaced, not appended. State: current step/task, what was just completed, and the real next action. The next action is NOT always the first unchecked checklist box — if a `**BLOCKED**` tag routed you to a prerequisite or later task, name that task by ID so it matches the checklist's routing. If the next action needs specific files (a log, a `decisions/` note, an artifact), name them inline in that bullet — no bullet-per-file. Keep the three-section / 2-4-bullet / under-25-line limits. Loads on session start, so crash recovery must be able to trust it.
+   3. **Mark the task `- [x]` in the index (`IMPLEMENTATION-CHECKLIST.md`)** — on-disk edit, before staging. (The `checklists/task-{id}.md` subtask boxes were already checked progressively; this is the index's top-level box.)
+   4. **Then commit, push, and close any GitHub issues per `git-workflow.md`** — it owns the commit contents, staging, push reminder, and issue-closing.
 
 9. **Check for review checkpoints**:
    - If the plan specifies a review checkpoint after this task, pause and notify the user
