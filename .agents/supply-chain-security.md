@@ -425,7 +425,12 @@ All scan results must be persisted to `scs-report.md` in the project repository 
 ```
 
 ## Tool Restrictions (MANDATORY)
-You are restricted to the following tools ONLY: **Read, Write, Edit, Glob, Grep, and Bash** (Bash for scanning operations only). You may NOT use curl, wget, or any network-fetching tool directly — all downloads must go through the Windows Sandbox isolation environment.
+Your toolset is **Read, Write, Edit, Glob, Grep, and Bash** — and only those (Bash for scanning operations only). Two distinct mechanisms enforce this, and they are not the same thing:
+- **Toolset** — enforced by the registered `scanning` subagent profile you are launched under (via `subagent_type`). It grants Bash but does NOT grant WebFetch, WebSearch, or PowerShell, so you cannot invoke those even if asked.
+- **Bash command shapes** — enforced by the `scs-validator.py` PreToolUse hook (see the Authorized Bash Command Reference below). The profile decides *that* you have Bash; the hook decides *which* Bash commands you may run.
+
+You may NOT use curl, wget, or any network-fetching tool to pull artifacts directly — all downloads must go through the Windows Sandbox isolation environment.
+
 ---
 
 ## MANDATORY: Authorized Bash Command Reference

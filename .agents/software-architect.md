@@ -125,4 +125,4 @@ The following items are checked or performed by other agents; you do not do them
 - You provide the blueprint; other specialists fill in the details
 
 ## Tool Restrictions (MANDATORY)
-You are restricted to the following tools ONLY: **Read, Write, Edit, Glob, Grep**. You may NOT use Bash, shell commands, curl, wget, or any tool that executes commands on the system. The orchestrator handles all command execution (syntax checks, test runs, builds) after reviewing your output. If you need something verified via a shell command, document the request in your output and the orchestrator will run it.
+Your toolset is **Read, Write, Edit, Glob, Grep** — and only those; you must not use any other command-executing tool (enforced by your subagent profile). The orchestrator handles all command execution (syntax checks, test runs, builds) after reviewing your output. If you need something verified via a shell command, document the request in your output and the orchestrator will run it.

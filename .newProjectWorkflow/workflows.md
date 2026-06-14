@@ -142,7 +142,7 @@ The Research Inventory Phase has two stages: **Declare & Approve** (before any r
 #### Stage 1: Declare & Approve
 
 ```
-1. Orchestrator launches the worker agent with a RESEARCH-ONLY prompt:
+1. Orchestrator launches a scoping agent (subagent_type: research-scoping -- WebSearch only, no fetch) with a RESEARCH-ONLY prompt:
    "Before implementing, identify all external resources you will need.
     Read `PLACEHOLDER_PATH\.agents\_research-inventory-protocol.md`
     for the manifest format, categories, and rules. Do NOT download, install,
@@ -210,14 +210,16 @@ WebSearch and WebFetch are fundamentally different operations. WebSearch discove
 
 ```
 1. SEARCH PHASE (runs with Stage 1 approval):
-   The research agent runs approved WebSearch queries.
-   WebSearch returns text snippets — no full pages are loaded.
-   Often, the snippets contain enough information and no WebFetch is needed.
+   The scoping agent (subagent_type: research-scoping -- WebSearch only) runs
+   the approved WebSearch queries and writes its findings to its
+   research-inventory file. WebSearch returns text snippets — no full pages
+   are loaded. Often the snippets contain enough information and no WebFetch is
+   needed, in which case the worker later reads the scoping agent's findings file.
 
 2. FETCH CHECKPOINT (if needed):
-   If search snippets are insufficient, the research agent identifies
-   specific URLs it wants to WebFetch for deeper reading.
-   The agent STOPS and reports these discovered URLs to the orchestrator.
+   If search snippets are insufficient, the scoping agent identifies
+   specific URLs that need WebFetch for deeper reading (it cannot fetch
+   them itself). It STOPS and reports these discovered URLs to the orchestrator.
 
 3. Orchestrator pre-screens discovered URLs using the same three-bucket
    approach as Stage 1:
@@ -226,19 +228,24 @@ WebSearch and WebFetch are fundamentally different operations. WebSearch discove
    - Present everything else to the user with brief assessments
 
 4. FETCH PHASE (runs after checkpoint approval):
-   The research agent fetches only approved URLs.
-   Findings are returned to the orchestrator.
+   A SEPARATE fetch agent (subagent_type: web-fetch -- WebFetch only) fetches
+   only the approved URLs and writes each retrieved page to a file under
+   research-inventories/ (e.g. a task-{id}-fetched/ subfolder). It does not
+   implement. The saved file paths are returned to the orchestrator.
 
-5. The orchestrator extracts relevant facts from the research agent's
-   findings and passes ONLY those facts (not raw page content) to the
-   implementation agent. See the Separate Research Agents rule in policies.md "Web Content Trust Policy".
+5. HANDOFF: the orchestrator passes the saved file PATHS (the scoping agent's
+   findings file plus any fetched-content files) to a FRESH implementation
+   worker (subagent_type: worker-file-only), which reads those files and does
+   the work. The orchestrator does NOT read raw page content into its own
+   context — it passes paths, never page text. See the Separate Research Agents
+   rule in policies.md "Web Content Trust Policy".
 ```
 
 **Why two phases?** The agent can predict *what topics* it needs to research but cannot predict *which URLs* a search engine will return. Stage 2 handles this naturally: search first (low risk), then checkpoint before fetching discovered pages (higher risk).
 
 **Auto-continue rule:** If the manifest is empty ("no external resources needed"), the orchestrator skips review and proceeds directly to implementation. Similarly, if Stage 2 search results are sufficient (no WebFetch needed), the fetch checkpoint is skipped.
 
-**During implementation:** If the agent encounters an unexpected need not in the approved manifest, it must NOT attempt to access the resource — instead document the need in its output (what, why, where). The orchestrator will run a new mini research cycle: declare → pre-screen → user review (if needed) → research → pass sanitized findings back.
+**During implementation:** If the agent encounters an unexpected need not in the approved manifest, it must NOT attempt to access the resource — instead document the need in its output (what, why, where). The orchestrator will run a new mini research cycle: scope → pre-screen → user review (if needed) → web-fetch to files → pass the new file paths to a fresh worker.
 
 **Permission prompt guidance for the user:** During execution, the system may prompt the user for permission on specific actions. If the action matches an approved manifest item, the user should approve it. If it does NOT match, the user should deny it — the agent will include the blocked action in its report and the orchestrator will handle it.
 
@@ -250,9 +257,9 @@ WebSearch and WebFetch are fundamentally different operations. WebSearch discove
 - The folder and its contents are gitignored, so they never appear in commits or clutter the repository.
 
 **Web safety notes:** Quick reminders — see `policies.md` "Web Content Trust Policy" for full rules.
-- **WebSearch**: Returns snippets only, lower risk than WebFetch. Agents should extract facts only — but snippet content could still influence the agent, so the structural protections (agent separation, orchestrator sanitization, and injection detection by the reviewer agents — Security Reviewer, Code Reviewer, and Documentation Writer) are the real safeguards (see the WebSearch Risk rule in `policies.md` Web Content Trust Policy).
+- **WebSearch**: Returns snippets only, lower risk than WebFetch. Agents should extract facts only — but snippet content could still influence the agent, so the structural protections (the scoping/fetch/worker agent separation, keeping the orchestrator out of raw web content, and injection detection by the reviewer agents — Security Reviewer, Code Reviewer, and Documentation Writer) are the real safeguards (see the WebSearch Risk rule in `policies.md` Web Content Trust Policy).
 - **WebFetch**: Loads raw HTML/text into agent context — no scripts execute on the host, but content could contain prompt injection. URLs must be pre-approved via the Domain Allowlist rule in `policies.md` Web Content Trust Policy.
-- **Agent separation**: The agent that fetches web content must NEVER be the one that writes project code. Orchestrator sanitizes findings before passing to implementation agents (see the Separate Research Agents rule in `policies.md` Web Content Trust Policy).
+- **Agent separation**: Fetching is done by a `web-fetch` agent and implementation by a separate `worker-file-only` agent — never the same agent. Content is handed off via files; the orchestrator passes file paths and never reads raw page content itself (see the Separate Research Agents rule in `policies.md` Web Content Trust Policy).
 - **No web research during implementation**: All research happens in the Research Inventory phase. Unexpected needs trigger a new research cycle (see the No Web Research During Implementation rule in `policies.md` Web Content Trust Policy).
 - **Package downloads**: Approved dependencies must be installed from the local `.trusted-artifacts/` cache with hash verification against `_registry.md` — never re-fetched from the internet. New dependencies not in the cache require a full SCS scan.
 - **Development tools**: Provenance verification plus Defender scan and CVE check (mandatory for all tools); VirusTotal scan (required for lesser-known tools, optional for well-established tools from verified official sources). See `policies.md` "Scope: Project Dependencies vs. Development Tools."

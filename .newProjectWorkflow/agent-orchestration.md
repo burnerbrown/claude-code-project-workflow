@@ -36,13 +36,11 @@ See also `step-6-implementation.md` "Orchestrator Decision Authority (Escalate b
 To use a specialized agent, tell it to read its own definition file. Do NOT read the file into orchestrator context and paste it — let the agent read it in its own context. The pattern is:
 
 1. Note the agent file path: `PLACEHOLDER_PATH\.agents\<agent-name>.md`
-2. Pass the file path and task instructions to the Agent tool with `subagent_type: "general-purpose"`
+2. Pick the correct profile for that agent from the Tool Restriction Profiles table below, and launch the Agent tool with `subagent_type: "<profile-name>"` (e.g., `worker-file-only`). The profile — not any text in the prompt — is what enforces the agent's tool restrictions.
 
 **Example prompt structure for the Agent tool:**
 ```
----
-{tool restriction frontmatter — see "MANDATORY: Tool Restriction Enforcement" below}
----
+subagent_type: "worker-file-only"
 
 <agent-definition>
 Before doing anything else, read your full agent definition from:
@@ -55,30 +53,31 @@ That file contains your persona, principles, output format, and tool restriction
 </task>
 ```
 
-### MANDATORY: Tool Restriction Enforcement via Frontmatter
+### MANDATORY: Tool Restriction Enforcement via Subagent Profiles
 
-**Every agent prompt MUST include YAML frontmatter that enforces tool restrictions at the system level.** This is not optional — it is the primary mechanism that prevents agents from downloading, installing, or executing commands they weren't approved to run.
+**Tool restrictions are enforced by launching each agent under a registered subagent profile — NOT by anything in the prompt text.** Selecting the right profile for each agent is mandatory: it is the primary mechanism that prevents agents from downloading, installing, executing commands, or accessing the network when they weren't approved to.
 
-**Why this exists:** Prompt-level instructions ("you may NOT use Bash") are voluntary — the agent *chooses* to comply but still *has access* to the restricted tools. YAML frontmatter with `disallowedTools` creates a **system-level restriction** — the tools are genuinely removed from the agent's toolset and cannot be called regardless of what the prompt says. This was verified through testing: agents with frontmatter restrictions report the tools as "blocked and cannot invoke" rather than "available but I chose not to use."
+**Why this exists (and why the old prompt-frontmatter method does NOT work):** Prompt-level instructions ("you may NOT use Bash") are voluntary — the agent *chooses* to comply but still *has access* to the tool. A YAML `tools:`/`disallowedTools:` block placed in the **prompt text** is ALSO voluntary — the harness ignores it; it is just text the agent reads. (Verified empirically: a subagent launched with `disallowedTools: Bash` in its prompt still ran Bash successfully.) Real, system-level enforcement comes ONLY from a **registered subagent definition file** at `~/.claude/agents/<profile>.md` whose YAML *frontmatter* lists the allowed `tools:`. When the orchestrator launches that profile via `subagent_type: "<profile>"`, the harness genuinely removes every tool not in the allowlist — the agent cannot call them regardless of what the prompt says.
 
-**The orchestrator MUST prepend the appropriate frontmatter block to every agent prompt before the `<agent-definition>` tag.** Use the correct profile from the table below based on which agent is being launched.
+**The orchestrator MUST launch every agent under the correct profile from the table below** (via the Agent tool's `subagent_type`). The profile files live in the user-global `~/.claude/agents/` folder, so they load automatically in every session and every project regardless of which project folder the session starts in. (They are NOT placed under `_ClaudeProjects\.claude\agents\` — subagent discovery stops at each project's own git-repo root and would never reach a shared parent folder.) **Profiles load at session start — if profile files are added or changed, restart the session before the new `subagent_type` values become available.**
 
 #### Tool Restriction Profiles
 
-| Profile | Frontmatter | Agents |
-|---------|-------------|--------|
-| **Worker (file-only)** | `tools: Read, Write, Edit, Glob, Grep`<br>`disallowedTools: Bash, PowerShell, WebFetch, WebSearch` | Senior Programmer, Test Engineer, Embedded Systems Specialist, Hardware Engineer, Database Specialist, API Designer, DevOps Engineer, Performance Optimizer, UX/UI Designer |
-| **Reviewer (file-only)** | `tools: Read, Write, Edit, Glob, Grep`<br>`disallowedTools: Bash, PowerShell, WebFetch, WebSearch` | Quality Gate, Security Reviewer, Code Reviewer, Compliance Reviewer, DFM Reviewer, Documentation Writer, Software Architect, Project Manager |
-| **Web research allowed** | `tools: Read, Write, Edit, Glob, Grep, WebSearch, WebFetch`<br>`disallowedTools: Bash, PowerShell` | Component Sourcing |
-| **Bash allowed (scanning)** | `tools: Read, Write, Edit, Glob, Grep, Bash`<br>`disallowedTools: PowerShell, WebFetch, WebSearch` | Supply Chain Security |
+Launch each agent with the `subagent_type` named here. Each profile file is a thin wrapper in `~/.claude/agents/`: its frontmatter enforces the toolset, and its body tells the agent to read its real role definition from `_ClaudeProjects\.agents\<role>.md` (so the agent's full persona is unchanged).
 
-#### Example: Launching the Senior Programmer with enforced restrictions
+| Profile (`subagent_type`) | Allowed tools | Use for |
+|---------|---------------|---------|
+| `worker-file-only` | Read, Write, Edit, Glob, Grep | Worker roles in their IMPLEMENTATION phase: Senior Programmer, Test Engineer, Embedded Systems Specialist, Hardware Engineer, Database Specialist, API Designer, DevOps Engineer, Performance Optimizer, UX/UI Designer |
+| `reviewer-file-only` | Read, Write, Edit, Glob, Grep | Reviewer/coordinator roles: Quality Gate, Security Reviewer, Code Reviewer, Compliance Reviewer, DFM Reviewer, Documentation Writer, Software Architect, Project Manager |
+| `research-scoping` | Read, Write, Edit, Glob, Grep, WebSearch | A worker run in research-only mode to identify needed external resources and write the manifest. WebSearch only — cannot fetch page content. See "Research Inventory Before Implementation" and `workflows.md`. |
+| `web-fetch` | Read, Write, Edit, Glob, Grep, WebFetch | A disposable agent that retrieves orchestrator-approved URLs and writes the content to files for a separate worker. WebFetch only — does not implement. |
+| `web-research` | Read, Write, Edit, Glob, Grep, WebSearch, WebFetch | Component Sourcing — needs both search and fetch in one agent for live distributor/manufacturer lookups. |
+| `scanning` | Read, Write, Edit, Glob, Grep, Bash | Supply Chain Security — Bash for sandbox launches and the hook-gated scan/CVE commands. |
+
+#### Example: Launching the Senior Programmer under its profile
 
 ```
----
-tools: Read, Write, Edit, Glob, Grep
-disallowedTools: Bash, PowerShell, WebFetch, WebSearch
----
+subagent_type: "worker-file-only"
 
 <agent-definition>
 Before doing anything else, read your full agent definition from:
@@ -91,13 +90,13 @@ Implement the authentication module for Task 3...
 </task>
 ```
 
-The Senior Programmer will be able to read files, write code, and edit existing files — but **cannot** run shell commands, download anything, or access the web. If it needs something verified via Bash (e.g., a syntax check), it documents the request in its output and the orchestrator runs it.
+The Senior Programmer will be able to read files, write code, and edit existing files — but **cannot** run shell commands, download anything, or access the web, because `worker-file-only` does not grant those tools. If it needs something verified via Bash (e.g., a syntax check), it documents the request in its output and the orchestrator runs it.
 
 #### Notes
-- The prompt-level "Tool Restrictions (MANDATORY)" sections in each agent definition file remain as defense-in-depth and documentation of intent — they are not the primary enforcement mechanism
-- If an agent needs a tool not in its profile for a specific task (unusual), the orchestrator must get explicit user approval before changing the frontmatter for that invocation
-- Domain restrictions (e.g., the Component Sourcing agent's trusted distributor allowlist) are enforced by the orchestrator's Research Inventory pre-screening, not by frontmatter. The orchestrator applies the Domain Allowlist rule in `policies.md` Web Content Trust Policy to all URLs before any agent fetches them. YAML frontmatter can restrict which tools are available but cannot restrict tool parameters like target URLs.
-- The frontmatter must be the very first content in the prompt — before any tags or text
+- The prompt-level "Tool Restrictions (MANDATORY)" sections in each agent definition file remain as defense-in-depth and documentation of intent — the registered subagent profile is the actual enforcement mechanism
+- If an agent needs a tool not in its profile for a specific task (unusual), the orchestrator must get explicit user approval before launching it under a different profile for that invocation
+- Domain restrictions (e.g., the Component Sourcing agent's trusted distributor allowlist) are enforced by the orchestrator's Research Inventory pre-screening, not by the profile. The orchestrator applies the Domain Allowlist rule in `policies.md` Web Content Trust Policy to all URLs before any agent fetches them. A profile can restrict which tools an agent has, but cannot restrict tool parameters like target URLs.
+- Do NOT prepend `tools:`/`disallowedTools:` YAML to the agent prompt — the harness ignores prompt-embedded frontmatter; only the registered profile's frontmatter is enforced
 
 ### MANDATORY: Filter Out-of-Scope Work Using the Agent's Role-Boundary Section
 
@@ -141,7 +140,7 @@ When launching agents, **pass file paths and instructions — not file contents.
 ### Important: Quality Gate Routing
 **All worker agent output must be routed through the Quality Gate (QG) for evaluation.** The QG is a **process-completion gate, not a reviewer** — it verifies the worker produced their assigned deliverables (files exist, reports have the required structure, advisory notes are surfaced) and returns a routing verdict. Code-substance review (correctness, security, quality, performance, compliance) is performed by the dedicated reviewer agents (Code Reviewer, Security Reviewer, etc.), each gated separately. See `quality-gate.md` "What This Agent Does NOT Do" for the boundary.
 
-The orchestrator's workflow for every agent handoff is:
+The orchestrator's workflow for every agent handoff is (launch every agent below under its profile `subagent_type` per the Tool Restriction Profiles table above — e.g. `worker-file-only` for workers, `reviewer-file-only` for the Quality Gate and reviewers):
 
 1. Invoke the worker agent with the task — tell it which files to read and what to do
 2. Receive the worker agent's output (which should include a deliverable summary: what files were produced, where, and any advisory notes for the orchestrator)
@@ -160,8 +159,10 @@ The orchestrator's workflow for every agent handoff is:
 
 **The Project Manager agent is optional.** See `workflows.md` "When to Invoke the Project Manager Agent" for the specific situations that warrant a PM invocation. For most tasks, the orchestrator handles routing directly using the checklist's agent sequence.
 
-**Prompt structure for QG evaluation:**
+**Prompt structure for QG evaluation** (launch under `subagent_type: "reviewer-file-only"`):
 ```
+subagent_type: "reviewer-file-only"
+
 You are the Quality Gate agent. Verify completion of the {Agent Role}'s deliverables for Task {N} ({Task Name}). You are a process-completion gate, not a reviewer — do NOT judge code or content substance. See `quality-gate.md` "What This Agent Does NOT Do" for the boundary.
 
 Worker's deliverable summary: {what files the agent claims to have produced and where; any advisory notes the agent surfaced for the orchestrator}
@@ -219,8 +220,10 @@ When the Quality Gate sends work back to a previously-invoked agent, **always la
 
 **Fresh agent prompt structure (rework scenario):**
 
-Launch a new agent with this prompt:
+Launch a new agent **under that role's profile** (the `subagent_type` from the Tool Restriction Profiles table — e.g. `worker-file-only` for the Senior Programmer, `reviewer-file-only` for a reviewer) with this prompt:
 ```
+subagent_type: "{role's profile}"
+
 You are the {Agent Role}. Read your agent definition: {agent definition path}
 
 Task context:
@@ -239,8 +242,10 @@ The fresh agent has no prior context, so the prompt must include file paths to a
 
 **Fresh agent prompt structure (SCS verification checkpoint):**
 
-After a verification checkpoint passes, launch a fresh SCS agent to continue:
+After a verification checkpoint passes, launch a fresh SCS agent (`subagent_type: "scanning"`) to continue:
 ```
+subagent_type: "scanning"
+
 You are the Supply Chain Security agent. Read your agent definition: {scs agent definition path}
 
 Mode: per-package

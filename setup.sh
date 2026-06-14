@@ -230,6 +230,51 @@ fi
 
 echo ""
 
+# ─── Phase 5.5: Install Subagent Profiles ───────────────────────────────────
+# Registered subagent profiles must live in ~/.claude/agents/ to be enforced by
+# Claude Code (a profile shipped only inside the repo folder is never loaded).
+
+info "Checking for subagent profiles..."
+
+PROFILES_SRC="${PROJECT_ROOT}/global-agents"
+AGENTS_DIR="${HOME_DIR}/.claude/agents"
+
+if [ -d "${PROFILES_SRC}" ]; then
+    shopt -s nullglob
+    PROFILES=( "${PROFILES_SRC}"/*.md )
+    shopt -u nullglob
+    if [ ${#PROFILES[@]} -gt 0 ]; then
+        info "Subagent profiles enforce each workflow agent's tool restrictions."
+        info "They must live in ~/.claude/agents/ to be applied by Claude Code."
+        read -rp "Install ${#PROFILES[@]} subagent profile(s) to ${AGENTS_DIR}? (y/n): " COPY_PROFILES
+        if [[ "${COPY_PROFILES}" =~ ^[Yy]$ ]]; then
+            mkdir -p "${AGENTS_DIR}"
+            COPIED=0
+            SKIPPED=0
+            for profile in "${PROFILES[@]}"; do
+                name="$(basename "${profile}")"
+                dest="${AGENTS_DIR}/${name}"
+                if [ -e "${dest}" ]; then
+                    warn "  ${name} already exists — not overwriting."
+                    SKIPPED=$((SKIPPED + 1))
+                else
+                    cp "${profile}" "${dest}"
+                    COPIED=$((COPIED + 1))
+                fi
+            done
+            success "Installed ${COPIED} profile(s) to ${AGENTS_DIR} (${SKIPPED} skipped)."
+        else
+            info "Skipped. Copy global-agents/*.md to ~/.claude/agents/ manually later."
+        fi
+    else
+        warn "global-agents/ exists but contains no .md profiles — skipping."
+    fi
+else
+    info "No global-agents/ folder in this repo — skipping profile install."
+fi
+
+echo ""
+
 # ─── Phase 6: Sandbox Setup (Interactive) ───────────────────────────────────
 
 info "Claude Code sandbox setup..."
@@ -380,6 +425,9 @@ echo "    - Platform set to: ${PLATFORM_STRING#*: }"
 echo "    - .trusted-artifacts/ directory ready"
 if [ -f "${GLOBAL_CLAUDE}" ] && [ "${COPY_GLOBAL:-n}" != "n" ]; then
 echo "    - Global CLAUDE.md installed at ~/.claude/CLAUDE.md"
+fi
+if [ "${COPY_PROFILES:-n}" != "n" ]; then
+echo "    - Subagent profiles installed to ~/.claude/agents/"
 fi
 echo ""
 echo "  To start your first project, open Claude Code and say:"

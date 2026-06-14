@@ -90,7 +90,7 @@ Repeat the following cycle for each task/subtask until the checklist is complete
 
 3. **Run the Research Inventory phase** (before implementation — see `workflows.md` "Research Inventory Phase"):
    - For each worker agent about to be invoked, pre-create a manifest file in `research-inventories/task-{id}-{agent-role}.md`
-   - Launch the worker agent with a research-only prompt — it identifies external resources needed (downloads, web fetches, tool installs, web searches) and writes its manifest
+   - Launch a scoping agent (`subagent_type: research-scoping` — WebSearch only, no fetch) with a research-only prompt — it identifies external resources needed (downloads, web fetches, tool installs, web searches) and writes its manifest
    - **If the manifest is empty**: auto-continue to implementation without asking the user
    - **If the manifest has items**: read the manifest, assess each item (RECOMMEND APPROVE / CAUTION / DENY with explanations), present to the user for approval
    - The agent proceeds to implementation only with user-approved resources
