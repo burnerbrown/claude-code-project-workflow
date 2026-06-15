@@ -95,6 +95,7 @@ Repeat the following cycle for each task/subtask until the checklist is complete
    - **If the manifest is empty**: auto-continue to implementation without asking the user
    - **If the manifest has items**: read the manifest, assess each item (RECOMMEND APPROVE / CAUTION / DENY with explanations), present to the user for approval
    - The agent proceeds to implementation only with user-approved resources
+   - **For full-page fetches and the unexpected-need-during-implementation path:** follow the Stage 2 flow (fetch-checkpoint → `web-fetch` agent → `worker-file-only` handoff) and the mid-implementation recovery cycle specified in `workflows.md` "Research Inventory Phase" and `policies.md` "Web Content Trust Policy" — the orchestrator passes file PATHS to a `worker-file-only` agent, never page content
    - The `research-inventories/` folder is gitignored and the orchestrator NEVER deletes manifest files — the user cleans them up manually
 
 4. **Start the agents for implementation** (pass file paths, not file contents):
