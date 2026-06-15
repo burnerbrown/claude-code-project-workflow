@@ -104,14 +104,17 @@ After the user approves the architecture, **scaffold the project repository** ba
    # Research inventories (Step 6 working files, never committed)
    research-inventories/
 
-   # Orchestrator decision log (Step 6 working file, never committed)
+   # Orchestrator decision log (Step 6 working file, never committed).
+   # decision-records/ is intentionally NOT ignored — those are committed history (see step-1-concept.md).
    decisions/
    ```
    The whole `.claude/` directory is gitignored because every file in it is machine-specific: `settings.json` registers the hook via an absolute path (`PLACEHOLDER_PATH/.claude/hooks/scs-validator.py`) that only resolves on this machine, `settings.local.json` accumulates per-session permission approvals, and `scs-validator.log` is the hook's runtime decision log. None of these belong in version control. The SCS validator hook script itself lives at the shared master location and is NOT copied into the project — it's referenced via the absolute path so security improvements propagate to all projects automatically. The hook writes its decision log into each project's own `.claude/scs-validator.log` (using the `CLAUDE_PROJECT_DIR` env var Claude Code sets), so log entries from different projects never mix — and the gitignore above ensures none of those logs ever get committed.
 3. **Create any boilerplate config files** the project needs (e.g., `Cargo.toml`, `go.mod`, `package.json`, `pom.xml`, `Makefile`, etc.)
 4. **Do NOT create source code files** — that's Step 6. Only create the skeleton structure, configuration, and ignore files.
 5. **Create the `research-inventories/` folder** in the project root. This folder holds Research Inventory Manifests during Step 6 implementation. It is already included in `.gitignore` via the standard entries above.
-6. **Create the `decisions/` folder** in the project root. This folder holds the orchestrator's per-task decision log during Step 6 (`decisions/current-task.md`). It is already included in `.gitignore` via the standard entries above. The orchestrator wipes and re-headers `current-task.md` at the start of each Step 6 task — see `step-6-implementation.md` "Orchestrator Decision Authority (Escalate by Exception)."
+6. **Create the `decisions/` and `decision-records/` folders** in the project root (both first created at Step 1 — create whichever is missing now if this project predates the convention).
+   - **`decisions/`** holds the orchestrator's per-task decision log during Step 6 (`decisions/current-task.md`). Gitignored scratch (included via the standard entries above); wiped and re-headered at the start of each Step 6 task — see `step-6-implementation.md` "Orchestrator Decision Authority (Escalate by Exception)."
+   - **`decision-records/`** holds the committed, append-only "why we chose X" records — see `step-1-concept.md` "Project Decision Records" for the format and rules. It is **NOT** gitignored: its contents are durable history and must be committed. Do not mis-file the two — a record placed in `decisions/` is wiped at the next task.
 7. **Register the shared SCS validator hook.** The hook lives at the master location `PLACEHOLDER_PATH\.claude\hooks\scs-validator.py` and every project references it via absolute path. This means hook improvements (security hardening, allowlist additions, bug fixes) propagate to all projects on the next Bash call — no per-project copy to maintain or sync.
    - **Do NOT** create a `.claude/hooks/` directory in the project — the shared master hook handles all projects.
    - **Do NOT** copy any hook files into the project.
