@@ -19,8 +19,9 @@ Paths in the table are relative to the current project root (e.g., `_MyMediaPlay
 | Information type | Goes to |
 |------------------|---------|
 | Behavioral rules, workflow corrections, "do X from now on" | A workflow file in `PLACEHOLDER_PATH\.newProjectWorkflow\`. **Claude does NOT edit these.** Log the observation in `decisions/current-task.md`; triage surfaces it to the user, who applies the edit offline. |
-| Project-specific lessons, band-aids, dead-ends, environment gotchas | `PASSDOWN.md` |
+| Project-specific lessons, band-aids, dead-ends, environment gotchas, durable reference FACTS | `PASSDOWN.md` (FACTS use the `FACT:` prefix in "Lessons Learned / Gotchas") |
 | In-flight orchestrator judgment calls during a task | `decisions/current-task.md` (gitignored, per-task; triaged at task end) |
+| "Why we chose X" / cross-cutting design decision (incl. a deliberate omission / anti-requirement) | `decision-records/` (committed, append-only — NOT the gitignored `decisions/` scratch above; see `step-1-concept.md` "Project Decision Records") |
 | Step-completion decisions and audit trail | `project-handoffs/handoff-step-{N}.md` |
 | Deferred work that should be done later | A new task in `IMPLEMENTATION-CHECKLIST.md` per Step 6 "Adding New Tasks Discovered During Step 6" |
 | Possible user-memory candidate (durable cross-project fact) | Surface to user during triage — do NOT auto-save (per `~/.claude/CLAUDE.md` "Memory Policy"). |

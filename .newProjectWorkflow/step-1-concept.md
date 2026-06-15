@@ -31,7 +31,7 @@ After the user confirms the concept, create `CLAUDE.md` in the project root. It 
 - Deferred items, TODOs, or "things to do later" lists → new tasks in `IMPLEMENTATION-CHECKLIST.md` (see Step 6 "Adding New Tasks Discovered During Step 6")
 - Running notes, band-aids, lessons learned, environment gotchas → `PASSDOWN.md` (see below)
 - Closed/resolved stubs of past deferred items → delete them; git history is the audit trail
-- Cross-cutting design decisions → `project-handoffs/handoff-step-4.md`
+- "Why we chose X" / cross-cutting design decisions → `decision-records/` (durable; see "Project Decision Records" below). The Step-4 handoff remains the step-completion audit trail, not the home for durable reasoning.
 
 ```markdown
 # [Project Name]
@@ -100,7 +100,7 @@ Example entries (illustrations — code-wrapped so they stay inert): `KEEP (perm
 [Section discriminator — use this section when: code or a configuration was attempted but is NOT in the repo because it didn't work; future-Claude shouldn't repeat the attempt]
 
 ### Lessons Learned / Gotchas
-[Section discriminator — use this section when: no code is involved; pure knowledge about the codebase, environment, or external system that future-Claude needs]
+[Section discriminator — use this section when: no code is involved; pure knowledge that future-Claude needs. Two kinds live here: (1) LESSONS — a hard-won "don't reach for X" trap learned from a mistake (permanent; `KEEP`, never swept); (2) durable reference FACTS — a neutral true statement about the codebase, environment, or external system that was never "learned from a mistake" (e.g. "service runs from /opt, not /home"; "secrets.conf is INI, not shell-env"; "CEC is unsupported on this TV"). Prefix a fact entry with `FACT:` so facts stay greppable as a group. Most facts are `KEEP` (updated in place if the fact changes), but a fact **contingent on a changeable condition** — e.g. a performance baseline tied to specific hardware ("cold-boot ≈ 3 min on this Pi") — should use `REVIEW WHEN <that condition changes>` so it is re-checked instead of silently going stale. This is NOT the home for anything that expires-and-is-removed (that is Band-Aids) or for a "why we chose X" decision (that is `decision-records/` — see below).]
 
 ### Open Questions
 [Section discriminator — use this section when: a question that wasn't answered this task and isn't currently blocking, but needs a real answer eventually]
@@ -108,17 +108,59 @@ Example entries (illustrations — code-wrapped so they stay inert): `KEEP (perm
 
 Leave all four sections empty at creation. They fill in as the project progresses.
 
+## Project Decision Records (`decision-records/`)
+
+Create a `decision-records/` folder in the project root. This is the home for **"why we chose X"** decisions — the durable reasoning a future session might otherwise try to undo. **It also covers deliberate omissions / anti-requirements** — a decision to NOT do something (e.g. "config is volume-only by design"; "do NOT install lightdm — the canonical fix is Task 42") — recorded with `Status: accepted` plus the guardrail/rationale, so a future session does not "helpfully" add the thing back. It is SEPARATE from `PASSDOWN.md` (active knowledge that gets swept) and from `decisions/` (the gitignored per-task scratch log — do NOT confuse the two). **Mis-filing is dangerous:** a record placed in `decisions/` would be gitignored and WIPED at the next task (the durable reasoning is lost); per-task scratch placed in `decision-records/` would be wrongly committed as permanent history. Decision records are **committed** and **append-only**: never swept, never deleted.
+
+**One file per decision, create-only.** Each decision is its own small Markdown file named `<label>-<NNN>-<slug>.md`:
+- `<label>` = the subsystem/package the decision belongs to (e.g. `display`, `bluetooth`, `power`). In multi-session/parallel mode this is the session's stable branch label; in single-session work it is just the subsystem name.
+- `<NNN>` = a counter LOCAL to that label (`display-001`, `display-002`, …) — never a single shared `D<n>` sequence across the whole project.
+- `<slug>` = a short kebab-case title.
+- Example: `decision-records/display-003-hdmi-vs-dsi-contract.md`.
+
+**Why this shape (do NOT "simplify" to one shared file).** A single shared decisions file is unsafe the moment more than one session runs: the Edit/Write tools read-modify-write the *whole* file (so two sessions silently lose each other's writes), one shared file merge-CONFLICTS across git worktrees, and a shared `D<n>` counter is itself a contention point. Per-decision files keyed by label are disjoint, so they merge with **zero** conflicts. (Proven empirically — see `workflow-system-notes/internal-knowledge-reorg-spec.md` §7a.)
+
+**STATUS is append-only — never edit a record to supersede it.** Each record has a `Status:` of `accepted`, `rejected`, or `open`. To supersede an old decision, CREATE A NEW record whose body says `Supersedes <id>`; do not modify the old file. Effective status is computed on read (a record is superseded iff a later record supersedes it). A still-undecided question is a record with `Status: open`; resolving it appends the decision — you never delete the question, so the "why" is never lost.
+
+**No hand-maintained index.** Do not keep a committed index file that every record-add must edit (that re-introduces a shared-write file). Discover records with `grep -r decision-records/`, or generate an index read-only when one is needed.
+
+Use this template for each record:
+
+```markdown
+# <id, e.g. display-003> — <short title>
+
+- **Date:** <YYYY-MM-DD>
+- **Subsystem / label:** <display>
+- **Status:** accepted        <!-- accepted | rejected | open -->
+- **Supersedes:** <id, or — >
+
+## Context
+<the question / the forces at play>
+
+## Decision
+<what was chosen>
+
+## Why
+<the reasoning a future session must not undo blindly>
+
+## Alternatives considered
+<what else, and why not>
+```
+
+Leave the folder empty at creation; records are added when decisions are made — by the Software Architect at Step 4 (architecture decisions) and during Step 6 (decisions surfaced at task-end triage).
+
 ## Project Scaffolding for Step 6 Working Files
 
 Also create the following at Step 1 so Step 6 doesn't fall into a "predates this convention" fallback:
 
-1. **Create `decisions/` folder** in the project root (empty). Step 6 writes `decisions/current-task.md` here during each task.
-2. **Create `.gitignore`** (if it doesn't already exist) and add this line:
+1. **Create `decisions/` folder** in the project root (empty). Step 6 writes `decisions/current-task.md` here during each task. This is gitignored scratch (item 3) — do NOT confuse it with `decision-records/`.
+2. **Create `decision-records/` folder** in the project root (empty). This holds the COMMITTED, append-only "why we chose X" records (see "Project Decision Records" above). Unlike `decisions/`, it is NOT gitignored — its contents are durable history and must be committed.
+3. **Create `.gitignore`** (if it doesn't already exist) and add this line:
    ```
    decisions/
    ```
-   The decisions log is per-session scratch; it is never committed.
-3. **Create `.gitattributes`** in the project root with these three lines:
+   The decisions log is per-session scratch; it is never committed. Do NOT add `decision-records/` here — that folder is committed.
+4. **Create `.gitattributes`** in the project root with these three lines:
    ```
    * text=auto eol=lf
    *.bat text eol=crlf

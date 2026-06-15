@@ -180,7 +180,7 @@ Before committing, update the project-local `CLAUDE.md` to reflect the current s
 - **Resume**: Say "start step 5 for [project]"
 
 ## Git
-After the user approves the architecture, commit the scaffolded repo structure, `project-handoffs/handoff-step-4.md`, the SBOM file (`sbom-{language}.txt`), and the SCS report (`scs-report.md`) to the project repository and push to GitHub.
+After the user approves the architecture, commit the scaffolded repo structure, `project-handoffs/handoff-step-4.md`, any `decision-records/*.md` files the architect wrote, the SBOM file (`sbom-{language}.txt`), and the SCS report (`scs-report.md`) to the project repository and push to GitHub.
 
 ## Handoff Output
 When the user approves the architecture, create a handoff file in the `project-handoffs/` subfolder.

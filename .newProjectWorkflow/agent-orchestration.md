@@ -323,7 +323,7 @@ If the user directly asks the top-level Claude assistant in conversation to upda
 | Test Engineer | `test-engineer.md` | Writing unit tests, integration tests, or benchmarks for existing code |
 | Security Reviewer | `security-reviewer.md` | Reviewing code for vulnerabilities and security issues |
 | Code Reviewer | `code-reviewer.md` | Reviewing code for quality, readability, and maintainability |
-| Documentation Writer | `documentation-writer.md` | Writing README files, API docs, ADRs, or setup guides |
+| Documentation Writer | `documentation-writer.md` | Writing README files, API docs, or setup guides; polishing decision-record prose (creation is SA/orchestrator-owned — see "Capabilities Without Dedicated Agents") |
 | DevOps Engineer (Mode A — producer) | `devops-engineer.md` | Creating Dockerfiles, CI/CD pipelines, build scripts, deployment configs, monitoring/alerting configs |
 | DevOps Engineer (Mode B — observability review) | `devops-engineer.md` | Reviewing producer source code for code-level observability instrumentation contracts (metric emission, cardinality, health-check implementation, SLO signal exposure, trace context propagation). Read-only — produces a findings report, does not modify code. Conditionally invoked per `step-5.5-task-detailing.md` Conditional Add-On scans (Observability sub-scan) and the Mid-Step-6 Add-On Re-evaluation rule in `step-6-implementation.md`. Inserts in parallel with Code Reviewer and Security Reviewer in the implementation review tail (see `workflows.md` "Observability Verification Add-On"). |
 | Performance Optimizer | `performance-optimizer.md` | Profiling, benchmarking, and optimizing code performance |
@@ -514,3 +514,4 @@ After **every** SCS agent invocation — in **either** mode (`batch-phase1` or `
 The following capabilities are handled by existing agents rather than specialized roles:
 - **System integration testing**: The **Test Engineer** writes integration tests (classified as sandbox-required per the Test Sandboxing Policy in `step-6-implementation.md`). The orchestrator executes them in the appropriate sandbox.
 - **Release engineering**: The **DevOps Engineer** handles build pipelines and release artifact generation. The **Documentation Writer** handles changelogs and release notes. The orchestrator handles git tagging and GitHub releases.
+- **Decision records (`decision-records/`)**: the **Software Architect** authors architecture decisions at design time (Step 4 / mid-Step-6 design pass); the **orchestrator** appends decisions surfaced at task-end triage (per `step-6-task-end-triage.md`). The **Documentation Writer** may polish their prose but does not create or own them. Format per `step-1-concept.md` "Project Decision Records".

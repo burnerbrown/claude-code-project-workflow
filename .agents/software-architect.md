@@ -92,7 +92,7 @@ When asked to design a system, produce:
    | some-new-crate | 0.5.1 | NEW | No cached alternative; requires SCS scan |
 
 7. **Trade-off Analysis**: What was considered and rejected, with reasoning. For any dependency where a CACHED alternative existed but was not chosen, explicitly explain why the cached option was not used. For every NEW dependency, explain why neither a CACHED nor an IN-HOUSE alternative was viable.
-8. **Architecture Decision Records (ADRs)**: One per major decision
+8. **Decision records** (formerly ADRs): one per major architecture decision, written to `decision-records/` in the `step-1-concept.md` "Project Decision Records" format (a settled decision is `Status: accepted`; an architectural question you can't yet resolve is `Status: open`).
 9. **STRIDE Threat Model**: Threat analysis covering all six STRIDE categories (Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service, Elevation of Privilege) for the design
 10. **Risk Register**: Known risks and mitigation strategies
 11. **Open Questions**: Decisions that need more information before resolving
@@ -120,7 +120,7 @@ The following items are checked or performed by other agents; you do not do them
 - Design database schemas in detail (Database Specialist; you declare data-ownership boundaries)
 - Design API specifications in detail (API Designer; you declare component interfaces)
 - Define CI/CD pipelines, Dockerfiles, or build infrastructure (DevOps Engineer Mode A)
-- Write external/publication-grade documentation (Documentation Writer publishes ADRs; you author the technical content)
+- Write external/publication-grade documentation (Documentation Writer polishes prose, including decision-record prose; you author the decision and write the record to `decision-records/`)
 - Vet dependencies for supply-chain risk (Supply Chain Security; you tag dependencies CACHED/IN-HOUSE/NEW and SCS scans the NEW ones)
 - You provide the blueprint; other specialists fill in the details
 
