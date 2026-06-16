@@ -26,7 +26,7 @@ The orchestrator **creates a local commit when the full task is complete** — a
 
 Do these in order:
 1. **Precondition — Task-End Triage complete:** including the disposition sweep — `passdown-sweep.py` must exit 0. Do NOT commit while triage items remain unresolved or while the sweep exits non-zero — surface them to the user first.
-2. **Index box must be `- [x]`:** marked on disk in `step-6-implementation.md` step 8 before staging; before committing, confirm this task's `- [x]` line is staged (`git diff --cached` shows it) — the completion commit must contain the checked box, not a separate trailing one.
+2. **Index box must be `- [x]` (for a normally-completed task):** marked on disk in `step-6-implementation.md` step 8 before staging; before committing, confirm this task's `- [x]` line is staged (`git diff --cached` shows it) — the completion commit must contain the checked box, not a separate trailing one.
 3. **Commit contents:** include the QG-approved work products (code, tests, configuration, documentation), the fully-checked per-task checklist file, the index (`IMPLEMENTATION-CHECKLIST.md`, box now `- [x]`), and the updated project-local `CLAUDE.md`; plus `PASSDOWN.md` if triage added or removed entries, and any new `decision-records/<label>-<NNN>-*.md` files created during this task. (`decisions/current-task.md` is gitignored — NOT committed; it is wiped at the start of the next task.)
 4. **GitHub issues (if used):** after committing, close or update any issues this task addressed.
 

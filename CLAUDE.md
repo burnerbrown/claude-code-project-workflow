@@ -14,7 +14,7 @@ This folder is the parent of all workflow projects. The sub-folders relevant to 
 
 Paths in the table are relative to the current project root (e.g., `_MyMediaPlayer\`, `LEDandSoundBoard\`) unless prefixed with `C:\` (absolute) or `~/` (user home).
 
-**During task execution, write all observations to `decisions/current-task.md`.** Do NOT write directly to the destinations below during a task. Task-end triage (see `.newProjectWorkflow\step-6-implementation.md` "Task-End Triage") moves each entry to its destination.
+**During task execution, write all observations to `decisions/current-task.md`.** Do NOT write directly to the destinations below during a task. Task-end triage (see `.newProjectWorkflow\step-6-task-end-triage.md` "Task-End Triage") moves each entry to its destination.
 
 | Information type | Goes to |
 |------------------|---------|
